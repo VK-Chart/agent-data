@@ -1,0 +1,934 @@
+# ═══════════════════════════════════════════════════════════════════
+# SHORT SUMMARY
+# ═══════════════════════════════════════════════════════════════════
+
+DOCUMENT: Comments Processing Examples - Training Data and Use Cases
+PURPOSE: Provide concrete examples of comment interpretation and processing
+SCOPE: Real-world examples for all comment types and scenarios
+INTEGRATION: Training data for AI and reference for developers
+DOCUMENT_TYPE: EXAMPLES - Training and reference data
+
+WHAT THIS DOCUMENT CONTAINS:
+This document provides concrete, real-world examples of how to parse and apply
+comments from Companies, Vessels, and Persons during scoring and offer generation.
+Each example shows input data, parsing process, and expected output.
+
+EXAMPLE CATEGORIES:
+1. Keyword Detection - How to identify patterns in comments
+2. Regional Preferences - Geographic preference examples
+3. Cargo Preferences - Cargo type preference examples
+4. Manual Intake Extraction - Parsing technical intake data
+5. Full Processing Examples - End-to-end scenarios
+6. Offer Text Personalization - Using comments in messages
+7. Edge Cases - Handling contradictions and ambiguity
+
+RELATED DOCUMENTS:
+- COMMENTS_PROCESSING_RULES.txt - Business logic and algorithms
+- COMMENTS_PROCESSING_PROMPTS.txt - Direct AI instructions
+- OPEN_AREA_COMMENTS_SCORING.txt - P6 criterion examples
+- MASTER_SCORING_SYSTEM.txt - Scoring framework
+
+
+# ═══════════════════════════════════════════════════════════════════
+# HOW TO USE THIS DOCUMENT
+# ═══════════════════════════════════════════════════════════════════
+
+FOR DEVELOPERS:
+- Reference examples to understand expected input/output formats
+- Use examples to test parsing logic
+- Validate AI responses against these examples
+
+FOR AI/ML ENGINEERS:
+- Use as few-shot examples for prompt engineering
+- Training data for comment parsing models
+- Test cases for validation
+
+FOR QA/TESTING:
+- Test cases for comment processing functionality
+- Expected behavior validation
+- Edge case coverage verification
+
+
+# ═══════════════════════════════════════════════════════════════════
+# KEYWORD DETECTION EXAMPLES
+# ═══════════════════════════════════════════════════════════════════
+
+keyword_detection_examples:
+  
+  # ─────────────────────────────────────────────────────────────────
+  # SPECIALIZATION PATTERNS
+  # ─────────────────────────────────────────────────────────────────
+  
+  specialization_example_1:
+    input: "spec: turkish domestic cargoes"
+    keyword_detected: "spec:"
+    extracted:
+      specialization: ["Turkish domestic cargoes"]
+      category: "trade_route_specialization"
+      
+  specialization_example_2:
+    input: "specializes in grain trades, mainly Black Sea routes"
+    keywords_detected: ["specializes", "mainly"]
+    extracted:
+      specialization: ["Grain trades", "Black Sea routes"]
+      category: "cargo_and_region_specialization"
+      
+  specialization_example_3:
+    input: "mostly works Turkish flag vessels, Turkish ports"
+    keyword_detected: "mostly"
+    extracted:
+      specialization: ["Turkish flag vessels", "Turkish ports"]
+      category: "flag_and_port_specialization"
+      
+  # ─────────────────────────────────────────────────────────────────
+  # GEOGRAPHIC PREFERENCES
+  # ─────────────────────────────────────────────────────────────────
+  
+  geographic_example_1:
+    input: "Italy ok, greece ok, eu ok, cvb ok, continent ok"
+    keywords_detected: ["ok" (5 times)]
+    extracted:
+      acceptable_regions: ["Italy", "Greece", "EU", "CVB", "Continent"]
+      forbidden_regions: []
+      
+  geographic_example_2:
+    input: "no Egypt, Libya ok but slow response, Black Sea excellent"
+    keywords_detected: ["no", "ok", "excellent"]
+    extracted:
+      forbidden_regions: ["Egypt"]
+      acceptable_with_notes: ["Libya (slow response)"]
+      excellent_regions: ["Black Sea"]
+      
+  geographic_example_3:
+    input: "cannot work Libya due to sanctions, avoids Turkey political"
+    keywords_detected: ["cannot", "avoids"]
+    extracted:
+      forbidden_regions: ["Libya (sanctions)", "Turkey (political)"]
+      reason_provided: true
+      
+  # ─────────────────────────────────────────────────────────────────
+  # CARGO PREFERENCES
+  # ─────────────────────────────────────────────────────────────────
+  
+  cargo_example_1:
+    input: "grain only, no fertilizers"
+    keywords_detected: ["only", "no"]
+    extracted:
+      specializes: ["Grain"]
+      forbidden: ["Fertilizers"]
+      
+  cargo_example_2:
+    input: "steel ok occasionally, prefers bagged cargoes"
+    keywords_detected: ["ok occasionally", "prefers"]
+    extracted:
+      occasional: ["Steel"]
+      preferred: ["Bagged cargoes"]
+      
+  cargo_example_3:
+    input: "no bulk fertilizers, coils require special dunnage"
+    keywords_detected: ["no bulk", "require"]
+    extracted:
+      forbidden: ["Bulk fertilizers"]
+      technical_requirements: ["Coils need dunnage"]
+      
+  # ─────────────────────────────────────────────────────────────────
+  # TECHNICAL INFORMATION
+  # ─────────────────────────────────────────────────────────────────
+  
+  technical_example_1:
+    input: "Real intake: Corn, draft 7m, Izmail = 4800t"
+    keyword_detected: "Real intake:"
+    regex_match: true
+    extracted:
+      cargo: "Corn"
+      draft: 7.0
+      port: "Izmail"
+      quantity: 4800
+      
+  technical_example_2:
+    input: "draft restricted to 7m fresh water, 7.5m salt water"
+    keywords_detected: ["draft", "restricted"]
+    extracted:
+      draft_limit_freshwater: 7.0
+      draft_limit_saltwater: 7.5
+      restriction_type: "draft"
+      
+  technical_example_3:
+    input: "geared vessel, equipped with 5t cranes, can handle bagged cargo"
+    keywords_detected: ["geared", "equipped", "can handle"]
+    extracted:
+      gear_status: "Geared"
+      crane_capacity: "5 tons"
+      cargo_handling: ["Bagged cargo"]
+      
+  # ─────────────────────────────────────────────────────────────────
+  # BEHAVIORAL PATTERNS
+  # ─────────────────────────────────────────────────────────────────
+  
+  behavioral_example_1:
+    input: "always ballasts to Black Sea after discharge"
+    keyword_detected: "always"
+    extracted:
+      pattern: "Ballasts to Black Sea after discharge"
+      frequency: "Always"
+      
+  behavioral_example_2:
+    input: "never responds on weekends, typically replies within 2 hours weekdays"
+    keywords_detected: ["never", "typically"]
+    extracted:
+      weekend_response: "Never"
+      weekday_response: "Within 2 hours"
+      
+  behavioral_example_3:
+    input: "usually asks for freight first before confirming interest"
+    keyword_detected: "usually"
+    extracted:
+      negotiation_pattern: "Asks freight first"
+      frequency: "Usually"
+      
+  # ─────────────────────────────────────────────────────────────────
+  # COMMUNICATION PREFERENCES
+  # ─────────────────────────────────────────────────────────────────
+  
+  communication_example_1:
+    input: "Prefers WhatsApp, responds quickly"
+    keywords_detected: ["Prefers", "responds"]
+    extracted:
+      preferred_channel: "WhatsApp"
+      response_speed: "Quick"
+      
+  communication_example_2:
+    input: "Available Turkish business hours, speaks English but prefers short messages"
+    keywords_detected: ["Available", "speaks", "prefers"]
+    extracted:
+      timezone: "Turkish business hours (GMT+3)"
+      language: "English"
+      message_style: "Short messages preferred"
+      
+  communication_example_3:
+    input: "Email only, no calls please, detailed explanations appreciated"
+    keywords_detected: ["only", "no", "appreciated"]
+    extracted:
+      preferred_channel: "Email"
+      avoid: "Phone calls"
+      style_preference: "Detailed explanations"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# REGIONAL PREFERENCES SCORING EXAMPLES
+# ═══════════════════════════════════════════════════════════════════
+
+regional_preferences_examples:
+  
+  # ─────────────────────────────────────────────────────────────────
+  # EXAMPLE 1: POSITIVE MATCH
+  # ─────────────────────────────────────────────────────────────────
+  
+  example_1_imamoglu:
+    comment: "spec: turkish domestic cargoes, Italy ok, greece ok, eu ok, cvb ok, continent ok"
+    cargo:
+      loading: "Izmir, Turkey"
+      discharge: "Genoa, Italy"
+      
+    parsing_result:
+      specialization: ["Turkish domestic cargoes"]
+      acceptable_regions: ["Italy", "Greece", "EU", "CVB", "Continent"]
+      
+    relevance_analysis:
+      loading_relevance: "HIGH - matches Turkish specialization"
+      discharge_relevance: "HIGH - Italy explicitly marked as 'ok'"
+      overall_relevance: "EXCELLENT MATCH"
+      
+    scoring_impact:
+      criterion: "P2 - Regional Preferences"
+      base_score: 15
+      adjustment: "+5 (perfect specialization match)"
+      final_score: 20
+      max_score: 20
+      percentage: "100%"
+      
+    reasoning: |
+      "Company specializes in Turkish domestic trades and explicitly accepts
+       Italy routes. This cargo (Turkey → Italy) is exactly in their wheelhouse.
+       Perfect match: Turkish origin (specialization) + Italy discharge (acceptable).
+       Score: 20/20 (100%)"
+       
+  # ─────────────────────────────────────────────────────────────────
+  # EXAMPLE 2: FORBIDDEN REGION
+  # ─────────────────────────────────────────────────────────────────
+  
+  example_2_egypt_restriction:
+    comment: "no Egypt, Libya ok but slow response"
+    cargo:
+      loading: "Odessa, Ukraine"
+      discharge: "Alexandria, Egypt"
+      
+    parsing_result:
+      forbidden_regions: ["Egypt"]
+      acceptable_with_notes: ["Libya (slow response)"]
+      
+    relevance_analysis:
+      loading_relevance: "NEUTRAL - not mentioned"
+      discharge_relevance: "HIGH - Egypt explicitly forbidden"
+      overall_relevance: "CRITICAL MISMATCH"
+      
+    scoring_impact:
+      criterion: "P2 - Regional Preferences"
+      base_score: 10
+      adjustment: "-35 (forbidden region)"
+      final_score: -25
+      max_score: 20
+      percentage: "-125%"
+      
+    reasoning: |
+      "Company explicitly stated 'no Egypt' in comments. This cargo discharges
+       in Alexandria, Egypt, which is a forbidden region. Cannot work this trade.
+       Score: -25/20 (forbidden region penalty)"
+       
+    offer_decision: "DO NOT SEND OFFER - Hard restriction"
+    
+  # ─────────────────────────────────────────────────────────────────
+  # EXAMPLE 3: NEUTRAL (NOT MENTIONED)
+  # ─────────────────────────────────────────────────────────────────
+  
+  example_3_not_mentioned:
+    comment: "spec: turkish domestic cargoes, Italy ok, greece ok"
+    cargo:
+      loading: "Izmail, Ukraine"
+      discharge: "Alexandria, Egypt"
+      
+    parsing_result:
+      specialization: ["Turkish domestic cargoes"]
+      acceptable_regions: ["Italy", "Greece"]
+      not_mentioned: ["Ukraine", "Egypt", "Black Sea"]
+      
+    relevance_analysis:
+      loading_relevance: "LOW - Ukraine not in specialization or acceptable list"
+      discharge_relevance: "LOW - Egypt not mentioned"
+      overall_relevance: "OUTSIDE TYPICAL AREA"
+      
+    scoring_impact:
+      criterion: "P2 - Regional Preferences"
+      base_score: 10
+      adjustment: "0 (not mentioned = neutral)"
+      final_score: 10
+      max_score: 20
+      percentage: "50%"
+      
+    reasoning: |
+      "Company specializes in Turkish domestic trades (Italy, Greece mentioned as ok).
+       Current cargo is Ukraine → Egypt, which is not in their typical areas.
+       No explicit restriction, but not their specialty either.
+       Score: 10/20 (neutral - worth offering but not a strong match)"
+       
+    offer_approach: |
+      "Acknowledge this is outside typical area but offer anyway:
+       'I know you primarily work Turkish domestic routes, but wanted to check
+        if you'd consider this Black Sea → Med cargo given...'"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# CARGO PREFERENCES SCORING EXAMPLES
+# ═══════════════════════════════════════════════════════════════════
+
+cargo_preferences_examples:
+  
+  # ─────────────────────────────────────────────────────────────────
+  # EXAMPLE 1: SPECIALIZATION MATCH
+  # ─────────────────────────────────────────────────────────────────
+  
+  example_1_grain_specialist:
+    comment: "grain only, no fertilizers, steel ok occasionally"
+    cargo:
+      type: "Wheat"
+      category: "Grain"
+      
+    parsing_result:
+      specializes: ["Grain"]
+      forbidden: ["Fertilizers"]
+      occasional: ["Steel"]
+      
+    relevance_analysis:
+      cargo_match: "PERFECT - Wheat is grain, matches 'grain only'"
+      
+    scoring_impact:
+      criterion: "P3 - Cargo Preferences"
+      base_score: 10
+      adjustment: "+8 (grain only = strong specialization)"
+      final_score: 18
+      max_score: 18
+      percentage: "100%"
+      
+    reasoning: |
+      "Vessel explicitly states 'grain only' - this is a pure grain specialist.
+       Cargo is wheat, which perfectly matches their specialization.
+       Score: 18/18 (100% - perfect cargo match)"
+       
+  # ─────────────────────────────────────────────────────────────────
+  # EXAMPLE 2: FORBIDDEN CARGO
+  # ─────────────────────────────────────────────────────────────────
+  
+  example_2_no_fertilizers:
+    comment: "grain only, no fertilizers"
+    cargo:
+      type: "Urea"
+      category: "Fertilizer"
+      
+    parsing_result:
+      specializes: ["Grain"]
+      forbidden: ["Fertilizers"]
+      
+    relevance_analysis:
+      cargo_match: "FORBIDDEN - Urea is fertilizer, explicitly forbidden"
+      
+    scoring_impact:
+      criterion: "P3 - Cargo Preferences"
+      base_score: 10
+      adjustment: "-30 (forbidden cargo type)"
+      final_score: -20
+      max_score: 18
+      percentage: "-111%"
+      
+    reasoning: |
+      "Vessel explicitly states 'no fertilizers'. Cargo is Urea (fertilizer),
+       which is explicitly forbidden. Cannot work this cargo type.
+       Score: -20/18 (forbidden cargo penalty)"
+       
+    offer_decision: "DO NOT SEND OFFER - Hard restriction"
+    
+  # ─────────────────────────────────────────────────────────────────
+  # EXAMPLE 3: TECHNICAL REQUIREMENT
+  # ─────────────────────────────────────────────────────────────────
+  
+  example_3_technical_note:
+    comment: "coils require special dunnage, bagged cargoes preferred"
+    cargo:
+      type: "Steel coils"
+      category: "Steel products"
+      
+    parsing_result:
+      technical_requirements: ["Coils need dunnage"]
+      preferred: ["Bagged cargoes"]
+      
+    relevance_analysis:
+      cargo_match: "CONDITIONAL - Coils acceptable if dunnage available"
+      technical_note: "Need to verify dunnage equipment"
+      
+    scoring_impact:
+      criterion: "P3 - Cargo Preferences"
+      base_score: 10
+      adjustment: "0 (acceptable but verify requirement)"
+      final_score: 10
+      max_score: 18
+      percentage: "56%"
+      
+    reasoning: |
+      "Comment indicates coils can be carried but require special dunnage.
+       Need to verify vessel has appropriate dunnage equipment.
+       Score: 10/18 (neutral - conditional acceptance)"
+       
+    offer_adjustment: |
+      "Add verification question to offer:
+       'Your vessel can handle coils - are you currently equipped with
+        the necessary dunnage for this shipment?'"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MANUAL INTAKE EXTRACTION EXAMPLES
+# ═══════════════════════════════════════════════════════════════════
+
+manual_intake_examples:
+  
+  # ─────────────────────────────────────────────────────────────────
+  # EXAMPLE 1: EXACT MATCH (SAME PORT + SIMILAR CARGO)
+  # ─────────────────────────────────────────────────────────────────
+  
+  example_1_exact_match:
+    comment: "Real intake: Corn, draft 7m, Izmail = 4800t"
+    cargo:
+      type: "Wheat"
+      quantity: 5000
+      loading_port: "Izmail"
+      
+    parsing_result:
+      regex_pattern: 'Real intake:\s*(\w+),\s*draft\s*([\d.]+)m,\s*(\w+)\s*=\s*(\d+)t'
+      matched: true
+      extracted:
+        cargo: "Corn"
+        draft: 7.0
+        port: "Izmail"
+        quantity: 4800
+        
+    match_quality_assessment:
+      port_match: "EXACT (Izmail = Izmail)"
+      cargo_match: "GOOD (Corn vs Wheat, both grain)"
+      overall_quality: "GOOD"
+      
+    scoring_impact:
+      criterion: "P6 - Intake"
+      use_manual_intake: true
+      vessel_capacity: 4800
+      cargo_requirement: 5000
+      ratio: 0.96
+      category: "tight_fit"
+      score: -10
+      reasoning: |
+        "Based on manual intake record, vessel loaded 4800t of corn in Izmail
+         at 7m draft. Current cargo requires 5000t wheat (similar grain cargo).
+         This is a tight fit with 4% shortfall (200t short).
+         
+         Options:
+         1. Request cargo reduction to 4800t
+         2. Verify if wheat stowage allows slightly higher intake
+         3. Check if summer conditions allow more capacity
+         
+         Score: 10/20 (tight capacity, 200t shortfall)"
+         
+  # ─────────────────────────────────────────────────────────────────
+  # EXAMPLE 2: MULTIPLE INTAKE RECORDS
+  # ─────────────────────────────────────────────────────────────────
+  
+  example_2_multiple_records:
+    comment: "Real intake: Wheat 5200t, Odessa summer. Real intake: Corn, draft 7m, Izmail = 4800t"
+    cargo:
+      type: "Wheat"
+      quantity: 5000
+      loading_port: "Izmail"
+      
+    parsing_result:
+      intakes_found: 2
+      
+      intake_1:
+        cargo: "Wheat"
+        quantity: 5200
+        port: "Odessa"
+        conditions: "summer"
+        
+      intake_2:
+        cargo: "Corn"
+        draft: 7.0
+        port: "Izmail"
+        quantity: 4800
+        
+    match_selection:
+      intake_1_score:
+        cargo_match: "EXACT (Wheat = Wheat)"
+        port_match: "PARTIAL (Odessa vs Izmail, both Ukraine)"
+        conditions: "Summer only"
+        
+      intake_2_score:
+        cargo_match: "GOOD (Corn vs Wheat, both grain)"
+        port_match: "EXACT (Izmail = Izmail)"
+        conditions: "No conditions specified"
+        
+      selected: "intake_2"
+      reason: "Better port match (Izmail) is more reliable than different port"
+      
+    scoring_impact:
+      use_manual_intake: true
+      selected_value: 4800
+      score: -10
+      reasoning: |
+        "Two intake records found. Selected Izmail intake (4800t corn) over
+         Odessa intake (5200t wheat) because port match is more reliable.
+         Same logic as Example 1 applies: tight fit, 200t shortfall."
+         
+  # ─────────────────────────────────────────────────────────────────
+  # EXAMPLE 3: NO MATCH - USE CALCULATION
+  # ─────────────────────────────────────────────────────────────────
+  
+  example_3_no_match:
+    comment: "Real intake: Wheat 5200t, Odessa summer"
+    cargo:
+      type: "Steel coils"
+      quantity: 3000
+      loading_port: "Mariupol"
+      
+    parsing_result:
+      extracted:
+        cargo: "Wheat"
+        quantity: 5200
+        port: "Odessa"
+        
+    match_quality_assessment:
+      port_match: "DIFFERENT (Odessa vs Mariupol)"
+      cargo_match: "VERY DIFFERENT (Wheat vs Steel)"
+      overall_quality: "NO MATCH"
+      
+    scoring_impact:
+      use_manual_intake: false
+      use_calculation: true
+      reasoning: |
+        "Manual intake record found for wheat in Odessa, but current cargo
+         is steel in Mariupol. These are too different (cargo category and port).
+         Will use calculated intake based on vessel DWT and stowage factor.
+         Manual intake: not applicable."
+
+
+# ═══════════════════════════════════════════════════════════════════
+# FULL PROCESSING EXAMPLES (END-TO-END)
+# ═══════════════════════════════════════════════════════════════════
+
+full_processing_examples:
+  
+  # ─────────────────────────────────────────────────────────────────
+  # EXAMPLE 1: IMAMOGLU - FULL PARSING
+  # ─────────────────────────────────────────────────────────────────
+  
+  example_1_imamoglu_full:
+    raw_input:
+      company_comment: "spec: turkish domestic cargoes, Italy ok, greece ok, eu ok, cvb ok, continent ok"
+      vessel_comment: null
+      person_comment: null
+      cargo:
+        type: "Wheat"
+        quantity: 6500
+        loading: "Izmail, Ukraine"
+        discharge: "Alexandria, Egypt"
+        loading_region: "Black Sea"
+        discharge_region: "Egypt Mediterranean"
+        
+    step_1_parsing:
+      specialization: ["Turkish domestic cargoes"]
+      acceptable_regions: ["Italy", "Greece", "EU", "CVB", "Continent"]
+      forbidden_regions: []
+      not_mentioned: ["Ukraine", "Egypt", "Black Sea"]
+      
+    step_2_relevance:
+      specialization_relevance: "LOW (Turkish domestic vs Ukraine → Egypt)"
+      italy_relevance: "NOT RELEVANT (cargo not to Italy)"
+      greece_relevance: "NOT RELEVANT (cargo not to Greece)"
+      cvb_relevance: "PARTIALLY RELEVANT (CVB = Constanta-Varna-Burgas, near loading area)"
+      egypt_relevance: "HIGH (discharge to Egypt, not mentioned in preferences)"
+      
+    step_3_conflicts: "No conflicts - only one comment source"
+    
+    step_4_scoring:
+      P2_regional:
+        base: 10
+        adjustment: 0
+        final: 10
+        reasoning: |
+          "Company specializes in Turkish domestic trades (Italy, Greece as ok).
+           This cargo is Ukraine → Egypt, which is outside their typical area.
+           CVB (nearby region) is marked as ok, suggesting broader Black Sea
+           acceptance. Egypt not mentioned - neutral.
+           Score: 10/20 (50% - neutral, not specialty but acceptable)"
+           
+      P3_cargo:
+        base: 10
+        adjustment: 0
+        final: 10
+        reasoning: "No cargo preferences stated. Neutral score."
+        
+    step_5_offer_text:
+      personalization: |
+        "I know you primarily work Turkish domestic trades and also serve Italy
+         and Greece routes. This Black Sea to Mediterranean cargo is adjacent
+         to your CVB operations and might be worth considering given..."
+         
+  # ─────────────────────────────────────────────────────────────────
+  # EXAMPLE 2: MANUAL INTAKE + PREFERENCES
+  # ─────────────────────────────────────────────────────────────────
+  
+  example_2_intake_preferences:
+    raw_input:
+      company_comment: "grain only"
+      vessel_comment: "Real intake: Corn, draft 7m, Izmail = 4800t"
+      person_comment: "Prefers WhatsApp, responds quickly"
+      cargo:
+        type: "Wheat"
+        quantity: 5000
+        loading: "Izmail"
+        discharge: "Egypt"
+        
+    step_1_parsing:
+      company:
+        specializes: ["Grain"]
+      vessel:
+        manual_intake:
+          cargo: "Corn"
+          draft: 7.0
+          port: "Izmail"
+          quantity: 4800
+      person:
+        communication:
+          preferred_channel: "WhatsApp"
+          response_speed: "Quick"
+          
+    step_2_relevance:
+      company_grain: "HIGH (Wheat is grain)"
+      vessel_intake: "HIGH (same port, similar cargo)"
+      person_comm: "ALWAYS RELEVANT"
+      
+    step_3_conflicts: "No conflicts"
+    
+    step_4_scoring:
+      P3_cargo:
+        base: 10
+        adjustment: +8
+        final: 18
+        reasoning: "Grain only specialist, wheat matches perfectly. 18/18 (100%)"
+        
+      P6_intake:
+        use_manual: true
+        capacity: 4800
+        requirement: 5000
+        score: -10
+        reasoning: "Manual intake 4800t vs cargo 5000t. Tight fit, 200t short. 10/20 (50%)"
+        
+    step_5_offer_text:
+      channel: "WhatsApp"
+      style: "Short, concise"
+      message: |
+        "Hi! 👋
+        
+        Wheat cargo for your vessel:
+        🌾 5000t Wheat (you handle grain only ✅)
+        📍 Izmail → Egypt
+        
+        Note: You loaded 4800t corn in Izmail before.
+        This cargo is 5000t - slightly more. Possible to fit?
+        
+        Quick reply appreciated! 🙏
+        
+        /Vitaly"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# OFFER TEXT PERSONALIZATION EXAMPLES
+# ═══════════════════════════════════════════════════════════════════
+
+offer_text_examples:
+  
+  # ─────────────────────────────────────────────────────────────────
+  # ACKNOWLEDGE SPECIALIZATION
+  # ─────────────────────────────────────────────────────────────────
+  
+  acknowledge_example_1:
+    comment: "spec: turkish domestic cargoes, Italy ok"
+    cargo: "Turkey → Italy"
+    offer_text: |
+      "I know you specialize in Turkish domestic trades and also work Italy
+       routes - this cargo is right in your wheelhouse."
+       
+  acknowledge_example_2:
+    comment: "grain only, no fertilizers"
+    cargo: "Wheat"
+    offer_text: |
+      "Pure grain cargo - exactly what your vessel is specialized for.
+       No fertilizers, just wheat."
+       
+  # ─────────────────────────────────────────────────────────────────
+  # ADDRESS CONCERNS
+  # ─────────────────────────────────────────────────────────────────
+  
+  address_concern_example_1:
+    comment: "slow payers in Egypt, prefer advance payment"
+    cargo: "Discharge Egypt"
+    offer_text: |
+      "I understand you prefer advance payment arrangements for Egypt routes.
+       This charterer has a good payment record and is open to discussing terms."
+       
+  address_concern_example_2:
+    comment: "no Egypt"
+    cargo: "Discharge Egypt"
+    offer_text: |
+      "I know you typically don't work Egypt routes, but wanted to check if
+       anything has changed or if this particular cargo might be interesting
+       given the excellent freight rate being offered."
+       
+  # ─────────────────────────────────────────────────────────────────
+  # HIGHLIGHT FIT
+  # ─────────────────────────────────────────────────────────────────
+  
+  highlight_fit_example_1:
+    comment: "grain only"
+    cargo: "Wheat"
+    offer_text: |
+      "Perfect match: pure grain cargo, exactly your specialty. No fertilizers,
+       no mixed cargoes - just wheat."
+       
+  highlight_fit_example_2:
+    comment: "Turkish flag, Turkish ports specialization"
+    cargo: "Izmir → Genoa"
+    offer_text: |
+      "Ideal Turkish departure - Izmir is one of your regular ports. Your Turkish
+       flag and familiarity with the port gives you an advantage here."
+       
+  # ─────────────────────────────────────────────────────────────────
+  # TECHNICAL CONFIRMATION
+  # ─────────────────────────────────────────────────────────────────
+  
+  technical_confirm_example_1:
+    comment: "geared vessel, can handle bagged cargoes"
+    cargo: "Bagged wheat"
+    offer_text: |
+      "Your vessel's gear is perfect for this bagged cargo. You're equipped to
+       handle the discharge efficiently."
+       
+  technical_confirm_example_2:
+    comment: "draft 7m, Real intake: Wheat 5200t Odessa"
+    cargo: "Wheat 5000t, Odessa"
+    offer_text: |
+      "Your draft allows full loading at Odessa. You've loaded 5200t wheat there
+       before, so 5000t is well within your capacity with some margin."
+
+
+# ═══════════════════════════════════════════════════════════════════
+# EDGE CASE EXAMPLES
+# ═══════════════════════════════════════════════════════════════════
+
+edge_case_examples:
+  
+  # ─────────────────────────────────────────────────────────────────
+  # CONTRADICTORY COMMENTS
+  # ─────────────────────────────────────────────────────────────────
+  
+  contradiction_example_1:
+    scenario: "Company vs Vessel contradiction"
+    company_comment: "no Egypt"
+    vessel_comment: "Egypt ok if good rate"
+    cargo: "Discharge Egypt"
+    
+    resolution:
+      priority_source: "Vessel comment (higher priority)"
+      score_calculation:
+        company_penalty: -35
+        vessel_bonus: +10
+        net_adjustment: -25
+      final_score: -15
+      
+    reasoning: |
+      "Company policy generally avoids Egypt (company comment states 'no Egypt').
+       However, this specific vessel is willing to work Egypt if the rate is good
+       (vessel comment overrides company policy per priority order).
+       
+       Applied scoring:
+       - Company restriction: -35 points
+       - Vessel exception: +10 points
+       - Net: -25 adjustment
+       
+       Score: -15/20 (company policy concern, but vessel makes exceptions)"
+       
+    offer_text: |
+      "I know company policy typically avoids Egypt routes, but I see this vessel
+       has made exceptions for good rates. The current freight market for this
+       route is strong at $XX/mt. Worth considering?"
+       
+  # ─────────────────────────────────────────────────────────────────
+  # OUTDATED COMMENTS
+  # ─────────────────────────────────────────────────────────────────
+  
+  outdated_example_1:
+    scenario: "Comment with old date"
+    comment: "no Libya (note dated: 2022-06-15)"
+    current_date: "2024-12-02"
+    cargo: "Discharge Libya"
+    
+    resolution:
+      age_assessment: "2.5 years old - potentially outdated"
+      approach: "Mention but verify"
+      score_adjustment: -20
+      
+    reasoning: |
+      "Historical comment from June 2022 states 'no Libya'. This is 2.5 years old.
+       Market and company policies may have changed. Applying moderate penalty but
+       flagging for verification.
+       
+       Score: 0/20 (historical avoidance, but verification needed)"
+       
+    offer_text: |
+      "I see from past notes (2022) you avoided Libya routes. That was 2+ years ago -
+       has your policy changed? Market conditions and rates have improved significantly.
+       This cargo might be worth reconsidering if circumstances have changed."
+       
+  # ─────────────────────────────────────────────────────────────────
+  # AMBIGUOUS COMMENTS
+  # ─────────────────────────────────────────────────────────────────
+  
+  ambiguous_example_1:
+    scenario: "Vague wording"
+    comment: "Egypt ok sometimes"
+    cargo: "Discharge Egypt"
+    
+    resolution:
+      interpretation: "Neutral to slightly positive (lukewarm acceptance)"
+      score_adjustment: +5
+      
+    reasoning: |
+      "Comment 'Egypt ok sometimes' is vague. Not a strong preference, but not
+       a rejection either. Treating as lukewarm acceptance.
+       
+       Score: 15/20 (acceptable but not preferred)"
+       
+    offer_text: |
+      "I see Egypt is acceptable for you in some cases. This particular cargo
+       offers [specific attractive feature] which might make it worth considering."
+       
+  # ─────────────────────────────────────────────────────────────────
+  # MULTIPLE PREFERENCES
+  # ─────────────────────────────────────────────────────────────────
+  
+  multiple_example_1:
+    scenario: "Long list of preferences"
+    comment: "grain only; no fertilizers; steel ok; marble occasionally; cement yes; coal no"
+    cargo: "Wheat"
+    
+    resolution:
+      parse_all: true
+      extracted:
+        specializes: ["Grain", "Cement"]
+        acceptable: ["Steel"]
+        occasional: ["Marble"]
+        forbidden: ["Fertilizers", "Coal"]
+        
+      apply_relevant_only: "Wheat → Grain (specializes)"
+      ignore_irrelevant: ["Steel", "Marble", "Cement", "Fertilizers", "Coal"]
+      
+    reasoning: |
+      "Comment lists multiple cargo preferences. Extracted all but only applying
+       relevant preference to current cargo (Wheat).
+       
+       Wheat is grain → matches 'grain only' specialization.
+       
+       Score: 18/18 (100% - perfect match)
+       
+       Other preferences not mentioned in reasoning as they're not relevant."
+
+
+# ═══════════════════════════════════════════════════════════════════
+# METADATA & VERSIONING
+# ═══════════════════════════════════════════════════════════════════
+
+metadata:
+  created_by: "Vitaly (VK Charts expert)"
+  created_date: "2024-12-02"
+  last_modified: "2024-12-02"
+  version: "1.0.0"
+  document_type: "EXAMPLES"
+  
+  changelog:
+    - version: "1.0.0"
+      date: "2024-12-02"
+      changes:
+        - "БЛОК C, Задача C1: Разделение COMMENTS_PROCESSING_GUIDE.txt"
+        - "Создан файл EXAMPLES - все примеры и use cases"
+        - "Извлечены примеры из всех секций оригинального файла"
+        - "Организованы по категориям: Keyword Detection, Regional, Cargo, Intake, Full Processing, Offer Text, Edge Cases"
+        - "Каждый пример с полным контекстом: input → parsing → output"
+        - "Добавлены expected reasoning и offer text для каждого примера"
+        - "Примеры готовы для использования в few-shot prompting"
+        - "Примеры готовы для тестирования и валидации"
+  
+  related_files:
+    - "COMMENTS_PROCESSING_RULES.txt - Business logic and algorithms"
+    - "COMMENTS_PROCESSING_PROMPTS.txt - Direct AI instructions"
+    - "OPEN_AREA_COMMENTS_SCORING.txt - P6 criterion examples"
+  
+  usage:
+    - "Training data for AI models"
+    - "Few-shot examples for prompts"
+    - "Test cases for QA"
+    - "Reference for developers"
+    - "Documentation for users"

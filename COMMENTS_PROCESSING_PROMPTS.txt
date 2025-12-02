@@ -1,0 +1,787 @@
+# ═══════════════════════════════════════════════════════════════════
+# SHORT SUMMARY
+# ═══════════════════════════════════════════════════════════════════
+
+DOCUMENT: Comments Processing Prompts - AI Instructions and Algorithms
+PURPOSE: Direct instructions for AI to process and apply comment data
+SCOPE: Step-by-step algorithms and prompt templates for LLM
+INTEGRATION: Core AI processing logic for comment interpretation
+DOCUMENT_TYPE: PROMPTS - AI instructions and system prompts
+
+WHAT THIS DOCUMENT CONTAINS:
+This document provides direct, step-by-step instructions for AI (LangChain/LLM)
+to process unstructured comments from Companies, Vessels, and Persons. Includes
+algorithms, prompt templates, JSON schemas, and critical reminders.
+
+KEY SECTIONS:
+1. Step-by-Step Processing Algorithm (8 steps)
+2. AI Prompt Template Addition
+3. Expected JSON Output Schemas
+4. Critical Reminders for AI
+5. Quality Indicators
+
+RELATED DOCUMENTS:
+- COMMENTS_PROCESSING_RULES.txt - Business logic and rules
+- COMMENTS_PROCESSING_EXAMPLES.txt - Concrete examples and training data
+- OPEN_AREA_COMMENTS_SCORING.txt - P6 criterion instructions
+- MASTER_SCORING_SYSTEM.txt - Scoring framework
+
+
+# ═══════════════════════════════════════════════════════════════════
+# HOW TO USE THIS DOCUMENT
+# ═══════════════════════════════════════════════════════════════════
+
+FOR AI/ML ENGINEERS:
+- Use this as the primary system prompt for comment processing
+- Include relevant sections in LangChain prompts
+- Reference JSON schemas for structured output
+- Follow step-by-step algorithm exactly
+
+FOR LANGCHAIN IMPLEMENTATION:
+- Add this content to system message
+- Use with structured output parser
+- Include in agent instructions
+- Reference from scoring tools
+
+
+# ═══════════════════════════════════════════════════════════════════
+# STEP-BY-STEP PROCESSING ALGORITHM FOR AI
+# ═══════════════════════════════════════════════════════════════════
+
+processing_algorithm:
+  
+  # ═══════════════════════════════════════════════════════════════════
+  # STEP 1: RECEIVE AND VALIDATE COMMENT DATA
+  # ═══════════════════════════════════════════════════════════════════
+  
+  step_1_receive_data:
+    
+    input_validation:
+      company_comments: "string (may be empty string, never null)"
+      vessel_comments: "string (may be empty string, never null)"
+      person_comments: "string (may be empty string, never null)"
+      cargo: "object (required for relevance filtering)"
+      
+    early_exit_condition:
+      if: "ALL comments are empty strings"
+      action: "Skip comment processing, return empty analysis"
+      continue_with: "Use only formal structured data for scoring"
+      
+    validation_checks:
+      - "Verify cargo object contains: type, quantity, loading_port, discharge_port"
+      - "Verify at least one comment has content (non-empty)"
+      - "Log which comment sources are available"
+      
+  # ═══════════════════════════════════════════════════════════════════
+  # STEP 2: PARSE USING KEYWORD DETECTION
+  # ═══════════════════════════════════════════════════════════════════
+  
+  step_2_parse_keywords:
+    
+    instruction: |
+      For each comment source (company, vessel, person), identify and extract
+      information using the following keyword patterns:
+      
+    patterns_to_detect:
+      
+      specialization:
+        keywords: ["spec:", "specializes", "mainly", "mostly", "primarily"]
+        action: "Extract primary specialization areas (trade routes, cargo types)"
+        output_format: "List of specialization strings"
+        
+      geographic_preferences:
+        positive_keywords: ["ok", "yes", "accepts", "prefers", "excellent"]
+        negative_keywords: ["no", "cannot", "avoids", "never", "restrictions"]
+        action: "Separate regions into acceptable vs forbidden lists"
+        output_format:
+          acceptable: ["region1", "region2"]
+          forbidden: ["region3", "region4"]
+          not_mentioned: ["region5"]
+          
+      cargo_preferences:
+        keywords: ["cargo:", "loads", "carries", "only", "no bulk", "prefers"]
+        action: "Identify preferred, acceptable, and forbidden cargo types"
+        output_format:
+          preferred: ["cargo_type1"]
+          acceptable: ["cargo_type2"]
+          occasional: ["cargo_type3"]
+          forbidden: ["cargo_type4"]
+          
+      technical_information:
+        keywords: ["Real intake:", "intake:", "draft", "gear", "speed", "equipped"]
+        special_case: "Manual intake requires regex extraction"
+        regex_pattern: 'Real intake:\s*(\w+),\s*draft\s*([\d.]+)m,\s*(\w+)\s*=\s*(\d+)t'
+        action: "Extract technical specs and manual intake data"
+        output_format:
+          manual_intake:
+            cargo: "string"
+            draft: "float"
+            port: "string"
+            quantity: "integer"
+          other_specs: "dictionary"
+          
+      behavioral_patterns:
+        keywords: ["always", "never", "typically", "usually", "prefers"]
+        action: "Extract operational patterns and behavior notes"
+        output_format: "Dictionary of pattern descriptions"
+        
+      communication_preferences:
+        keywords: ["WhatsApp", "email", "phone", "responds", "available", "language"]
+        action: "Extract communication channel and style preferences"
+        output_format:
+          preferred_channel: "string"
+          response_speed: "string"
+          language: "string"
+          message_style: "string"
+          
+    parsing_example:
+      input: "spec: turkish domestic, Italy ok, no Egypt, Real intake: Corn 4800t Izmail"
+      output:
+        specialization: ["turkish domestic"]
+        geographic_acceptable: ["Italy"]
+        geographic_forbidden: ["Egypt"]
+        manual_intake:
+          cargo: "Corn"
+          quantity: 4800
+          port: "Izmail"
+          
+  # ═══════════════════════════════════════════════════════════════════
+  # STEP 3: FILTER FOR RELEVANCE
+  # ═══════════════════════════════════════════════════════════════════
+  
+  step_3_filter_relevance:
+    
+    instruction: |
+      Only keep information RELEVANT to the CURRENT cargo. Discard information
+      about unrelated regions, cargo types, or conditions.
+      
+    relevance_rules:
+      
+      geographic_relevance:
+        check_1: "Does comment mention cargo's loading region?"
+        check_2: "Does comment mention cargo's discharge region?"
+        check_3: "Does comment mention countries involved?"
+        check_4: "Is it a general geographic restriction?"
+        if_any_true: "RELEVANT - Keep this geographic information"
+        if_all_false: "NOT RELEVANT - Discard this geographic information"
+        
+      cargo_type_relevance:
+        check_1: "Does comment mention cargo's specific type?"
+        check_2: "Does comment mention cargo's category (grain, steel, etc.)?"
+        check_3: "Does comment mention technical requirements matching this cargo?"
+        if_any_true: "RELEVANT - Keep this cargo information"
+        if_all_false: "NOT RELEVANT - Discard this cargo information"
+        
+      intake_relevance:
+        check_1: "Manual intake for same cargo type + same port?"
+        check_2: "Manual intake for same port, different cargo?"
+        check_3: "Manual intake for same cargo, different port?"
+        check_4: "Manual intake for similar cargo category?"
+        check_5: "General capacity information?"
+        if_any_true: "RELEVANT - Keep this intake information"
+        if_all_false: "NOT RELEVANT - Discard this intake information"
+        
+      communication_relevance:
+        rule: "ALWAYS RELEVANT for offer text generation"
+        
+    filtering_example:
+      cargo:
+        type: "Wheat"
+        quantity: 5000
+        loading: "Izmail, Ukraine"
+        discharge: "Alexandria, Egypt"
+        
+      parsed_comments:
+        - item: "Turkish domestic"
+          relevance: "NOT RELEVANT (different trade)"
+          action: "Discard"
+          
+        - item: "Italy ok"
+          relevance: "NOT RELEVANT (cargo not to Italy)"
+          action: "Discard"
+          
+        - item: "no Egypt"
+          relevance: "RELEVANT (discharge to Egypt)"
+          action: "Keep - critical restriction"
+          
+        - item: "Corn 4800t Izmail"
+          relevance: "RELEVANT (same port, similar cargo)"
+          action: "Keep - manual intake data"
+          
+  # ═══════════════════════════════════════════════════════════════════
+  # STEP 4: RESOLVE CONFLICTS
+  # ═══════════════════════════════════════════════════════════════════
+  
+  step_4_resolve_conflicts:
+    
+    instruction: |
+      When multiple comment sources provide contradictory information,
+      resolve using the priority order. Always explain resolution in reasoning.
+      
+    priority_order:
+      1: "Vessel comments (highest priority - most specific)"
+      2: "Person comments (behavioral patterns)"
+      3: "Company comments (general policies)"
+      4: "Formal preferences (lowest priority - UI settings)"
+      
+    resolution_process:
+      step_1: "Identify contradiction between sources"
+      step_2: "Select information from highest priority source"
+      step_3: "Document the conflict in 'conflicts' array"
+      step_4: "Explain resolution in reasoning field"
+      step_5: "Mention lower priority information as context"
+      
+    conflict_example:
+      company: "no Egypt"
+      vessel: "Egypt ok if good rate"
+      cargo: "Discharge Egypt"
+      
+      resolution:
+        selected: "Vessel comment (higher priority)"
+        scoring:
+          company_penalty: -35
+          vessel_adjustment: +10
+          net: -25
+        explanation: |
+          "Company policy avoids Egypt, but this vessel makes exceptions for good rates.
+           Applied vessel exception (priority order: vessel > company)."
+        conflicts:
+          - source_1: "company"
+            value_1: "no Egypt"
+            source_2: "vessel"
+            value_2: "Egypt ok if good rate"
+            resolution: "Used vessel (higher priority)"
+            
+  # ═══════════════════════════════════════════════════════════════════
+  # STEP 5: EXTRACT STRUCTURED INFORMATION
+  # ═══════════════════════════════════════════════════════════════════
+  
+  step_5_extract_structured:
+    
+    instruction: |
+      Convert parsed, filtered, and resolved comment data into structured
+      JSON format. Use the schema below.
+      
+    output_schema:
+      parsed_comments:
+        specialization: ["list of specialization areas"]
+        geographic_preferences:
+          acceptable: ["regions marked as ok/yes/accepts"]
+          forbidden: ["regions marked as no/cannot/avoids"]
+          not_mentioned: ["regions neither accepted nor forbidden"]
+        cargo_preferences:
+          preferred: ["cargo types explicitly preferred"]
+          acceptable: ["cargo types marked as ok"]
+          occasional: ["cargo types acceptable occasionally"]
+          forbidden: ["cargo types marked as no/cannot"]
+        technical_info:
+          manual_intake:
+            cargo: "grain type"
+            quantity: "numeric"
+            draft: "numeric"
+            port: "port name"
+            conditions: "summer/winter/etc"
+            match_quality: "EXACT/GOOD/PARTIAL/NONE"
+          draft_restrictions: "if mentioned"
+          gear_info: "if mentioned"
+        behavioral_patterns:
+          ballast_behavior: "if mentioned"
+          payment_preferences: "if mentioned"
+          response_patterns: "if mentioned"
+        communication_style:
+          preferred_channel: "WhatsApp/Email/Phone"
+          response_speed: "quick/normal/slow"
+          language: "English/Turkish/etc"
+          message_style: "short/detailed"
+          
+    validation:
+      - "All array fields must exist (even if empty)"
+      - "All string fields use 'null' if not available"
+      - "Match quality for intake must be one of: EXACT/GOOD/PARTIAL/NONE"
+      
+  # ═══════════════════════════════════════════════════════════════════
+  # STEP 6: APPLY TO SCORING CRITERIA
+  # ═══════════════════════════════════════════════════════════════════
+  
+  step_6_apply_to_scoring:
+    
+    instruction: |
+      Apply extracted comment information to relevant scoring criteria.
+      Calculate adjustments and provide detailed reasoning.
+      
+    scoring_application:
+      
+      P1_proximity:
+        comment_impact: "NONE"
+        action: "Skip - no comment adjustments for proximity"
+        
+      P1A_regional_patterns:
+        comment_impact: "CONTEXT ONLY"
+        action: "Use comments to explain patterns, don't adjust score"
+        
+      P2_regional_preferences:
+        comment_impact: "HIGH - Direct adjustments"
+        rules:
+          if_forbidden:
+            score_adjustment: -35
+            reasoning_template: "Region explicitly forbidden in comments: [quote]"
+          if_acceptable:
+            score_adjustment: "+10 to +15"
+            reasoning_template: "Region acceptable per comments: [quote]"
+          if_preferred:
+            score_adjustment: "+15 to +20"
+            reasoning_template: "Region matches specialization: [quote]"
+          if_not_mentioned:
+            score_adjustment: "0 to +5"
+            reasoning_template: "Region not mentioned - neutral"
+            
+      P3_cargo_preferences:
+        comment_impact: "HIGH - Direct adjustments"
+        rules:
+          if_forbidden:
+            score_adjustment: -30
+            reasoning_template: "Cargo type explicitly forbidden: [quote]"
+          if_preferred:
+            score_adjustment: "+15 to +18"
+            reasoning_template: "Cargo matches specialization: [quote]"
+          if_acceptable:
+            score_adjustment: "+5 to +10"
+            reasoning_template: "Cargo acceptable per comments: [quote]"
+          if_occasional:
+            score_adjustment: "+3 to +5"
+            reasoning_template: "Cargo accepted occasionally: [quote]"
+            
+      P4_last_ports:
+        comment_impact: "CONTEXT ONLY"
+        action: "Use comments to explain statistics, don't override"
+        
+      P5_readiness:
+        comment_impact: "LOW - Context for interpretation"
+        action: "Use behavioral patterns as context only"
+        
+      P6_intake:
+        comment_impact: "CRITICAL - Manual intake OVERRIDES calculation"
+        rules:
+          if_manual_intake_good_match:
+            action: "Use manual intake value instead of calculation"
+            reasoning_template: "Using manual intake: [quantity]t at [port] for [cargo]"
+            calculate: "Compare cargo requirement vs manual intake capacity"
+          if_no_match:
+            action: "Use calculated intake"
+            reasoning_template: "No relevant manual intake data, using calculation"
+            
+      P7_openarea:
+        comment_impact: "HIGH - Direct source for interpretation"
+        action: "Apply OPEN_AREA_COMMENTS_SCORING.txt rules with comment data"
+        
+  # ═══════════════════════════════════════════════════════════════════
+  # STEP 7: GENERATE OFFER TEXT ADJUSTMENTS
+  # ═══════════════════════════════════════════════════════════════════
+  
+  step_7_offer_text:
+    
+    instruction: |
+      Use parsed comments to personalize offer text. Apply appropriate
+      technique based on comment content and cargo match.
+      
+    personalization_techniques:
+      
+      acknowledge_specialization:
+        when: "Comment specialization matches cargo"
+        template: "I know you specialize in [specialization] - this cargo fits perfectly."
+        tone: "Positive, confirming"
+        
+      address_concerns:
+        when: "Comment indicates potential concern"
+        template: "I understand [concern from comment]. However, [positive aspect]."
+        tone: "Acknowledging but optimistic"
+        
+      highlight_fit:
+        when: "Comment shows strong preference matching cargo"
+        template: "Perfect match: [cargo] is exactly your specialty per your profile."
+        tone: "Enthusiastic, confident"
+        
+      technical_confirmation:
+        when: "Comment confirms technical capability"
+        template: "Your vessel is equipped for this: [technical aspect from comment]."
+        tone: "Factual, reassuring"
+        
+      avoid_mismatch:
+        when: "Clear mismatch between comment and cargo"
+        decision_1: "Skip offer entirely if hard restriction"
+        decision_2: "Or acknowledge mismatch and explain why offering anyway"
+        template: "I know [cargo aspect] isn't your typical area, but [reason to consider]."
+        
+    communication_adaptation:
+      
+      channel:
+        rule: "Use person's preferred channel from comments"
+        options: ["WhatsApp", "Email", "Phone"]
+        default: "Email"
+        
+      style:
+        if_short_preferred: "Concise, bullet points, emojis ok for WhatsApp"
+        if_detailed_preferred: "Comprehensive information, full paragraphs"
+        default: "Medium length with key details"
+        
+      language:
+        if_simple_english: "Avoid idioms, use simple vocabulary"
+        if_native: "Can use more complex expressions"
+        
+  # ═══════════════════════════════════════════════════════════════════
+  # STEP 8: RETURN COMPLETE ANALYSIS
+  # ═══════════════════════════════════════════════════════════════════
+  
+  step_8_return_analysis:
+    
+    instruction: |
+      Return comprehensive analysis in structured JSON format.
+      Include all processing steps and reasoning.
+      
+    output_structure:
+      comments_analysis:
+        parsed: "Structured comment data (Step 5 output)"
+        relevance: "What was kept/discarded and why"
+        conflicts: "List of contradictions and resolutions"
+        scoring_impact: "Adjustments per criterion with reasoning"
+        
+      offer_text_suggestions:
+        acknowledgments: "List of specialization matches to acknowledge"
+        concerns_addressed: "List of concerns to address"
+        technical_confirmations: "List of technical capabilities to confirm"
+        communication_format:
+          preferred_channel: "WhatsApp/Email/Phone"
+          message_style: "short/medium/detailed"
+          language_level: "simple/standard/advanced"
+          
+      quality_check:
+        comments_considered: true
+        relevance_filtered: true
+        conflicts_resolved: true
+        reasoning_provided: true
+
+
+# ═══════════════════════════════════════════════════════════════════
+# AI PROMPT TEMPLATE ADDITION
+# ═══════════════════════════════════════════════════════════════════
+
+prompt_template:
+  
+  system_message_addition: |
+    ═══════════════════════════════════════════════════════════════
+    EXPERT COMMENTS AND NOTES - CRITICAL SECTION
+    ═══════════════════════════════════════════════════════════════
+    
+    You will receive comments from three sources:
+    
+    1. COMPANY COMMENTS: General policies and specialization
+    2. VESSEL COMMENTS: Technical specs and performance data
+    3. PERSON COMMENTS: Communication style and behavior
+    
+    These comments contain EXPERT KNOWLEDGE from past interactions
+    and manual observations. They are CRITICAL for accurate scoring.
+    
+    PROCESSING INSTRUCTIONS:
+    
+    1. PARSE: Extract structured information using keyword patterns
+       - Specialization: "spec:", "specializes", "mainly", etc.
+       - Geographic: "ok", "no", "cannot", "avoids", etc.
+       - Cargo: "cargo:", "only", "prefers", etc.
+       - Technical: "Real intake:", "draft", "gear", etc.
+       - Behavioral: "always", "never", "typically", etc.
+       - Communication: "WhatsApp", "responds", "prefers", etc.
+    
+    2. FILTER: Keep ONLY information relevant to CURRENT cargo
+       - Geographic: Only if mentions cargo's loading/discharge region
+       - Cargo: Only if mentions cargo's type or category
+       - Technical: Only if applicable to cargo requirements
+       - Communication: Always relevant
+    
+    3. RESOLVE: Use priority order for contradictions
+       - Priority 1: Vessel comments (most specific)
+       - Priority 2: Person comments (behavior)
+       - Priority 3: Company comments (policies)
+       - Priority 4: Formal settings (UI)
+    
+    4. APPLY: Adjust scoring based on comments
+       - P2 Regional: +20/-35 based on geographic preferences
+       - P3 Cargo: +18/-30 based on cargo preferences
+       - P6 Intake: OVERRIDE calculation if manual intake matches
+       - Offer Text: Personalize based on all comment types
+    
+    5. EXPLAIN: Always explain how comments influenced your analysis
+       - Quote relevant parts of comments
+       - Explain relevance to current cargo
+       - Show conflict resolution if applicable
+       - Justify scoring adjustments
+    
+    CRITICAL RULES:
+    ⚠️ Comments are EXPERT KNOWLEDGE - never ignore them
+    ⚠️ Manual intake OVERRIDES calculated intake (P6)
+    ⚠️ Filter for relevance - don't apply irrelevant info
+    ⚠️ Explain conflicts and resolutions
+    ⚠️ Use comments to personalize offer text
+    
+    ---
+    
+  user_message_format: |
+    COMMENT DATA:
+    
+    Company Comments:
+    {company_comments}
+    
+    Vessel Comments:
+    {vessel_comments}
+    
+    Person Comments:
+    {person_comments}
+    
+    CARGO DATA:
+    {cargo_json}
+    
+    INSTRUCTION:
+    Process comments using 8-step algorithm. Return structured analysis
+    with scoring adjustments and offer text personalization.
+
+
+# ═══════════════════════════════════════════════════════════════════
+# EXPECTED JSON OUTPUT SCHEMAS
+# ═══════════════════════════════════════════════════════════════════
+
+output_schemas:
+  
+  complete_response_schema:
+    type: "object"
+    required: ["comments_analysis", "offer_text_suggestions"]
+    properties:
+      
+      comments_analysis:
+        type: "object"
+        required: ["parsed", "relevance", "conflicts", "scoring_impact"]
+        properties:
+          
+          parsed:
+            type: "object"
+            properties:
+              specialization:
+                type: "array"
+                items: {type: "string"}
+              geographic_preferences:
+                type: "object"
+                properties:
+                  acceptable: {type: "array", items: {type: "string"}}
+                  forbidden: {type: "array", items: {type: "string"}}
+                  not_mentioned: {type: "array", items: {type: "string"}}
+              cargo_preferences:
+                type: "object"
+                properties:
+                  preferred: {type: "array", items: {type: "string"}}
+                  acceptable: {type: "array", items: {type: "string"}}
+                  occasional: {type: "array", items: {type: "string"}}
+                  forbidden: {type: "array", items: {type: "string"}}
+              technical_info:
+                type: "object"
+                properties:
+                  manual_intake:
+                    type: "object"
+                    properties:
+                      cargo: {type: "string"}
+                      quantity: {type: "integer"}
+                      draft: {type: "number"}
+                      port: {type: "string"}
+                      match_quality: {type: "string", enum: ["EXACT", "GOOD", "PARTIAL", "NONE"]}
+              communication_style:
+                type: "object"
+                properties:
+                  preferred_channel: {type: "string"}
+                  response_speed: {type: "string"}
+                  language: {type: "string"}
+                  message_style: {type: "string"}
+                  
+          relevance:
+            type: "object"
+            properties:
+              cargo_type_match: {type: "string"}
+              port_match: {type: "string"}
+              region_match: {type: "string"}
+              
+          conflicts:
+            type: "array"
+            items:
+              type: "object"
+              properties:
+                source_1: {type: "string"}
+                value_1: {type: "string"}
+                source_2: {type: "string"}
+                value_2: {type: "string"}
+                resolution: {type: "string"}
+                
+          scoring_impact:
+            type: "object"
+            properties:
+              P2_regional:
+                type: "object"
+                properties:
+                  adjustment: {type: "integer"}
+                  reasoning: {type: "string"}
+              P3_cargo:
+                type: "object"
+                properties:
+                  adjustment: {type: "integer"}
+                  reasoning: {type: "string"}
+              P6_intake:
+                type: "object"
+                properties:
+                  use_manual: {type: "boolean"}
+                  value: {type: "integer"}
+                  vs_cargo: {type: "integer"}
+                  status: {type: "string"}
+                  adjustment: {type: "integer"}
+                  
+      offer_text_suggestions:
+        type: "object"
+        properties:
+          acknowledgments: {type: "array", items: {type: "string"}}
+          concerns_addressed: {type: "array", items: {type: "string"}}
+          technical_confirmations: {type: "array", items: {type: "string"}}
+          communication_format:
+            type: "object"
+            properties:
+              preferred_channel: {type: "string"}
+              message_style: {type: "string"}
+              language_level: {type: "string"}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# CRITICAL REMINDERS FOR AI
+# ═══════════════════════════════════════════════════════════════════
+
+critical_reminders:
+  
+  priority_1_never_ignore:
+    reminder: "Comments are EXPERT KNOWLEDGE - always prioritize over generic rules"
+    examples:
+      - "If comment says 'no Egypt' → Don't offer Egypt cargo"
+      - "If comment says 'grain only' → Don't offer fertilizers"
+      - "If manual intake exists → Use it over calculation"
+    action: "Always check comments first before applying default logic"
+    
+  priority_2_manual_intake:
+    reminder: "Manual intake OVERRIDES calculated intake (P6) when match quality is GOOD or EXACT"
+    process:
+      step_1: "Check if vessel comments contain 'Real intake:' pattern"
+      step_2: "Extract: cargo, quantity, port, draft"
+      step_3: "Assess match quality: EXACT > GOOD > PARTIAL > NONE"
+      step_4: "If GOOD or EXACT → Use manual intake, ignore calculation"
+      step_5: "If PARTIAL → Use as reference, mention in reasoning"
+      step_6: "If NONE → Use calculation"
+    critical: "NEVER ignore manual intake if match is good"
+    
+  priority_3_relevance_filter:
+    reminder: "Filter for relevance - don't apply irrelevant comment info"
+    examples:
+      - "Comment about 'Italy ok' + Cargo to Egypt → NOT RELEVANT, don't mention"
+      - "Comment about 'grain only' + Cargo is steel → RELEVANT, apply restriction"
+      - "Comment about 'Odessa intake' + Cargo from Izmail → RELEVANT, same region"
+    action: "Only include comment info in analysis if it relates to current cargo"
+    
+  priority_4_explain_conflicts:
+    reminder: "Always explain how you resolved conflicts between sources"
+    template: |
+      "Conflict detected:
+       - Company: [value]
+       - Vessel: [value]
+       Resolution: Used vessel comment (higher priority per policy).
+       Reasoning: [explanation]"
+    action: "Document all conflicts in conflicts array"
+    
+  priority_5_personalize:
+    reminder: "Use comments to personalize offer text naturally"
+    dont_do:
+      - "List all comment facts mechanically"
+      - "Quote comments verbatim without context"
+      - "Mention irrelevant comment information"
+    do_instead:
+      - "Acknowledge relevant specialization: 'I know you work Turkish routes...'"
+      - "Address concerns proactively: 'I understand you prefer advance payment...'"
+      - "Highlight perfect fits: 'Pure grain cargo - exactly your specialty'"
+    action: "Make offer text feel personalized and thoughtful"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# QUALITY INDICATORS
+# ═══════════════════════════════════════════════════════════════════
+
+quality_indicators:
+  
+  good_processing:
+    indicator_1: "AI mentions relevant comment in reasoning field"
+    indicator_2: "Scoring adjusted based on comment data"
+    indicator_3: "Offer text acknowledges comment information naturally"
+    indicator_4: "Conflicts explained with priority order"
+    indicator_5: "Irrelevant comment info filtered out"
+    indicator_6: "Manual intake used when match quality is good"
+    
+  poor_processing:
+    indicator_1: "AI ignores available comments"
+    indicator_2: "Uses comment info that's not relevant to cargo"
+    indicator_3: "Contradicts comment without explanation"
+    indicator_4: "Lists all comments mechanically without analysis"
+    indicator_5: "Fails to apply manual intake when applicable"
+    indicator_6: "Doesn't personalize offer text with comment data"
+    
+  validation_checklist:
+    - question: "Did AI check all three comment sources?"
+      pass: "Yes, all sources checked (even if empty)"
+      
+    - question: "Was relevance filtering applied?"
+      pass: "Only cargo-relevant info included in analysis"
+      
+    - question: "Were conflicts resolved per priority order?"
+      pass: "Used vessel > person > company priority"
+      
+    - question: "Was manual intake applied if available?"
+      pass: "Manual intake used when match quality GOOD or EXACT"
+      
+    - question: "Is reasoning clear and detailed?"
+      pass: "Explains how comments influenced scoring"
+      
+    - question: "Is offer text personalized?"
+      pass: "Naturally incorporates relevant comment info"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# METADATA & VERSIONING
+# ═══════════════════════════════════════════════════════════════════
+
+metadata:
+  created_by: "Vitaly (VK Charts expert)"
+  created_date: "2024-12-02"
+  last_modified: "2024-12-02"
+  version: "1.0.0"
+  document_type: "PROMPTS"
+  
+  changelog:
+    - version: "1.0.0"
+      date: "2024-12-02"
+      changes:
+        - "БЛОК C, Задача C1: Разделение COMMENTS_PROCESSING_GUIDE.txt"
+        - "Создан файл PROMPTS - direct AI instructions"
+        - "Извлечена секция 'For AI/LangChain' из оригинального файла"
+        - "8-step processing algorithm полностью детализирован"
+        - "Добавлен AI prompt template addition для system message"
+        - "Добавлены expected JSON output schemas"
+        - "Добавлены critical reminders с приоритетами"
+        - "Добавлены quality indicators для валидации"
+        - "Готово для прямого использования в LangChain prompts"
+  
+  related_files:
+    - "COMMENTS_PROCESSING_RULES.txt - Business logic and rules"
+    - "COMMENTS_PROCESSING_EXAMPLES.txt - Training data and examples"
+    - "OPEN_AREA_COMMENTS_SCORING.txt - P6 criterion instructions"
+  
+  usage:
+    - "System prompt for LangChain agents"
+    - "Structured output parser schemas"
+    - "AI instruction template"
+    - "Quality validation checklist"
