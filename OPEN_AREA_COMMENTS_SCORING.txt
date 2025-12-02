@@ -1,241 +1,1001 @@
-OPEN_AREA_COMMENTS_SCORING
-(Критерий: Manual Voyage-Specific Owner Comments)
-
-Короткое summary
-OpenArea Comments Scoring — это оценка того, насколько текущие, voyage-specific комментарии владельца судна совпадают или конфликтуют с грузом. AI интерпретирует сигналы по трем направлениям (cargo, geography, strategy), применяет бонусы или штрафы, и использует комментарии в reasoning и оффере. Жестких блоков нет, только penalties. Диапазон: −50…+25. Критерий имеет высокий приоритет, так как отражает реальное намерение владельца на текущий рейс.
-
-
-1. Что это за критерий
-
-OpenArea и особенно OpenArea Commons — это живые, актуальные, voyage-specific комментарии от судовладельца, которые отражают реальную текущую стратегию по судну:
-
-какие грузы готовы работать сейчас;
-
-какие грузы не хотят (avoid / no grains / no low SF cargoes);
-
-какие географические направления предпочитают (только nearby cargoes / only East Med / no Black Sea now);
-
-какие рейсы ищут (short / long / repositioning);
-
-ограничения по PSC/флагам;
-
-предпочтения по storage factor (только high SF);
-
-ограничения по draft/density для конкретного рейса.
-
-Эта информация НЕ является долговременной характеристикой судна, как Cargo/Regional Preferences — она относится к конкретному рейсу, в конкретный момент.
-
-→ Поэтому это отдельный критерий, который дополняет, но не заменяет другие.
-
-2. Задача критерия
-
-Дать оценку того, насколько текущие комментарии владельца совпадают или конфликтуют с параметрами груза.
-
-Система должна:
-
-автоматически вычленять релевантные сигналы из OpenArea Comments;
-
-передавать их AI как отдельный блок;
-
-AI должен оценивать их влияние на suitability score и формировать корректный текст в оффере.
-
-3. Типы комментариев (Categories)
-
-Комментарии разделяются на 3 группы:
-
-A. Cargo-Type Related
-
-Примеры:
-
-“no grains”
-
-“no steel coils”
-
-“prefer high SF cargoes”
-
-“only fertilizers”
-
-“not low SF cargoes (<1.0)”
-
-“no dirty bulk”
-
-“no breakbulk”
-
-B. Geography Related
-
-Примеры:
-
-“not going to Black Sea”
-
-“only looking for East Med cargoes”
-
-“prefer close cargo from current port”
-
-“no Libya / no Egypt”
-
-“no Marmara”
-
-“prefer backhaul towards Adriatic”
-
-C. Trade Pattern / Voyage Strategy
-
-Примеры:
-
-“looking for short trip”
-
-“looking for long haul”
-
-“seeking repositioning to Continent”
-
-“avoid long ballast”
-
-“want to stay in Med”
-
-“not ready for canal transit”
-
-“need fast loading”
-
-“PSC concerns in Egypt”
-
-4. Scoring Logic (AI-centric)
-
-AI получает структурированный блок:
-
-OpenArea_Comments:
-  cargo_signals:
-    - "no grains"
-    - "prefer high SF cargo"
-  geography_signals:
-    - "no Egypt"
-    - "prefer nearby cargo only"
-  strategy_signals:
-    - "seek short trip"
-
-
-AI затем сравнивает груз:
-
-Cargo:
-  type: Wheat (grain)
-  stowage_factor: 0.68
-  load_port: Marmara
-  discharge_port: Alexandria, Egypt
-  distance_ballast: 420 nm
-  cargo_distance: 780 nm
-
-Оценка AI по 3 уровням:
-1. Full conflict (Strong Negative)
-
-Если комментарий прямо запрещает работу с этим грузом:
-
-“no grains” → груз = grain
-
-“no Egypt” → discharge in Egypt
-
-“prefer only high SF” → груз с низким SF
-
-“not going to Black Sea” → load Black Sea
-
-→ AI выставляет heavy penalty (-30…-50), но не блок
-(философия мягких правил — см. answered questions)
-
-2. Soft conflict (Moderate Negative)
-
-Комментарии выражают нежелание, но не запрет:
-
-“prefer closer cargo” → груз далеко
-
-“avoid Turkey” → груз грузится в Turkey
-
-“prefer short trip” → груз long haul
-
-“prefer to stay in Med” → груз за пределы Med
-
-→ penalty (-10…-25)
-
-3. Positive match (Bonus)
-
-Если груз соответствует предпочтениям:
-
-“prefer high SF cargo” → cargo SF > 1.25
-
-“prefer short trip” → trip 1–3 days
-
-“seeking Egypt/Libya backhaul” → груз в Egypt
-
-“looking for nearby cargo” → груз < 200 nm
-
-“prefer BS grain” → груз grain ex Black Sea
-
-→ bonus (+10…+25)
-
-5. Финальная оценка критерия
-
-Диапазон: −50 … +25 (влияет на общий score)
-
-Рекомендуемая шкала:
-
-Тип сигнала	Влияние
-Полный конфликт	−40 / −50
-Частичный конфликт	−15 / −25
-Нейтрально	0
-Соответствие предпочтениям	+10 / +15
-Идеальное совпадение (стратегия + тип груза + регион)	+20 / +25
-6. Поведение AI в тексте оффера
-
-AI должен использовать комментарии владельца корректно и дипломатично.
-
-Примеры текста:
-❌ При полном конфликте:
-
-“Я знаю, что вы писали ‘no grains’, но решил отправить в любом случае — вдруг ситуация изменилась.”
-
-⚠️ При частичном несовпадении:
-
-“Понимаю, что вы предпочитаете держаться рядом с текущей позицией, но этот груз не слишком далеко — может быть, он все же подойдет?”
-
-✅ При полном совпадении:
-
-“Вижу в ваших комментариях, что ищете short trip и предпочтительно high SF — этот груз идеально соответствует вашим текущим предпочтениям.”
-
-7. AI Prompt Integration (готовый блок)
-
-В промпт передается:
-
-### OPEN AREA COMMENTS (Voyage-Specific Owner Notes)
-Use these comments to adjust scoring. These comments reflect the owner’s very current preferences for THIS voyage, and may override or complement historical Regional/Cargo settings.
-
-Cargo-related comments:
-  - ...
-
-Geography-related comments:
-  - ...
-
-Strategy-related comments:
-  - ...
-
-Rules:
-  - These comments have medium-to-high priority
-  - They SHOULD influence scoring
-  - They must NOT be treated as hard blocks
-  - Apply penalties or bonuses according to alignment with cargo
-  - Provide human-like reasoning in offer text
-
-8. Где этот критерий в системе
-Вставляется как SECTION 9 (или твой номер) в файл scoring_criteria (методологический раздел)
-Уровень приоритета:
-
-Intake
-
-Cargo Preferences
-
-Regional Preferences
-
-OpenArea Comments ← новый критерий
-
-Last Ports of Call
-
-Proximity
-
-Future criteria
-
-Этот критерий должен стоять выше LPOC и Proximity, потому что он всегда отражает свежие намерения владельца, которые меняются ежедневно.
+# ═══════════════════════════════════════════════════════════════════
+# SHORT SUMMARY
+# ═══════════════════════════════════════════════════════════════════
+
+DOCUMENT: OpenArea Comments Scoring - P6 Criterion (Voyage-Specific Owner Comments)
+PURPOSE: Evaluate how current voyage-specific owner comments align with cargo parameters
+SCORE RANGE: [-50, +25] - Penalty-based modifier (no hard blocks)
+INTEGRATION: Part of VK Charts AI Scoring System (criterion P6)
+
+WHAT IS P6 (OpenArea Comments Scoring):
+P6 evaluates how well the current cargo matches the vessel owner's voyage-specific
+comments in OpenArea fields. Unlike Cargo/Regional Preferences (P2/P3) which are
+long-term patterns, OpenArea Comments reflect CURRENT strategy for THIS specific
+voyage: what cargoes they want now, what regions they prefer now, what voyage type
+they seek now.
+
+KEY FEATURES:
+- Interprets CURRENT voyage-specific comments (not historical preferences)
+- Three signal categories: Cargo-Type, Geography, Trade Pattern/Strategy
+- AI-centric interpretation (extracts signals from unstructured text)
+- Penalty-focused: Strong conflicts = -40 to -50, perfect match = +20 to +25
+- NO HARD BLOCKS (soft rules philosophy - always show cargo with reasoning)
+- High priority criterion (reflects real-time owner intentions)
+- Directly influences offer text personalization
+
+CRITICAL DISTINCTIONS:
+- P3 (Cargo Preferences) = Long-term cargo type patterns
+- P2 (Regional Preferences) = Long-term geographic patterns
+- P6 (OpenArea Comments) = CURRENT voyage-specific strategy
+
+These are COMPLEMENTARY criteria - P6 adds real-time context to historical patterns.
+
+COMMENT CATEGORIES (3 types):
+1. Cargo-Type Related: "no grains", "prefer high SF cargoes", "only fertilizers"
+2. Geography Related: "not going to Black Sea", "only East Med", "no Egypt"
+3. Trade Pattern/Strategy: "looking for short trip", "seeking repositioning", "avoid long ballast"
+
+SCORING LOGIC:
+- Full Conflict (strong negative): -40 to -50 points
+  Example: "no grains" + cargo is grain → -45 points
+- Soft Conflict (moderate negative): -10 to -25 points
+  Example: "prefer close cargo" + cargo 800nm away → -15 points
+- Neutral: 0 points (no relevant comments)
+- Positive Match: +10 to +15 points
+  Example: "prefer high SF cargo" + cargo SF = 1.45 → +12 points
+- Perfect Match: +20 to +25 points
+  Example: "looking for short trip to Egypt with high SF" + exact match → +25 points
+
+EXAMPLE USAGE:
+- Comment: "no grains, prefer nearby cargo only, seeking short trip"
+- Cargo: Wheat 5000t, 800nm ballast, 5-day voyage
+- Result: -45 (grain conflict) -15 (far) -10 (long trip) = -70 → clamped to -50
+- Reasoning: "Strong mismatch with current preferences, but cargo shown for consideration"
+
+PRIORITY IN SYSTEM:
+High priority - placed above LPOC and Proximity because it reflects CURRENT daily
+changing intentions, not historical patterns.
+
+
+# ═══════════════════════════════════════════════════════════════════
+# HOW TO USE DOCUMENT
+# ═══════════════════════════════════════════════════════════════════
+
+## FOR DEVELOPERS (Laravel ↔ LangChain Integration)
+
+### Data Flow:
+1. **Laravel** retrieves OpenArea comment data:
+   - Vessel OpenArea comments: vessels.open_area_comments field
+   - Company OpenArea comments: companies.open_area_comments field (if exists)
+   - Person notes: people.notes field (if voyage-specific)
+
+2. **Laravel** sends to **LangChain Python microservice**:
+   ```json
+   {
+     "open_area_comments": "no grains, prefer nearby cargo only, seeking short trip to Egypt area",
+     "cargo": {
+       "type": "Wheat",
+       "quantity": 5000,
+       "loading_port": "Constanta, Romania",
+       "discharge_port": "Alexandria, Egypt",
+       "stowage_factor": 0.68,
+       "distance_ballast": 420,
+       "voyage_duration_days": 5
+     },
+     "vessel": {
+       "current_position": "Marmara Sea",
+       "dwt": 8500
+     }
+   }
+   ```
+
+3. **LangChain/AI** processes OpenArea comments:
+   - Extracts cargo-type signals
+   - Extracts geography signals
+   - Extracts strategy signals
+   - Evaluates conflicts and matches
+   - Calculates P6 score
+
+4. **LangChain/AI** returns:
+   ```json
+   {
+     "criterion_p6_open_area_score": -32,
+     "score_range": "[-50, +25]",
+     "signals_extracted": {
+       "cargo_type": [
+         {
+           "signal": "no grains",
+           "relevance": "HIGH",
+           "conflict_level": "FULL",
+           "impact": -45
+         }
+       ],
+       "geography": [
+         {
+           "signal": "prefer nearby cargo only",
+           "relevance": "MEDIUM",
+           "conflict_level": "SOFT",
+           "impact": -10,
+           "reasoning": "Cargo 420nm away, not very close"
+         }
+       ],
+       "strategy": [
+         {
+           "signal": "seeking short trip to Egypt area",
+           "relevance": "HIGH",
+           "conflict_level": "POSITIVE_MATCH",
+           "impact": +15,
+           "reasoning": "Cargo to Egypt, 5-day trip matches preference"
+         }
+       ]
+     },
+     "breakdown": {
+       "cargo_type_score": -45,
+       "geography_score": -10,
+       "strategy_score": +15,
+       "raw_total": -40,
+       "clamped_score": -32,
+       "reasoning": "Strong conflict on cargo type (no grains vs wheat), soft conflict on distance, but positive match on Egypt destination and short trip duration"
+     },
+     "offer_text_guidance": {
+       "acknowledge_conflict": true,
+       "conflict_text": "I see you mentioned 'no grains' in your current preferences",
+       "positive_angle": "However, this is a short trip to Egypt area which matches your strategy",
+       "recommendation": "Diplomatically present, acknowledge preferences, emphasize positive aspects"
+     }
+   }
+   ```
+
+5. **Integration with scoring system:**
+   - P6 score [-50, +25] added to total score
+   - Conflicts acknowledged in offer text reasoning
+   - Positive matches highlighted in offer text
+   - NO HARD BLOCKS - cargo always shown with explanation
+
+### Important Notes:
+- OpenArea comments are CURRENT and VOYAGE-SPECIFIC
+- P6 complements (not replaces) P2/P3 (historical preferences)
+- Score range is ASYMMETRIC: more penalty (-50) than bonus (+25)
+- NO HARD BLOCKS - even with -50, cargo is shown with reasoning
+- Comments integration with COMMENTS_PROCESSING_GUIDE.txt for parsing
+- AI must explain conflicts diplomatically in offer text
+
+### Comment Format Examples:
+```
+Good format: "no grains, prefer nearby cargo only, seeking short trip to Egypt"
+Bad format: "maybe grain ok sometimes if good freight but usually no"
+(AI can handle both, but clear statements work better)
+```
+
+---
+
+## FOR AI/LangChain (OpenArea Comment Processing Implementation)
+
+### Step-by-Step Algorithm:
+
+**STEP 1: Receive and Parse OpenArea Comments**
+```
+Input: open_area_comments (string, may be empty)
+
+If empty: 
+  P6_score = 0 (neutral)
+  reasoning = "No current voyage-specific comments available"
+  RETURN
+
+Parse comments using COMMENTS_PROCESSING_GUIDE.txt patterns:
+- Cargo-type signals
+- Geography signals
+- Strategy signals
+```
+
+**STEP 2: Extract Cargo-Type Signals**
+```
+Keywords to detect:
+- Negative: "no", "avoid", "not", "cannot", "refuse"
+- Positive: "prefer", "seeking", "looking for", "only"
+- Types: "grains", "steel", "coils", "fertilizers", "high SF", "low SF"
+
+Examples:
+  "no grains" → cargo_type_signals.add({type: "grains", sentiment: "REFUSE"})
+  "prefer high SF cargoes" → cargo_type_signals.add({type: "high_SF", sentiment: "PREFER"})
+  "only fertilizers" → cargo_type_signals.add({type: "fertilizers", sentiment: "ONLY"})
+
+For current cargo, check if cargo.type or cargo.stowage_factor matches:
+  IF cargo.type = "Wheat" AND signal = "no grains":
+    conflict = FULL
+    impact = -45
+```
+
+**STEP 3: Extract Geography Signals**
+```
+Keywords to detect:
+- Regions: "Black Sea", "Med", "Egypt", "Libya", "Adriatic", etc.
+- Proximity: "nearby", "close", "local", "far", "long ballast"
+- Directions: "not going to", "prefer", "only", "avoid"
+
+Examples:
+  "not going to Black Sea" → geography_signals.add({region: "Black Sea", sentiment: "REFUSE"})
+  "prefer nearby cargo only" → geography_signals.add({proximity: "nearby", sentiment: "PREFER"})
+  "only East Med" → geography_signals.add({region: "East Med", sentiment: "ONLY"})
+
+For current cargo, check if regions match:
+  IF cargo.loading_region = "Black Sea" AND signal = "not going to Black Sea":
+    conflict = FULL
+    impact = -40
+    
+  IF cargo.distance_ballast > 500nm AND signal = "prefer nearby cargo":
+    conflict = SOFT
+    impact = -15
+```
+
+**STEP 4: Extract Strategy Signals**
+```
+Keywords to detect:
+- Voyage length: "short trip", "long haul", "quick turnaround"
+- Positioning: "repositioning", "ballast", "backhaul"
+- Operations: "fast loading", "avoid long ballast", "canal transit"
+- Concerns: "PSC", "flag restrictions", "sanctions"
+
+Examples:
+  "looking for short trip" → strategy_signals.add({type: "voyage_length", value: "short"})
+  "seeking repositioning to Continent" → strategy_signals.add({type: "positioning", destination: "Continent"})
+  "avoid long ballast" → strategy_signals.add({type: "ballast", preference: "avoid_long"})
+
+For current cargo, evaluate match:
+  IF cargo.voyage_duration_days <= 3 AND signal = "looking for short trip":
+    match = POSITIVE
+    impact = +15
+    
+  IF cargo.distance_ballast > 1000nm AND signal = "avoid long ballast":
+    conflict = SOFT
+    impact = -20
+```
+
+**STEP 5: Calculate Conflict Levels**
+```
+For each signal, determine conflict level:
+
+FULL CONFLICT:
+- Direct refusal + cargo matches refused type
+- "no grains" + cargo is grain
+- "not going to Egypt" + cargo discharges Egypt
+- Impact: -40 to -50
+
+SOFT CONFLICT:
+- Preference not met but not explicitly refused
+- "prefer close cargo" + cargo 800nm away
+- "prefer short trip" + cargo 7-day voyage
+- Impact: -10 to -25
+
+NEUTRAL:
+- Signal not relevant to cargo
+- "no steel coils" + cargo is grain
+- Impact: 0
+
+POSITIVE MATCH:
+- Cargo meets stated preference
+- "prefer high SF" + cargo SF = 1.45
+- "seeking Egypt backhaul" + cargo to Egypt
+- Impact: +10 to +15
+
+PERFECT MATCH:
+- Multiple preferences met simultaneously
+- "short trip to Egypt with high SF" + cargo matches all
+- Impact: +20 to +25
+```
+
+**STEP 6: Sum and Clamp Score**
+```
+Sum all impacts:
+  cargo_type_total = sum(cargo_type_signals.impacts)
+  geography_total = sum(geography_signals.impacts)
+  strategy_total = sum(strategy_signals.impacts)
+  
+  raw_total = cargo_type_total + geography_total + strategy_total
+
+Clamp to range:
+  IF raw_total < -50:
+    p6_score = -50
+  ELSE IF raw_total > 25:
+    p6_score = 25
+  ELSE:
+    p6_score = raw_total
+
+IMPORTANT: No hard blocks - even at -50, cargo is shown
+```
+
+**STEP 7: Generate Reasoning**
+```
+Create human-readable explanation:
+
+IF p6_score <= -30:
+  reasoning = "Strong conflict with current voyage preferences: [list main conflicts]. However, cargo shown for consideration as circumstances may have changed."
+  
+ELSE IF p6_score < 0:
+  reasoning = "Some mismatch with stated preferences: [list conflicts], but [list any positive aspects]."
+  
+ELSE IF p6_score = 0:
+  reasoning = "Neutral match - no specific conflicts or strong preferences indicated in current comments."
+  
+ELSE IF p6_score > 0:
+  reasoning = "Good match with current preferences: [list positive matches]."
+  
+ELSE IF p6_score >= 20:
+  reasoning = "Excellent match - cargo aligns perfectly with stated voyage strategy: [list all matches]."
+```
+
+**STEP 8: Generate Offer Text Guidance**
+```
+Based on conflict level, provide guidance for offer text:
+
+FULL CONFLICT:
+  "I see you mentioned '[exact quote]' in your current preferences. I'm showing this cargo because [positive angle: good rate/position/opportunity]. If your strategy has shifted, this could work well."
+
+SOFT CONFLICT:
+  "I understand you prefer [preference], and this cargo is [slightly different]. However, [positive aspects] might make it worth considering."
+
+POSITIVE MATCH:
+  "This cargo matches your current preferences perfectly: [list matches]. Should be exactly what you're looking for right now."
+
+Include in offer:
+- Acknowledge conflicts honestly
+- Emphasize positive aspects
+- Respect owner's stated preferences
+- Leave door open for changed circumstances
+```
+
+**STEP 9: Return Complete P6 Analysis**
+```json
+{
+  "criterion_p6_score": numeric [-50, +25],
+  "signals_extracted": {
+    "cargo_type": [...],
+    "geography": [...],
+    "strategy": [...]
+  },
+  "breakdown": {
+    "cargo_type_score": numeric,
+    "geography_score": numeric,
+    "strategy_score": numeric,
+    "raw_total": numeric,
+    "clamped_score": numeric
+  },
+  "reasoning": "Human-readable explanation",
+  "offer_text_guidance": {
+    "acknowledge_conflict": boolean,
+    "conflict_text": "string",
+    "positive_angle": "string"
+  }
+}
+```
+
+### Critical Reminders:
+- ⚠️ OpenArea comments are CURRENT - they change daily/weekly
+- ⚠️ NO HARD BLOCKS - even -50 score still shows cargo with reasoning
+- ⚠️ P6 is ASYMMETRIC: -50 max penalty, +25 max bonus (penalties dominate)
+- ⚠️ Conflicts must be acknowledged diplomatically in offer text
+- ⚠️ Use COMMENTS_PROCESSING_GUIDE.txt for parsing consistency
+
+---
+
+## FOR KNOWLEDGE BASE UPDATES (Maintenance)
+
+### When to Update This File:
+
+1. **New Signal Type Discovered**
+   - Users consistently use new type of voyage-specific comment
+   - Add to cargo_type/geography/strategy categories
+   - Define keyword detection patterns
+   - Document scoring impact
+
+2. **Score Range Adjustment**
+   - Market feedback suggests different penalty/bonus levels
+   - Update score range or impact values
+   - Coordinate with MASTER_SCORING_SYSTEM.txt
+   - Document reasoning in changelog
+
+3. **New Conflict Level Needed**
+   - Current 4 levels (Full/Soft/Neutral/Positive) insufficient
+   - Add new conflict level with clear definition
+   - Update scoring impact range
+   - Add examples
+
+4. **Integration Point Change**
+   - P7 priority in system changes
+   - Update priority documentation
+   - Coordinate with MASTER_SCORING_SYSTEM.txt
+   - Document reasoning
+
+5. **Offer Text Template Update**
+   - New diplomatic phrasing needed for conflicts
+   - User feedback on offer text effectiveness
+   - Update offer_text_guidance patterns
+   - Test with real scenarios
+
+### Update Principles:
+- ✓ Maintain "no hard blocks" philosophy (soft rules approach)
+- ✓ Keep score range asymmetric (more penalty than bonus)
+- ✓ Coordinate with COMMENTS_PROCESSING_GUIDE.txt for parsing
+- ✓ Test with real OpenArea comment examples
+- ✓ Ensure diplomatic conflict acknowledgment in offers
+- ✓ Version bump: minor change = +0.1, major change = +1.0
+- ✓ Document user feedback driving changes
+
+### Validation Checklist:
+- [ ] Score range [-50, +25] maintained
+- [ ] Three signal categories comprehensive (cargo/geography/strategy)
+- [ ] Conflict levels clearly defined (Full/Soft/Neutral/Positive/Perfect)
+- [ ] No hard blocks in any scenario
+- [ ] Offer text templates diplomatic and respectful
+- [ ] Integration with COMMENTS_PROCESSING_GUIDE.txt verified
+- [ ] P6 priority in MASTER_SCORING_SYSTEM.txt correct
+- [ ] Real-world comment examples tested
+
+### Testing Guidelines:
+```
+Test with real OpenArea comments:
+1. Parse comment using signal categories
+2. Extract cargo/geography/strategy signals
+3. Evaluate conflict levels for test cargo
+4. Calculate P6 score (verify clamping)
+5. Generate reasoning text
+6. Create offer text with conflict acknowledgment
+7. Verify no hard blocks (cargo shown even at -50)
+8. Validate against user expectations
+```
+
+---
+
+## QUICK REFERENCE
+
+**Score Range:** [-50, +25] (asymmetric: more penalty than bonus)
+
+**Signal Categories (3 types):**
+1. Cargo-Type: "no grains", "prefer high SF", "only fertilizers"
+2. Geography: "not going to Black Sea", "prefer nearby cargo", "only East Med"
+3. Strategy: "seeking short trip", "avoid long ballast", "repositioning to Continent"
+
+**Conflict Levels:**
+- Full Conflict: -40 to -50 (direct refusal + cargo matches)
+- Soft Conflict: -10 to -25 (preference not met)
+- Neutral: 0 (signal not relevant)
+- Positive Match: +10 to +15 (meets preference)
+- Perfect Match: +20 to +25 (multiple preferences met)
+
+**Key Principles:**
+- NO HARD BLOCKS (cargo always shown with reasoning)
+- Voyage-specific (current strategy, not historical patterns)
+- High priority (reflects real-time owner intentions)
+- Complements P2/P3 (adds current context to historical preferences)
+
+**Example Scoring:**
+- "no grains" + wheat cargo = -45 points
+- "prefer nearby" + 800nm away = -15 points
+- "seeking Egypt" + Egypt cargo = +15 points
+- "short trip high SF to Egypt" + perfect match = +25 points
+
+**Offer Text Approach:**
+- Full Conflict: Acknowledge honestly, find positive angle
+- Soft Conflict: Explain difference, emphasize strengths
+- Positive Match: Highlight perfect alignment with preferences
+
+**Critical Notes:**
+- P7 changes daily/weekly (not stable like P2/P3)
+- Use COMMENTS_PROCESSING_GUIDE.txt for parsing
+- Diplomatic conflict acknowledgment required
+- Even -50 score doesn't block cargo display
+
+
+# ═══════════════════════════════════════════════════════════════════
+# OPEN AREA COMMENTS SCORING
+# VK Charts AI Scoring System - Criterion P6
+# ═══════════════════════════════════════════════════════════════════
+#
+# Оценка соответствия груза текущим voyage-specific комментариям владельца
+#
+# ═══════════════════════════════════════════════════════════════════
+
+version: "1.2"
+last_updated: "2024-12-01"
+criterion_code: "P6"
+score_range: [-50, 25]
+priority: "HIGH - Reflects current real-time owner intentions"
+
+# ═══════════════════════════════════════════════════════════════════
+# CRITERION DEFINITION
+# ═══════════════════════════════════════════════════════════════════
+
+definition:
+  name: "OpenArea Comments Scoring"
+  description: |
+    Оценка того, насколько текущие, voyage-specific комментарии владельца 
+    судна совпадают или конфликтуют с грузом. AI интерпретирует сигналы 
+    по трем направлениям (cargo, geography, strategy), применяет бонусы 
+    или штрафы, и использует комментарии в reasoning и оффере.
+    
+  key_characteristics:
+    - "Voyage-specific (не долговременные паттерны)"
+    - "Высокий приоритет (отражает текущие намерения)"
+    - "Нет жестких блоков (только penalties)"
+    - "AI-centric интерпретация"
+    - "Дипломатичное использование в оффере"
+    
+  what_it_is_not:
+    - "Это НЕ Cargo Preferences (P3) - те долговременные"
+    - "Это НЕ Regional Preferences (P2) - те долговременные"
+    - "Это НЕ формальные настройки из UI"
+    
+  relationship_to_other_criteria:
+    complements: ["P2 (Regional Preferences)", "P3 (Cargo Preferences)"]
+    overrides: []  # Не отменяет другие критерии, дополняет
+    priority_level: "HIGH - выше P4 (LPOC) и P1 (Proximity)"
+
+# ═══════════════════════════════════════════════════════════════════
+# COMMENT CATEGORIES
+# ═══════════════════════════════════════════════════════════════════
+
+comment_categories:
+  
+  cargo_type_related:
+    description: "Комментарии о типах груза, SF, технических характеристиках"
+    
+    examples:
+      negative:
+        - "no grains"
+        - "no steel coils"
+        - "not low SF cargoes (<1.0)"
+        - "no dirty bulk"
+        - "no breakbulk"
+        
+      positive:
+        - "prefer high SF cargoes"
+        - "only fertilizers"
+        - "seeking grain cargoes"
+        - "looking for bagged cargoes"
+        
+    keywords:
+      refuse: ["no", "not", "avoid", "cannot", "refuse"]
+      prefer: ["prefer", "seeking", "looking for", "only", "want"]
+      cargo_types: ["grains", "wheat", "corn", "steel", "coils", "fertilizers", 
+                    "bauxite", "high SF", "low SF", "dirty bulk", "breakbulk"]
+                    
+  geography_related:
+    description: "Комментарии о регионах, портах, направлениях"
+    
+    examples:
+      negative:
+        - "not going to Black Sea"
+        - "no Libya / no Egypt"
+        - "no Marmara"
+        - "avoid Turkey"
+        
+      positive:
+        - "only looking for East Med cargoes"
+        - "prefer close cargo from current port"
+        - "prefer backhaul towards Adriatic"
+        - "seeking Egypt area"
+        
+    keywords:
+      refuse: ["not going to", "no", "avoid", "cannot call"]
+      prefer: ["only", "prefer", "seeking", "looking for"]
+      proximity: ["nearby", "close", "local", "far", "long ballast"]
+      regions: ["Black Sea", "Med", "Egypt", "Libya", "Marmara", "Adriatic",
+                "Continent", "Turkey", "Greece", "Far East"]
+                
+  trade_pattern_strategy:
+    description: "Комментарии о типе рейса, стратегии, позиционировании"
+    
+    examples:
+      voyage_type:
+        - "looking for short trip"
+        - "looking for long haul"
+        - "need quick turnaround"
+        
+      positioning:
+        - "seeking repositioning to Continent"
+        - "want to stay in Med"
+        - "avoid long ballast"
+        
+      operational:
+        - "need fast loading"
+        - "not ready for canal transit"
+        - "PSC concerns in Egypt"
+        
+    keywords:
+      voyage_length: ["short trip", "long haul", "quick", "fast turnaround"]
+      positioning: ["repositioning", "backhaul", "stay in", "heading to"]
+      ballast: ["avoid long ballast", "prefer nearby", "long ballast ok"]
+      operational: ["fast loading", "slow ops ok", "canal transit", "PSC concerns"]
+
+# ═══════════════════════════════════════════════════════════════════
+# SCORING LOGIC
+# ═══════════════════════════════════════════════════════════════════
+
+scoring_logic:
+  
+  principle: "AI-centric interpretation with soft rules (no hard blocks)"
+  
+  conflict_levels:
+    
+    full_conflict:
+      description: "Прямой запрет + груз соответствует запрету"
+      score_range: [-50, -40]
+      
+      examples:
+        - comment: "no grains"
+          cargo: "Wheat"
+          score: -45
+          reasoning: "Direct refusal of grain cargoes, cargo is wheat"
+          
+        - comment: "not going to Black Sea"
+          cargo_loading: "Odessa, Ukraine (Black Sea)"
+          score: -40
+          reasoning: "Owner explicitly refuses Black Sea routes"
+          
+        - comment: "prefer only high SF cargo"
+          cargo_sf: 0.68
+          score: -45
+          reasoning: "Low SF cargo conflicts with 'only high SF' preference"
+          
+      important_note: "Even at -50, cargo is STILL SHOWN to user with reasoning"
+      
+    soft_conflict:
+      description: "Предпочтение не выполнено, но не явный запрет"
+      score_range: [-25, -10]
+      
+      examples:
+        - comment: "prefer closer cargo"
+          ballast_distance: 800
+          score: -15
+          reasoning: "Cargo far from current position, owner prefers nearby"
+          
+        - comment: "prefer short trip"
+          voyage_days: 7
+          score: -12
+          reasoning: "7-day voyage doesn't match 'short trip' preference"
+          
+        - comment: "avoid Turkey"
+          cargo_loading: "Iskenderun, Turkey"
+          score: -20
+          reasoning: "Soft avoidance of Turkey, cargo loads there"
+          
+    neutral:
+      description: "Сигнал не релевантен к грузу"
+      score_range: [0, 0]
+      
+      examples:
+        - comment: "no steel coils"
+          cargo: "Wheat"
+          score: 0
+          reasoning: "Comment about steel not relevant to grain cargo"
+          
+    positive_match:
+      description: "Груз соответствует заявленным предпочтениям"
+      score_range: [10, 15]
+      
+      examples:
+        - comment: "prefer high SF cargo"
+          cargo_sf: 1.45
+          score: 12
+          reasoning: "Cargo SF 1.45 matches high SF preference"
+          
+        - comment: "seeking Egypt/Libya backhaul"
+          cargo_discharge: "Alexandria, Egypt"
+          score: 15
+          reasoning: "Egypt discharge matches backhaul preference"
+          
+        - comment: "looking for nearby cargo"
+          ballast_distance: 150
+          score: 10
+          reasoning: "150nm ballast matches 'nearby' preference"
+          
+    perfect_match:
+      description: "Несколько предпочтений выполнены одновременно"
+      score_range: [20, 25]
+      
+      examples:
+        - comment: "short trip to Egypt with high SF"
+          cargo: 
+            type: "Bagged fertilizers"
+            sf: 1.50
+            discharge: "Alexandria, Egypt"
+            voyage_days: 3
+          score: 25
+          reasoning: "Perfect alignment: high SF, Egypt destination, short trip (3 days)"
+
+# ═══════════════════════════════════════════════════════════════════
+# SCORING CALCULATION
+# ═══════════════════════════════════════════════════════════════════
+
+calculation_method:
+  
+  step_by_step:
+    
+    step_1_parse_comments:
+      description: "Extract signals from OpenArea comments"
+      output: "List of cargo_signals, geography_signals, strategy_signals"
+      
+    step_2_evaluate_each_signal:
+      description: "For each signal, determine conflict level and impact"
+      output: "List of {signal, conflict_level, impact_score}"
+      
+    step_3_sum_impacts:
+      description: "Sum all impact scores"
+      formula: "raw_score = sum(all_impacts)"
+      
+    step_4_clamp_to_range:
+      description: "Ensure score within [-50, +25]"
+      formula: |
+        IF raw_score < -50: p7_score = -50
+        ELSE IF raw_score > 25: p7_score = 25
+        ELSE: p7_score = raw_score
+        
+    step_5_generate_reasoning:
+      description: "Create human-readable explanation"
+      includes:
+        - Main conflicts identified
+        - Positive matches found
+        - Overall assessment
+        - Why cargo shown despite conflicts
+        
+  example_calculation:
+    
+    comment: "no grains, prefer nearby cargo only, seeking short trip to Egypt"
+    
+    cargo:
+      type: "Wheat"
+      stowage_factor: 0.68
+      loading_port: "Constanta, Romania"
+      discharge_port: "Alexandria, Egypt"
+      distance_ballast: 420
+      voyage_duration_days: 5
+      
+    signal_evaluation:
+      - signal: "no grains"
+        cargo_matches: true  # cargo is grain (wheat)
+        conflict_level: "FULL"
+        impact: -45
+        
+      - signal: "prefer nearby cargo only"
+        distance: 420  # 420nm ballast
+        conflict_level: "SOFT"
+        impact: -10
+        reasoning: "420nm not exactly 'nearby'"
+        
+      - signal: "seeking short trip to Egypt"
+        voyage_days: 5
+        discharge_matches: true  # Egypt
+        conflict_level: "POSITIVE_MATCH"
+        impact: +15
+        reasoning: "5-day trip reasonably short, Egypt matches"
+        
+    calculation:
+      raw_score: -45 + (-10) + 15 = -40
+      clamped_score: -40  # within range
+      final_p6_score: -40
+      
+    reasoning_output: |
+    "Strong conflict with current preferences: owner specified 'no grains' 
+    and cargo is wheat (-45). Additional soft conflict on distance (420nm 
+    not exactly 'nearby', -10). However, positive match on destination 
+    and trip length (Egypt, 5-day trip, +15). Overall P6 score: -40.
+      Cargo shown for consideration as circumstances may have changed."
+
+# ═══════════════════════════════════════════════════════════════════
+# OFFER TEXT INTEGRATION
+# ═══════════════════════════════════════════════════════════════════
+
+offer_text_guidelines:
+  
+  principle: "Acknowledge conflicts diplomatically, emphasize positive aspects"
+  
+  full_conflict_template:
+    approach: "Honest acknowledgment + positive angle"
+    
+    examples:
+      - comment: "no grains"
+        cargo: "Wheat"
+        
+        bad_text: |
+          "Я знаю, что вы писали 'no grains', но решил отправить в любом случае 
+          — вдруг ситуация изменилась."
+          
+        good_text: |
+          "I see you mentioned 'no grains' in your current comments. I'm showing 
+          this wheat cargo because [position is excellent / rate is attractive / 
+          quick turnaround]. If your strategy has shifted or there's flexibility 
+          on this particular cargo, it could work well."
+          
+  soft_conflict_template:
+    approach: "Acknowledge preference + show why worth considering"
+    
+    examples:
+      - comment: "prefer close cargo"
+        ballast: 800
+        
+        text: |
+          "I understand you prefer nearby cargo, and this is 800nm ballast. 
+          However, [strong freight rate / excellent return cargo opportunity / 
+          positions you well for next voyage] might make it worth considering."
+          
+  positive_match_template:
+    approach: "Highlight alignment with preferences"
+    
+    examples:
+      - comment: "seeking short trip to Egypt with high SF"
+        cargo: "Perfect match"
+        
+        text: |
+          "This cargo matches your current preferences perfectly: high SF (1.48), 
+          Egypt destination, 3-day voyage. Should be exactly what you're looking 
+          for right now."
+          
+  diplomatic_principles:
+    - "Never argue with owner's stated preferences"
+    - "Acknowledge conflicts honestly"
+    - "Find positive angles (rate, position, opportunity)"
+    - "Leave door open for changed circumstances"
+    - "Be respectful of owner's strategy"
+    - "Don't be pushy if strong conflict exists"
+
+# ═══════════════════════════════════════════════════════════════════
+# AI PROMPT INTEGRATION
+# ═══════════════════════════════════════════════════════════════════
+
+prompt_template:
+  
+  section: |
+    ═══════════════════════════════════════════════════════════════
+    OPEN AREA COMMENTS (Voyage-Specific Owner Notes)
+    ═══════════════════════════════════════════════════════════════
+    
+    OpenArea Comments: {open_area_comments}
+    
+    These comments reflect the owner's CURRENT preferences for THIS specific 
+    voyage. They may override or complement historical Regional/Cargo 
+    Preferences (P2/P3).
+    
+    Your tasks:
+    1. Extract cargo-type, geography, and strategy signals
+    2. Evaluate conflicts and matches with current cargo
+    3. Calculate P6 score [-50, +25]
+    4. Generate diplomatic reasoning
+    5. Provide offer text guidance
+    
+    CRITICAL RULES:
+    - NO HARD BLOCKS - even at -50, show cargo with explanation
+    - Acknowledge conflicts honestly in offer text
+    - Find positive angles where possible
+    - Be respectful of owner's stated preferences
+    - Score range is asymmetric (more penalty than bonus)
+    
+    Score the alignment and provide reasoning.
+
+# ═══════════════════════════════════════════════════════════════════
+# INTEGRATION WITH SYSTEM
+# ═══════════════════════════════════════════════════════════════════
+
+system_integration:
+  
+  priority_in_scoring:
+    position: "Above LPOC (P4) and Proximity (P1)"
+    reasoning: |
+      OpenArea comments reflect CURRENT daily changing intentions, which are 
+      more important than historical patterns (LPOC) or pure distance (Proximity).
+      
+  suggested_order:
+    1: "P5 (Intake) - Hard capacity constraint"
+    2: "P3 (Cargo Preferences) - Long-term cargo patterns"
+    3: "P2 (Regional Preferences) - Long-term regional patterns"
+    4: "P6 (OpenArea Comments) - CURRENT voyage-specific strategy ← THIS"
+    5: "P4 (Last Ports) - Historical familiarity"
+    6: "P1 (Proximity) - Geographic distance"
+    7: "P7 (Readiness ETA) - Timing"
+    
+  relationship_to_comments_guide:
+    reference: "COMMENTS_PROCESSING_GUIDE.txt"
+    note: |
+      OpenArea Comments use same parsing methodology as vessel/company comments,
+      but have separate scoring criterion because they are voyage-specific.
+      
+  no_hard_blocks_philosophy:
+    principle: "Soft rules approach"
+    implementation: |
+      Even with -50 P7 score, cargo MUST be shown to user with clear reasoning.
+      This allows human judgment to override AI assessment if circumstances 
+      have changed or there are special considerations.
+
+# ═══════════════════════════════════════════════════════════════════
+# METADATA & VERSIONING
+# ═══════════════════════════════════════════════════════════════════
+
+metadata:
+  created_by: "Vitaly (VK Charts expert)"
+  created_date: "2024-11-28"
+  last_modified: "2024-12-01"
+  version: "1.1.0"
+  
+  changelog:
+    - version: "1.2.0"
+      date: "2024-12-01"
+      changes:
+        - "CRITICAL FIX: Changed criterion code from P7 to P6"
+        - "Updated all references from P7 to P6 throughout document"
+        - "Corrected suggested_order to match MASTER_SCORING_SYSTEM.txt"
+        - "Fixed priority_level description"
+        - "Reason: MASTER_SCORING_SYSTEM.txt defines P6 = OpenArea Comments, P7 = Readiness/ETA"
+        - "No logic changes - purely nomenclature correction"
+      
+    - version: "1.1.0"
+      date: "2024-11-30"
+      changes:
+        - "Restructured SHORT SUMMARY in unified format"
+        - "Added comprehensive HOW TO USE DOCUMENT with 3 sections:"
+        - "  - For Developers (Laravel ↔ LangChain integration)"
+        - "  - For AI/LangChain (9-step OpenArea comment processing algorithm)"
+        - "  - For Knowledge Base Updates (maintenance procedures)"
+        - "Added Quick Reference section"
+        - "Enhanced documentation structure for clarity"
+        - "Verified score range [-50, +25] consistency"
+        - "Verified no hard blocks philosophy maintained"
+        - "Confirmed integration with COMMENTS_PROCESSING_GUIDE.txt"
+        - "Enhanced offer text templates with diplomatic principles"
+        - "No logic changes - purely documentation improvements"
+      
+    - version: "1.0.0"
+      date: "2024-11-28"
+      changes:
+        - "Initial OpenArea Comments Scoring criterion (originally labeled P7)"
+        - "Defined three comment categories (cargo/geography/strategy)"
+        - "Established conflict levels (Full/Soft/Neutral/Positive/Perfect)"
+        - "Set score range [-50, +25] with asymmetric penalties"
+        - "Documented no hard blocks philosophy"
+        - "Created offer text integration guidelines"
+        - "Established high priority in scoring system"
+  
+  notes:
+    - "P6 is voyage-specific - reflects CURRENT strategy, not historical patterns"
+    - "NO HARD BLOCKS - cargo always shown even with -50 score"
+    - "Score range asymmetric: -50 max penalty vs +25 max bonus"
+    - "High priority criterion - above P4 (LPOC) and P1 (Proximity)"
+    - "Complements (not replaces) P2/P3 historical preferences"
+    - "CORRECTED 2024-12-01: Renamed from P7 to P6 per MASTER_SCORING_SYSTEM.txt"
+
+# ═══════════════════════════════════════════════════════════════════
+# SUMMARY
+# ═══════════════════════════════════════════════════════════════════
+
+summary:
+  
+  key_principles:
+    1: "Voyage-specific comments reflect CURRENT owner strategy"
+    2: "Three signal types: cargo-type, geography, strategy"
+    3: "AI-centric interpretation with soft rules"
+    4: "NO HARD BLOCKS - always show cargo with reasoning"
+    5: "Diplomatic acknowledgment of conflicts in offer text"
+    6: "High priority - above P4 (LPOC) and P1 (Proximity)"
+    7: "Asymmetric scoring: more penalty than bonus"
+    8: "Criterion code: P6 (not P7) per MASTER_SCORING_SYSTEM.txt"
+    
+  ai_responsibilities:
+    - "Parse OpenArea comments for signals"
+    - "Evaluate conflict levels accurately"
+    - "Calculate P6 score within [-50, +25]"
+    - "Generate diplomatic reasoning"
+    - "Provide offer text guidance"
+    - "Respect owner's stated preferences"
+    
+  quality_indicators:
+    good_processing:
+      - "Signals correctly identified and categorized"
+      - "Conflict levels appropriately assessed"
+      - "Reasoning acknowledges conflicts honestly"
+      - "Offer text is diplomatic and respectful"
+      - "Positive angles found where possible"
+      
+    poor_processing:
+      - "Ignores OpenArea comments"
+      - "Creates hard blocks (cargo not shown)"
+      - "Argumentative offer text"
+      - "Doesn't acknowledge conflicts"
+      - "Score outside [-50, +25] range"

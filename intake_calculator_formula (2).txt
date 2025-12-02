@@ -1,0 +1,1009 @@
+intake_calculator_formula
+
+Short Summary — Intake Calculator Formula
+
+This file defines the official VK Charts formula for calculating a vessel’s maximum cargo intake, taking into account:
+
+Port draft limits
+
+Water density (fresh / brackish / sea)
+
+Under Keel Clearance (UKC)
+
+Squat
+
+Hydrostatic properties (Lpp, TPC, displacement)
+
+Bunkers & stores (ROB)
+
+Cargo stowage factor (SF)
+
+Volume limitations (grain space)
+
+Loading vs discharge port limitations
+
+Manual overrides from vessel comments
+
+It is the authoritative logic behind Criterion 4 – Intake in the VK Charts scoring system (VC-149).
+This document contains the full step-by-step workflow, formulas, the original Excel LET formula, examples, error handling rules, and integration guidelines.
+
+▶️ How to Use — Short Instructions
+1. Gather all required inputs
+
+From vessel database:
+
+DWT, T_summer, Lpp or LOA, Beam, Grain_m³, Vessel type
+
+From port restrictions:
+
+Port draft limit
+
+Water type / water density
+
+From cargo:
+
+Stowage factor (SF)
+
+If any critical data is missing → return ERROR and skip intake scoring.
+
+2. Calculate hydrostatic parameters
+
+AI follows the formulas in the file to compute:
+
+Lpp_used
+
+CWP (bulk vs non-bulk rule)
+
+TPC_salt
+
+TPC_rho
+
+Summer displacement (Δ_summer)
+
+FWA / DWA (water density corrections)
+
+The AI should copy this logic exactly.
+
+3. Determine allowable draft in port
+
+AI calculates:
+
+T_allow = port_limit − UKC − SQUAT
+
+T_allow_SW = corrected for water density
+
+dT (draft reduction needed)
+
+Loss_t (tonnage lost)
+
+4. Compute weight-limited intake
+
+AI calculates:
+
+Available DWT after draft reduction
+
+Minus ROB (4% of DWT)
+
+Result = Intake_weight
+
+5. Compute volume-limited intake (if applicable)
+
+If grain_m³ and SF exist:
+
+Convert SF to m³/t
+
+Intake_volume = grain_m³ / SF
+
+Final intake = min(weight, volume)
+
+If cargo is heavy → weight-limited.
+If cargo is light → volume-limited.
+
+6. If two ports (load + discharge) are known
+
+AI must:
+
+Calculate intake for loading port
+
+Calculate intake for discharge port
+
+Take the minimum
+
+Use this as the final intake value
+
+7. Manual intake overrides
+
+If vessel comments contain patterns like:
+
+Real intake: Wheat, draft 7m, Izmail = 4800t
+
+
+Then:
+
+AI must use manual intake as highest priority
+
+If manual intake does not match the current cargo/port → ignore
+
+If matched → override all formulas
+
+8. Output for scoring
+
+AI must produce:
+
+"intake_final": <tonnes>,
+"limiting_factor": "weight" | "volume" | "port restriction",
+"supports_cargo": true/false,
+"intake_score": <score impact based on ratio>
+
+9. Apply scoring logic (Criterion 4)
+
+Score depends on intake / cargo quantity ratio:
+
+≥ 110% → perfect fit (0 penalty)
+
+100–110% → exact fit (0 penalty)
+
+95–100% → tight fit (−10)
+
+< 95% → too small (−30)
+
+150% → too large (−5)
+
+10. Error handling
+
+If critical data is missing (T_summer, T_port_limit, Beam, LOA/Lpp):
+
+AI must output:
+
+Intake: UNKNOWN
+Reason: Missing critical data
+Require: Manual review
+
+
+Scoring for intake is skipped.
+
+# ═══════════════════════════════════════════════════════════════════
+# INTAKE CALCULATOR FORMULA
+# VK Charts AI Scoring System - Criterion 4 (VC-149)
+# ═══════════════════════════════════════════════════════════════════
+#
+# Формула расчета Intake (загрузочной способности) судна
+# С учетом ограничений порта, плотности воды, и cargo stowage factor
+#
+# ═══════════════════════════════════════════════════════════════════
+
+version: "1.0"
+last_updated: "2024-11-28"
+source: "Vitaly + Excel LET formula"
+jira_task: "VC-149"
+
+# ═══════════════════════════════════════════════════════════════════
+# OVERVIEW
+# ═══════════════════════════════════════════════════════════════════
+
+calculator_purpose: |
+  Calculate vessel's maximum cargo intake for specific:
+  - Port (with draft restrictions)
+  - Cargo type (with stowage factor)
+  - Water type (sea/fresh/brackish density)
+  
+  Takes into account:
+  - Vessel hydrostatic characteristics
+  - Port draft limitations
+  - Water density effects (saltwater allowance)
+  - Under Keel Clearance (UKC)
+  - Squat
+  - Bunkers & stores (ROB)
+  - Cargo volume vs weight limitations
+
+# ═══════════════════════════════════════════════════════════════════
+# INPUT PARAMETERS
+# ═══════════════════════════════════════════════════════════════════
+
+inputs:
+  
+  from_vessel_database:
+    marineman_data:
+      - field: "DWT"
+        description: "Deadweight tonnage"
+        unit: "metric tons"
+        required: true
+        alternative: "Can calculate from T_summer if missing"
+        
+      - field: "T_summer"
+        description: "Summer draft"
+        unit: "meters"
+        required: true
+        note: "CRITICAL - cannot calculate without this"
+        
+      - field: "Lpp"
+        description: "Length between perpendiculars"
+        unit: "meters"
+        required: false
+        fallback: "Calculate from LOA: 0.965*LOA (bulk) or 0.97*LOA (other)"
+        
+      - field: "LOA"
+        description: "Length overall"
+        unit: "meters"
+        required: true
+        note: "If Lpp is missing"
+        
+      - field: "B"
+        description: "Beam (width)"
+        unit: "meters"
+        required: true
+        
+      - field: "Grain_m3"
+        description: "Grain cubic capacity"
+        unit: "cubic meters"
+        required: false
+        note: "For volume-limited cargoes"
+        
+      - field: "VslType"
+        description: "Vessel type"
+        examples: ["Bulk carrier", "General cargo", "Multi-purpose"]
+        note: "Used to determine CWP coefficient"
+  
+  from_port_restrictions:
+    - field: "T_port_limit"
+      description: "Port maximum draft restriction"
+      unit: "meters"
+      required: true
+      source: "port_restrictions_map.yaml"
+      
+    - field: "WaterType"
+      description: "Water type or density"
+      options:
+        - "sea" / "salt" / "морская" → 1.025
+        - "fresh" / "пресная" → 1.000
+        - "brackish" / "солоноватая" → 1.010
+        - or direct number (e.g., 1.015)
+      required: true
+      
+  from_cargo:
+    - field: "SF_ft3_per_mt"
+      description: "Stowage factor"
+      unit: "cubic feet per metric ton"
+      required: false
+      note: "If cargo is volume-limited (light cargo)"
+      source: "Airtable cargo library"
+
+# ═══════════════════════════════════════════════════════════════════
+# CONSTANTS & COEFFICIENTS
+# ═══════════════════════════════════════════════════════════════════
+
+constants:
+  
+  UKC:
+    value: 0.30
+    unit: "meters"
+    description: "Under Keel Clearance"
+    note: "Safety margin below keel"
+    
+  SQUAT:
+    value: 0.10
+    unit: "meters"
+    description: "Squat allowance"
+    note: "Vessel sinks deeper when moving (dynamic effect)"
+    
+  ROB_PCT:
+    value: 0.04
+    description: "Bunkers & stores percentage"
+    note: "4% of DWT reserved for fuel, water, stores"
+    
+  CWP:
+    description: "Coefficient of waterplane area"
+    values:
+      bulk_carriers: 0.87
+      other_vessels: 0.80
+    logic: |
+      IF vessel type contains "bulk" OR DWT > 20000:
+        CWP = 0.87
+      ELSE:
+        CWP = 0.80
+        
+  water_density:
+    sea_salt: 1.025
+    fresh: 1.000
+    brackish: 1.010
+
+# ═══════════════════════════════════════════════════════════════════
+# CALCULATION STEPS
+# ═══════════════════════════════════════════════════════════════════
+
+calculation_workflow:
+  
+  step_1_validate_inputs:
+    description: "Check if critical data is available"
+    
+    critical_fields:
+      - B (Beam)
+      - T_port_limit (Port draft restriction)
+      - WaterType (or density)
+      - Lpp or LOA
+      - T_summer (Summer draft)
+      - DWT or ability to calculate it
+      
+    error_handling:
+      if_missing: "Return ERROR message to user"
+      message: "Cannot calculate intake - missing critical data"
+      
+  step_2_calculate_lpp:
+    description: "Determine Lpp if not provided"
+    
+    logic: |
+      IF Lpp exists:
+        Lpp_used = Lpp
+      ELSE IF LOA exists:
+        IF (vessel is bulk OR DWT > 20000):
+          Lpp_used = 0.965 * LOA
+        ELSE:
+          Lpp_used = 0.97 * LOA
+      ELSE:
+        ERROR - no length data
+        
+  step_3_determine_water_density:
+    description: "Get water density from WaterType"
+    
+    logic: |
+      IF WaterType is number:
+        rho = WaterType
+      ELSE:
+        SWITCH WaterType:
+          "sea", "salt", "морская" → rho = 1.025
+          "fresh", "пресная" → rho = 1.000
+          "brackish", "солоноватая" → rho = 1.010
+          
+  step_4_hydrostatic_calculations:
+    description: "Calculate TPC and displacement"
+    
+    formulas:
+      TPC_salt:
+        formula: "0.01025 × CWP × Lpp_used × B"
+        description: "Tonnes per centimeter immersion in saltwater"
+        unit: "tonnes/cm"
+        
+      TPC_rho:
+        formula: "TPC_salt × (rho / 1.025)"
+        description: "TPC adjusted for actual water density"
+        
+      Delta_summer:
+        formula: |
+          IF DWT exists:
+            Delta_summer = DWT / 0.70
+          ELSE:
+            Delta_summer = 1.025 × Lpp_used × B × T_summer × 0.74
+        description: "Summer displacement (vessel weight at summer draft)"
+        unit: "tonnes"
+        
+  step_5_draft_allowances:
+    description: "Calculate saltwater/freshwater allowances"
+    
+    formulas:
+      FWA_cm:
+        formula: "Delta_summer / (4 × TPC_salt)"
+        description: "Fresh Water Allowance in cm"
+        note: "How much draft increases in freshwater vs saltwater"
+        
+      DWA_cm:
+        formula: "FWA_cm × ((1.025 - rho) / 0.025)"
+        description: "Dock Water Allowance"
+        note: "Adjustment for actual water density vs saltwater"
+        
+  step_6_allowable_draft:
+    description: "Calculate maximum usable draft in port"
+    
+    formulas:
+      T_allow:
+        formula: "T_port_limit - UKC - SQUAT"
+        description: "Allowable draft with safety margins"
+        note: "What draft we can actually use"
+        
+      T_allow_SW:
+        formula: "T_allow - DWA_cm / 100"
+        description: "Allowable draft adjusted to saltwater equivalent"
+        
+  step_7_draft_limitation:
+    description: "Calculate weight loss due to draft restriction"
+    
+    formulas:
+      dT:
+        formula: "MAX(0, T_summer - T_allow_SW)"
+        description: "Draft reduction required"
+        note: "How much we must reduce draft to enter port"
+        
+      Loss_t:
+        formula: "TPC_rho × 100 × dT"
+        description: "Weight loss in tonnes"
+        note: "Cargo we cannot load due to draft restriction"
+        
+  step_8_weight_limited_intake:
+    description: "Calculate intake limited by weight/draft"
+    
+    formulas:
+      DWT_base:
+        formula: |
+          IF DWT exists:
+            DWT_base = DWT
+          ELSE:
+            DWT_base = 0.70 × Delta_summer
+            
+      DWT_allow:
+        formula: "MAX(0, DWT_base - Loss_t)"
+        description: "Deadweight available after draft restriction"
+        
+      ROB_t:
+        formula: "ROB_PCT × DWT_base"
+        description: "Bunkers & stores weight"
+        note: "4% of DWT reserved"
+        
+      Intake_weight:
+        formula: "MAX(0, DWT_allow - ROB_t)"
+        description: "Maximum cargo by weight"
+        
+  step_9_volume_limitation:
+    description: "Check if cargo is volume-limited"
+    
+    logic: |
+      IF Grain_m3 exists AND SF_m3_per_t exists:
+        Convert SF from ft³/mt to m³/t:
+        SF_m3_per_t = SF_ft3_per_mt / 35.3147
+        
+        Calculate volume-limited intake:
+        Intake_volume = Grain_m3 / SF_m3_per_t
+        
+        Take minimum of weight and volume:
+        Intake_final = MIN(Intake_weight, Intake_volume)
+      ELSE:
+        Intake_final = Intake_weight
+        
+  step_10_final_result:
+    description: "Return final intake value"
+    
+    output:
+      value: "Intake_final"
+      unit: "metric tons"
+      note: "Maximum loadable cargo quantity"
+
+# ═══════════════════════════════════════════════════════════════════
+# EXCEL LET FORMULA (ORIGINAL)
+# ═══════════════════════════════════════════════════════════════════
+
+excel_formula: |
+  =LET(
+    /* === ВХОД ИЗ ТВОЕЙ БД === */
+    DWT;               'Marineman -> Deadweight (DWT)';
+    T_summer;          'Marineman -> Draft';
+    Lpp;               'Marineman -> Length (BP)';
+    LOA;               'Marineman -> Length overall';
+    B;                 'Marineman -> Beam';
+    Grain_m3;          'Marineman -> Grain capacity';
+    VslType;           'Marineman -> Vessel type';
+
+    T_port_limit;      'Port -> Draft limit (m)';
+    WaterType;         'Port -> Water type';
+
+    /* === CARGO SF (в кубических футах на метрическую тонну) === */
+    SF_ft3_per_mt;     'Cargo -> Stowage factor (ft3/mt)';
+
+    /* === НАСТРОЙКИ === */
+    UKC;               0.30;
+    SQUAT;             0.10;
+    ROB_PCT;           0.04;
+
+    /* CWP по типу/размеру */
+    IsBulk;            IFERROR( SEARCH("bulk"; LOWER(TEXT(VslType;"@"))); )>0;
+    CWP;               IF( OR( IsBulk; (ISNUMBER(DWT)*(DWT>20000)) ); 0.87; 0.80 );
+
+    /* Lpp по умолчанию, если нет Lpp — из LOA */
+    Lpp_used;          IF( ISNUMBER(Lpp);
+                           Lpp;
+                           IF( ISNUMBER(LOA);
+                               IF( OR(IsBulk; (ISNUMBER(DWT)*(DWT>20000)) ); 0.965*LOA; 0.97*LOA );
+                               NA()
+                           )
+                         );
+
+    /* Плотность воды */
+    rho;               IF( ISNUMBER(WaterType);
+                          WaterType;
+                          SWITCH( LOWER(TEXT(WaterType;"@"));
+                            "sea";1.025; "salt";1.025; "морская";1.025;
+                            "fresh";1.000; "пресная";1.000;
+                            "brackish";1.010; "солоноватая";1.010;
+                            NA()
+                          )
+                        );
+
+    /* Проверка критичных полей */
+    missing;           OR(
+                          NOT(ISNUMBER(B));
+                          NOT(ISNUMBER(T_port_limit));
+                          AND( NOT(ISNUMBER(DWT)); NOT(ISNUMBER(T_summer)) );
+                          NOT(ISNUMBER(Lpp_used));
+                          NOT(ISNUMBER(rho))
+                        );
+    IF( missing; "ERROR: отсутствуют критичные данные";
+
+       /* === ГИДРОСТАТИКА === */
+       TPC_salt;       0.01025 * CWP * Lpp_used * B;
+       TPC_rho;        TPC_salt * (rho/1.025);
+
+       Delta_summer;   IF( ISNUMBER(DWT);
+                           DWT/0.70;
+                           1.025 * Lpp_used * B * T_summer * 0.74
+                         );
+
+       FWA_cm;         Delta_summer / (4 * TPC_salt);
+       DWA_cm;         FWA_cm * ((1.025 - rho)/0.025);
+
+       T_allow;        T_port_limit - UKC - SQUAT;
+       T_allow_SW;     T_allow - DWA_cm/100;
+
+       Tsum;           IF( ISNUMBER(T_summer); T_summer; NA() );
+       IF( NOT(ISNUMBER(Tsum));
+           "ERROR: нет летней осадки";
+
+           dT;             MAX(0; Tsum - T_allow_SW);
+           Loss_t;         TPC_rho * 100 * dT;
+
+           DWT_base;       IF( ISNUMBER(DWT); DWT; 0.70 * Delta_summer );
+           DWT_allow;      MAX( 0; DWT_base - Loss_t );
+           ROB_t;          ROB_PCT * DWT_base;
+           Intake_weight;  MAX(0; DWT_allow - ROB_t);
+
+           /* === SF: перевод в м³/т === */
+           SF_m3_per_t;    IF( ISNUMBER(SF_ft3_per_mt); SF_ft3_per_mt / 35.3147; NA() );
+
+           /* === Объёмный лимит === */
+           Intake_final;   IF( AND(ISNUMBER(Grain_m3); ISNUMBER(SF_m3_per_t); SF_m3_per_t>0);
+                               MIN( Intake_weight; Grain_m3 / SF_m3_per_t );
+                               Intake_weight
+                             );
+
+           Intake_final
+       )
+    )
+  )
+
+# ═══════════════════════════════════════════════════════════════════
+# CALCULATION EXAMPLES
+# ═══════════════════════════════════════════════════════════════════
+
+examples:
+  
+  example_1_weight_limited:
+    description: "Heavy cargo, weight is limiting factor"
+    
+    inputs:
+      vessel:
+        name: "MV EXAMPLE"
+        dwt: 52000
+        t_summer: 9.8
+        loa: 185
+        lpp: null  # Will calculate from LOA
+        beam: 28
+        grain_m3: 65000
+        vessel_type: "Bulk carrier"
+        
+      port:
+        name: "Odessa"
+        draft_limit: 9.5
+        water_type: "sea"
+        
+      cargo:
+        type: "Wheat"
+        sf_ft3_per_mt: 47.0
+        
+    calculation:
+      cwp: 0.87  # Bulk carrier
+      lpp_used: 178.525  # 0.965 × 185
+      rho: 1.025  # Seawater
+      
+      tpc_salt: 16.25  # 0.01025 × 0.87 × 178.525 × 28
+      tpc_rho: 16.25  # Same as salt (rho = 1.025)
+      
+      delta_summer: 74286  # 52000 / 0.70
+      fwa_cm: 1143  # 74286 / (4 × 16.25)
+      dwa_cm: 0  # 1143 × ((1.025 - 1.025) / 0.025)
+      
+      t_allow: 9.1  # 9.5 - 0.3 - 0.1
+      t_allow_sw: 9.1  # 9.1 - 0/100
+      
+      dt: 0.7  # MAX(0, 9.8 - 9.1)
+      loss_t: 1137.5  # 16.25 × 100 × 0.7
+      
+      dwt_allow: 50862.5  # 52000 - 1137.5
+      rob_t: 2080  # 0.04 × 52000
+      intake_weight: 48782.5  # 50862.5 - 2080
+      
+      sf_m3_per_t: 1.331  # 47.0 / 35.3147
+      intake_volume: 48836  # 65000 / 1.331
+      
+      intake_final: 48782.5  # MIN(48782.5, 48836)
+      
+    result:
+      intake: 48782.5
+      unit: "metric tons"
+      limiting_factor: "weight (draft restriction)"
+      note: "Vessel can load ~48,780 tons of wheat in Odessa"
+      
+  example_2_volume_limited:
+    description: "Light cargo, volume is limiting factor"
+    
+    inputs:
+      vessel:
+        name: "MV COASTER"
+        dwt: 7500
+        t_summer: 6.2
+        loa: 98
+        beam: 16
+        grain_m3: 9800
+        vessel_type: "General cargo"
+        
+      port:
+        name: "Izmail"
+        draft_limit: 7.0  # No restriction
+        water_type: "fresh"
+        
+      cargo:
+        type: "Wood pellets"
+        sf_ft3_per_mt: 70.0  # Light cargo!
+        
+    calculation:
+      cwp: 0.80  # Not bulk, DWT < 20000
+      lpp_used: 95.06  # 0.97 × 98
+      rho: 1.000  # Freshwater
+      
+      # ... (similar steps)
+      
+      intake_weight: 6900  # After all deductions
+      
+      sf_m3_per_t: 1.982  # 70.0 / 35.3147
+      intake_volume: 4943  # 9800 / 1.982
+      
+      intake_final: 4943  # MIN(6900, 4943)
+      
+    result:
+      intake: 4943
+      unit: "metric tons"
+      limiting_factor: "volume (light cargo)"
+      note: "Grain space fills up before reaching DWT"
+      
+  example_3_danube_restriction:
+    description: "Severe draft restriction - Danube ports"
+    
+    inputs:
+      vessel:
+        name: "MV DANUBE"
+        dwt: 8000
+        t_summer: 8.5
+        loa: 115
+        beam: 14
+        grain_m3: 10500
+        
+      port:
+        name: "Reni"
+        draft_limit: 7.0  # SEVERE restriction
+        water_type: "fresh"
+        
+      cargo:
+        type: "Wheat"
+        sf_ft3_per_mt: 47.0
+        
+    calculation:
+      # ... (steps)
+      
+      dt: 1.8  # MAX(0, 8.5 - 6.7) - significant reduction!
+      loss_t: 2800  # Large loss due to draft
+      
+      dwt_allow: 5200  # 8000 - 2800
+      rob_t: 320  # 0.04 × 8000
+      intake_weight: 4880  # 5200 - 320
+      
+      intake_final: 4880
+      
+    result:
+      intake: 4880
+      unit: "metric tons"
+      limiting_factor: "draft restriction"
+      note: "Can only load 61% of DWT due to shallow port"
+
+# ═══════════════════════════════════════════════════════════════════
+# MANUAL INTAKE OVERRIDE
+# ═══════════════════════════════════════════════════════════════════
+
+manual_intake_system:
+  
+  priority: "HIGHEST - overrides calculation"
+  
+  storage_location:
+    current: "Vessel comments field"
+    future: "Dedicated intake_records table"
+    
+  format_in_comments:
+    pattern: "Real intake: [Cargo], [conditions], [port/region] = [quantity]t"
+    
+    examples:
+      - "Real intake: Wheat, draft 7m, Izmail = 4800t"
+      - "Real intake: Corn, Odessa, summer = 5200t"
+      - "Real intake: Barley, Constanta, fresh water = 4950t"
+      
+  parsing_logic:
+    step_1: "Search vessel comments for 'Real intake:' or 'Intake:'"
+    step_2: "Extract cargo type, port/region, conditions, quantity"
+    step_3: "Match against current cargo and ports"
+    step_4: "If match found → use manual intake"
+    step_5: "If no match → use calculated intake"
+    
+  matching_rules:
+    exact_match:
+      - "Cargo type matches exactly"
+      - "Port matches exactly"
+      - "Use this intake value"
+      
+    partial_match:
+      - "Cargo type matches"
+      - "Port is in same country/region"
+      - "Consider using with caution"
+      
+    no_match:
+      - "No relevant manual intake found"
+      - "Use calculated value"
+      
+  future_ui:
+    fields:
+      - vessel_id
+      - cargo_type_id
+      - cargo_id (optional)
+      - port_id (optional)
+      - country_id (optional)
+      - region_id (optional)
+      - conditions: "Text field (draft, water type, etc)"
+      - intake_value: "Tonnes"
+      - date_recorded: "When this was entered"
+      - source: "Fixture details, owner info, etc"
+      
+    benefits:
+      - "Structured data, no parsing needed"
+      - "Easy to query and match"
+      - "Historical tracking"
+      - "Multiple intakes per vessel"
+
+# ═══════════════════════════════════════════════════════════════════
+# LOAD vs DISCHARGE PORTS
+# ═══════════════════════════════════════════════════════════════════
+
+two_port_logic:
+  
+  rule: "Calculate intake for BOTH loading and discharge ports, take MINIMUM"
+  
+  reasoning: |
+    Vessel cannot load more cargo than discharge port can handle.
+    If loading port allows 50,000t but discharge port only allows 45,000t,
+    then vessel can only load 45,000t.
+    
+  process:
+    step_1: "Calculate intake for LOADING port"
+    step_2: "Calculate intake for DISCHARGE port"
+    step_3: "Intake_final = MIN(intake_load, intake_discharge)"
+    
+  example:
+    scenario:
+      cargo: "Wheat 50,000t"
+      load_port: "Constanta (no restriction)"
+      discharge_port: "Alexandria (draft 8.5m)"
+      
+    calculation:
+      intake_constanta: 52000  # Vessel can load full
+      intake_alexandria: 48000  # Draft restricted
+      intake_final: 48000  # MIN(52000, 48000)
+      
+    result:
+      can_carry: true
+      intake: 48000
+      cargo_quantity: 50000
+      fit: "tight"  # 48000 < 50000
+      score_impact: -10  # Penalty for insufficient capacity
+
+# ═══════════════════════════════════════════════════════════════════
+# AI INTEGRATION
+# ═══════════════════════════════════════════════════════════════════
+
+ai_usage:
+  
+  input_to_ai:
+    if_manual_intake_exists:
+      format: |
+        Intake Data (Manual):
+        - Source: Historical fixture
+        - Cargo: Wheat
+        - Port: Izmail
+        - Conditions: Draft 7m, fresh water
+        - Intake: 4800 tonnes
+        
+    if_calculated:
+      format: |
+        Intake Data (Calculated):
+        - Method: Hydrostatic calculation
+        - Loading port: Odessa
+        - Discharge port: Alexandria  
+        - Intake (load): 48782 tonnes
+        - Intake (discharge): 45000 tonnes
+        - Final intake: 45000 tonnes (limited by discharge)
+        - Limiting factor: Draft restriction in discharge port
+        
+    if_calculation_failed:
+      format: |
+        Intake Data: UNKNOWN
+        - Reason: Missing vessel draft data
+        - Recommendation: Manual review required
+        
+  ai_scoring_logic:
+    task: "Compare cargo quantity with vessel intake"
+    
+    scenarios:
+      perfect_fit:
+        condition: "Intake >= Cargo × 1.1"
+        description: "Vessel has comfortable margin"
+        score_impact: "0 (neutral, good fit)"
+        
+      exact_fit:
+        condition: "Intake >= Cargo × 1.0 AND < Cargo × 1.1"
+        description: "Vessel can carry exactly"
+        score_impact: "0 (acceptable)"
+        
+      tight_fit:
+        condition: "Intake >= Cargo × 0.95 AND < Cargo × 1.0"
+        description: "Very tight, risky"
+        score_impact: "-10 (penalty for risk)"
+        
+      too_small:
+        condition: "Intake < Cargo × 0.95"
+        description: "Cannot carry full cargo"
+        score_impact: "-30 (major penalty or block)"
+        
+      too_large:
+        condition: "Intake > Cargo × 1.5"
+        description: "Vessel much bigger than cargo"
+        score_impact: "-5 (inefficiency penalty)"
+        note: "Confirm with Vitaly if this matters"
+        
+  ai_explanation:
+    template: |
+      Vessel intake capacity: {intake}t
+      Cargo quantity: {cargo_quantity}t
+      Ratio: {ratio}
+      
+      {explanation_based_on_ratio}
+      
+    examples:
+      - intake: 48000
+        cargo: 50000
+        ratio: 0.96
+        explanation: "Vessel intake (48,000t) is slightly below cargo requirement (50,000t). This is a tight fit with 4% shortfall. May require cargo reduction or part cargo arrangement."
+        
+      - intake: 52000
+        cargo: 50000
+        ratio: 1.04
+        explanation: "Vessel intake (52,000t) comfortably exceeds cargo quantity (50,000t) with 4% margin. Good fit."
+
+# ═══════════════════════════════════════════════════════════════════
+# ERROR HANDLING
+# ═══════════════════════════════════════════════════════════════════
+
+error_handling:
+  
+  missing_critical_data:
+    errors:
+      - "Missing vessel draft (T_summer)"
+      - "Missing vessel beam (B)"
+      - "Missing vessel length (Lpp and LOA)"
+      - "Missing port draft restriction"
+      - "Missing water type"
+      
+    action:
+      - "Return ERROR message"
+      - "Cannot calculate intake"
+      - "Recommend manual review"
+      - "Skip intake scoring criterion"
+      
+  impossible_values:
+    checks:
+      - "Draft restriction < UKC + SQUAT → Port too shallow"
+      - "Calculated intake < 0 → Error in data"
+      - "Intake > DWT × 1.2 → Suspicious, check data"
+      
+    action:
+      - "Flag for manual review"
+      - "Use fallback estimation if possible"
+      
+  volume_limited_edge_cases:
+    - "Grain_m3 = 0 → Error, invalid data"
+    - "SF = 0 → Error, invalid stowage factor"
+    - "SF > 300 → Suspicious, ultra-light cargo, verify"
+    
+# ═══════════════════════════════════════════════════════════════════
+# IMPLEMENTATION NOTES
+# ═══════════════════════════════════════════════════════════════════
+
+implementation:
+  
+  php_laravel:
+    service_class: "IntakeCalculatorService"
+    methods:
+      - "calculateIntake(vessel, port, cargo): float"
+      - "getManualIntake(vessel, cargo, port): ?float"
+      - "calculateLoadAndDischarge(vessel, cargo): array"
+      
+  database_tables:
+    vessel_data:
+      - "dwt, t_summer, lpp, loa, beam, grain_m3, vessel_type"
+      
+    port_restrictions:
+      - "port_id, draft_limit, water_type"
+      
+    cargo_library:
+      - "cargo_id, stowage_factor_ft3_per_mt"
+      
+    future_intake_records:
+      - "vessel_id, cargo_id, port_id, intake_value, conditions, date"
+      
+  performance_optimization:
+    caching:
+      - "Cache calculated intakes per vessel-port-cargo combination"
+      - "TTL: 24 hours (since data rarely changes)"
+      
+    batch_processing:
+      - "Calculate intakes for multiple vessels in parallel"
+      - "Pre-calculate for common port-cargo combinations"
+
+# ═══════════════════════════════════════════════════════════════════
+# TESTING & VALIDATION
+# ═══════════════════════════════════════════════════════════════════
+
+testing:
+  
+  unit_tests:
+    - "Test with known fixture data"
+    - "Compare calculated vs actual loaded quantity"
+    - "Verify error handling"
+    
+  validation_data:
+    source: "Real fixture results from past"
+    method: |
+      1. Take vessel + cargo + ports from completed fixture
+      2. Calculate intake using formula
+      3. Compare with actual loaded quantity
+      4. If difference > 5% → investigate
+      
+  edge_cases_to_test:
+    - "Danube ports (severe draft restriction)"
+    - "Freshwater vs seawater"
+    - "Volume-limited cargoes (wood pellets, fertilizers)"
+    - "Large vessels in restricted ports"
+    - "Missing data scenarios"
+    
+# ═══════════════════════════════════════════════════════════════════
+# FUTURE ENHANCEMENTS
+# ═══════════════════════════════════════════════════════════════════
+
+future_work:
+  
+  enhancements:
+    - "Add trim calculations (by stern/by bow)"
+    - "Add tide/surge allowances"
+    - "Add density variations (temperature, salinity)"
+    - "Add loading rate considerations"
+    - "Add multiple cargo holds allocation"
+    
+  ui_features:
+    - "Visual intake calculator tool"
+    - "Compare intake across multiple ports"
+    - "Historical intake tracking"
+    - "Intake trends over time"
+    
+  integration:
+    - "Auto-fetch vessel data from Marineman"
+    - "Auto-fetch port restrictions from Airtable"
+    - "Real-time intake calculations during cargo matching"

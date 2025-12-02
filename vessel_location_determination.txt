@@ -1,65 +1,473 @@
-vessel_location_determination
+# ═══════════════════════════════════════════════════════════════════
+# SHORT SUMMARY
+# ═══════════════════════════════════════════════════════════════════
 
-Short Summary (Vessel Location Determination Logic)
+DOCUMENT: Vessel Location Determination - Geographic Origin for Proximity Scoring
+PURPOSE: Define how AI determines vessel's actual location before applying proximity scoring
+SCOPE: Pre-processing step for P1 (Proximity) criterion
+INTEGRATION: Critical input for proximity_scoring_matrix.txt - determines vessel_location
 
-This file defines how the AI determines the vessel’s actual location before applying the Proximity Scoring Matrix.
+WHAT THIS DOCUMENT DEFINES:
+This file establishes the authoritative methodology for determining a vessel's 
+geographic location before calculating proximity scores. Since proximity scoring
+requires knowing where the vessel is, this logic must execute FIRST to establish
+the vessel_location input for the Proximity Scoring Matrix.
 
-It builds a strict priority system:
+PRIORITY SYSTEM (4 levels):
+1. Open Information (HIGHEST) - Vessel's declared open position
+   - open_area, open_port, alternative_open_areas
+2. Destination - Where vessel is heading (if valid geographic)
+   - Must validate: real location vs non-geographic text
+3. Current Area - Where vessel currently is (fallback)
+   - From AIS or last known position
+4. Unknown - Location cannot be determined (skip proximity scoring)
 
-Open Information (highest priority)
+KEY FEATURES:
+- Strict priority hierarchy (always check in order)
+- Geographic validation (filters "to order", "TBN", crew info, etc.)
+- Multiple open areas handling (select closest to loading port)
+- Fuzzy matching for ports/regions (handles typos, variations)
+- Edge case handling (outdated dates, contradictory data, ambiguous regions)
+- Returns normalized geographic entity (port, region, country, sea)
 
-Destination (if valid geographic)
+CRITICAL DEPENDENCIES:
+- proximity_scoring_matrix.txt: Uses output as vessel_location input
+- Ports database: For geographic validation
+- Regions/Seas lists: For fuzzy matching
 
-Current Area (fallback)
+VALIDATION LOGIC:
+Valid Geographic:
+- Port names: "Istanbul", "Constanta", "Odessa"
+- Regions: "Black Sea", "Marmara Sea", "East Med"
+- Countries: "Turkey", "Romania", "Ukraine"
 
-Unknown (location cannot be determined)
+Invalid Non-Geographic:
+- Orders: "to order", "for orders", "awaiting orders"
+- Nominations: "TBN", "TBA", "to be nominated"
+- Crew info: "Syrian crew", "Greek crew onboard"
+- Instructions: "INCO", "awaiting instructions", "owners option"
 
-It also includes:
+MULTIPLE OPEN AREAS SELECTION:
+When vessel has multiple alternative open areas (e.g., ["Marmara Sea", "East Med", "Adriatic"]):
+- Calculate proximity score from each area to cargo loading port
+- Select area with HIGHEST proximity score
+- Use selected area for all downstream scoring
 
-Validation rules for distinguishing real geographic destinations from non-geographic text (“to order”, “TBN”, crew info, etc.)
+EXAMPLE USAGE:
+Input:
+  open_area: null
+  destination: "to order"
+  current_area: "Marmara Sea"
+Output:
+  selected_location: "Marmara Sea"
+  reasoning: "Destination invalid (non-geographic), using current_area (priority 3)"
 
-Logic for choosing between multiple open areas by comparing proximity to the loading port
 
-Rules for fuzzy matching ports, regions, seas
+# ═══════════════════════════════════════════════════════════════════
+# HOW TO USE DOCUMENT
+# ═══════════════════════════════════════════════════════════════════
 
-Edge cases (ambiguous destination, contradictory data, outdated open date)
+## FOR DEVELOPERS (Laravel ↔ LangChain Integration)
 
-Pseudocode describing how AI systems should implement the logic
+### Data Flow:
+1. **Laravel** retrieves vessel position data:
+   - vessel_data table: open_date, open_port, open_area, destination, current_area
+   - vessel_attributes table: alternative_open_areas (if exists)
+   - Parse from email positions or AIS data
 
-Integration instructions explaining how to feed the final location into the Proximity Scoring Matrix
+2. **Laravel** sends to **LangChain Python microservice**:
+   ```json
+   {
+     "vessel_data": {
+       "open_date": "2024-12-10",
+       "open_port": "Istanbul",
+       "open_area": "Marmara Sea",
+       "alternative_open_areas": ["Marmara Sea", "East Med"],
+       "destination": "Black Sea",
+       "current_area": "Turkish Straits"
+     },
+     "cargo": {
+       "loading_port": "Odessa, Ukraine",
+       "loading_region": "Black Sea"
+     }
+   }
+   ```
 
-This file is the official source of truth for determining which location is used in proximity scoring.
-▶️ How to Use This File (Short Instructions)
-1. Always run location determination BEFORE proximity scoring
+3. **LangChain/AI** determines location:
+   - Apply 4-level priority system
+   - Validate geographic vs non-geographic
+   - Handle multiple open areas if present
+   - Return normalized location
 
-This file decides the vessel’s true geographic origin.
+4. **LangChain/AI** returns:
+   ```json
+   {
+     "vessel_location": {
+       "selected": "Istanbul, Marmara Sea",
+       "type": "port",
+       "region": "Marmara Sea",
+       "priority_level": 1,
+       "source": "open_port"
+     },
+     "determination_process": {
+       "step_1_open_info": {
+         "available": true,
+         "open_port": "Istanbul",
+         "open_area": "Marmara Sea",
+         "selected": true
+       },
+       "step_2_destination": {
+         "checked": false,
+         "reason": "Open info available, destination not needed"
+       },
+       "step_3_current_area": {
+         "checked": false,
+         "reason": "Open info available"
+       },
+       "reasoning": "Open port 'Istanbul' available (priority 1), most specific location"
+     }
+   }
+   ```
 
-Only after this step do you run proximity_scoring_matrix.
+5. **Pass to Proximity Scoring:**
+   ```json
+   {
+     "vessel_location": "Istanbul, Marmara Sea",
+     "cargo_loading_port": "Odessa, Ukraine",
+     "vessel_dwt": 8500
+   }
+   → proximity_scoring_matrix.txt calculates P1 score
+   ```
 
-2. Pass the loading port into the algorithm
+### Important Notes:
+- Location determination MUST run BEFORE proximity scoring
+- If location = null → skip proximity scoring (P1 = 0)
+- Multiple open areas require proximity calculation for selection
+- Geographic validation is critical (filters non-geographic text)
+- Priority order is strict - never skip steps
+- Output must be normalized geographic entity
 
-It is needed when choosing among alternative_open_areas.
+### Database Field Names:
+```
+Verify actual field names in production:
+- vessel_data.open_date
+- vessel_data.open_port_id (FK to ports)
+- vessel_data.open_area
+- vessel_data.destination
+- vessel_data.current_area
+- vessel_attributes.alternative_open_areas (if exists)
+```
 
-3. Apply the priority rules strictly
-open_area → open_port → destination → current_area → UNKNOWN
+---
 
-4. If destination contains non-geographic keywords → ignore it
+## FOR AI/LangChain (Location Determination Implementation)
 
-Examples:
-“to order”, “crew onboard”, “TBN”, “awaiting instructions”.
+### Step-by-Step Algorithm:
 
-5. If multiple open areas → evaluate each via proximity scoring matrix
+**STEP 1: Check Open Information (Priority 1)**
+```
+Open information is HIGHEST priority - always check first.
 
-Select the one with highest proximity score.
+Check open_port:
+  IF open_port IS NOT NULL AND open_port != "":
+    RETURN open_port as vessel_location
+    REASONING: "Open port available (priority 1), most specific"
+    
+Check open_area:
+  IF open_area IS NOT NULL AND open_area != "":
+    RETURN open_area as vessel_location
+    REASONING: "Open area available (priority 1)"
+    
+Check alternative_open_areas:
+  IF alternative_open_areas is array with multiple values:
+    FOR each area in alternative_open_areas:
+      Calculate proximity_score(area, cargo_loading_port)
+    SELECT area with HIGHEST proximity_score
+    RETURN selected_area as vessel_location
+    REASONING: "Multiple open areas, selected closest to loading port"
+    
+Check open_date validity:
+  IF open_date exists:
+    Calculate days_since_open = current_date - open_date
+    IF days_since_open > 30:
+      WARN: "Open date outdated (>30 days), consider current_area instead"
+      
+If ALL open information checks fail: PROCEED to Step 2
+```
 
-6. Output must be a normalized geographic entity
+**STEP 2: Check Destination (Priority 2)**
+```
+Only check if Step 1 (open information) unavailable.
 
-One of: port, region, country, sea.
-This becomes the vessel_location for all downstream scoring logic.
+Get destination value:
+  IF destination IS NULL OR destination = "":
+    PROCEED to Step 3
+    
+Validate geographic:
+  # Check for non-geographic keywords first
+  non_geographic_keywords = [
+    "to order", "for orders", "awaiting orders",
+    "TBN", "TBA", "to be nominated", "to be advised",
+    "crew", "onboard", "Syrian crew", "Greek crew",
+    "INCO", "awaiting instructions", "owners option"
+  ]
+  
+  IF destination.lower() contains ANY non_geographic_keywords:
+    is_valid = FALSE
+    REASON: "Non-geographic keyword detected"
+    PROCEED to Step 3
+    
+  # Check against geographic database
+  ELSE IF destination matches ports_database:
+    is_valid = TRUE
+    RETURN destination as vessel_location
+    REASONING: "Valid port destination (priority 2)"
+    
+  ELSE IF destination matches regions_list:
+    is_valid = TRUE
+    RETURN destination as vessel_location
+    REASONING: "Valid region destination (priority 2)"
+    
+  ELSE IF destination matches countries_list:
+    is_valid = TRUE
+    RETURN destination as vessel_location
+    REASONING: "Valid country destination (priority 2)"
+    
+  ELSE:
+    # Try fuzzy matching for typos
+    fuzzy_match = fuzzy_search(destination, ports_database)
+    IF fuzzy_match.score > 0.8:
+      is_valid = TRUE
+      RETURN fuzzy_match.location as vessel_location
+      REASONING: "Fuzzy matched destination (priority 2)"
+    ELSE:
+      is_valid = FALSE
+      PROCEED to Step 3
+```
 
-7. If no valid location → proximity score = 0
+**STEP 3: Check Current Area (Priority 3)**
+```
+Fallback when both open information and valid destination unavailable.
 
-AI should mark vessel as location unknown.
+Check current_area:
+  IF current_area IS NOT NULL AND current_area != "":
+    RETURN current_area as vessel_location
+    REASONING: "Open info and valid destination unavailable, using current area (priority 3)"
+    
+  ELSE:
+    PROCEED to Step 4
+```
+
+**STEP 4: Location Unknown (Priority 4)**
+```
+Last resort when all previous steps fail.
+
+No location available:
+  RETURN None as vessel_location
+  REASONING: "No valid location data available"
+  ACTION: "Skip proximity scoring (P1 = 0)"
+  FLAG: "Manual review required"
+```
+
+**STEP 5: Handle Multiple Open Areas**
+```
+When alternative_open_areas array has multiple values:
+
+FOR each area in alternative_open_areas:
+  # Use proximity scoring matrix for each area
+  temp_vessel_location = area
+  temp_cargo_loading = cargo_loading_port
+  temp_vessel_size = vessel_size_category
+  
+  # Calculate proximity score
+  proximity_score = calculate_proximity(
+    vessel_location=temp_vessel_location,
+    cargo_loading=temp_cargo_loading,
+    vessel_size=temp_vessel_size
+  )
+  
+  # Store result
+  scores[area] = proximity_score
+  
+# Select area with highest score
+selected_area = max(scores, key=scores.get)
+RETURN selected_area
+
+Example:
+  areas = ["Marmara Sea", "East Med", "Adriatic"]
+  cargo_loading = "Odessa, Black Sea"
+  
+  scores = {
+    "Marmara Sea": 19.04,
+    "East Med": 10.44,
+    "Adriatic": 5.96
+  }
+  
+  selected = "Marmara Sea" (highest score)
+```
+
+**STEP 6: Validate and Normalize Output**
+```
+Ensure output is standardized geographic entity:
+
+Types of valid outputs:
+- Port: "Istanbul", "Constanta", "Odessa"
+- Region: "Black Sea", "Marmara Sea", "East Med"
+- Country: "Turkey", "Romania", "Greece"
+- Sea: "Black Sea", "Mediterranean Sea"
+
+Format:
+  {
+    "vessel_location": "normalized_name",
+    "type": "port|region|country|sea",
+    "priority_level": 1|2|3|4,
+    "source": "open_port|open_area|destination|current_area|unknown",
+    "reasoning": "human-readable explanation"
+  }
+```
+
+**STEP 7: Return to Proximity Scoring**
+```
+If vessel_location is NOT None:
+  PASS to proximity_scoring_matrix.txt:
+    - vessel_location (from this determination)
+    - cargo_loading_port (from cargo data)
+    - vessel_size_category (from vessel_size_classification.txt)
+    
+  CALCULATE P1 score using proximity matrix
+  
+Else:
+  P1_score = 0
+  REASONING: "Vessel location unknown, cannot calculate proximity"
+```
+
+### Critical Reminders:
+- ⚠️ ALWAYS run this BEFORE proximity scoring
+- ⚠️ Priority order is STRICT - never skip steps
+- ⚠️ Geographic validation is CRITICAL - filters non-geographic text
+- ⚠️ Multiple open areas require proximity calculation for selection
+- ⚠️ Return normalized geographic entity, not raw text
+- ⚠️ If location = None, P1 score = 0 (no hard block)
+
+---
+
+## FOR KNOWLEDGE BASE UPDATES (Maintenance)
+
+### When to Update This File:
+
+1. **New Non-Geographic Pattern Discovered**
+   - Users use new phrases in destination field
+   - Add to non_geographic_patterns section
+   - Update regex patterns
+   - Test with real vessel data
+
+2. **Priority Order Change**
+   - Market feedback suggests different priority
+   - Update priority_system hierarchy
+   - Coordinate with proximity_scoring_matrix.txt
+   - Document reasoning in changelog
+
+3. **Geographic Database Expansion**
+   - New ports/regions added to system
+   - Update validation logic
+   - Add fuzzy matching rules
+   - Test matching accuracy
+
+4. **Multiple Areas Logic Enhancement**
+   - New selection criteria needed
+   - Update selection_criteria method
+   - Add tie-breaking rules
+   - Document examples
+
+5. **Edge Case Discovery**
+   - New scenario not covered by current logic
+   - Add to edge_cases section
+   - Define handling procedure
+   - Create example
+
+### Update Principles:
+- ✓ Maintain strict 4-level priority hierarchy
+- ✓ Keep geographic validation comprehensive
+- ✓ Coordinate with proximity_scoring_matrix.txt for integration
+- ✓ Test with real vessel position data
+- ✓ Document all edge cases with examples
+- ✓ Version bump: minor change = +0.1, major change = +1.0
+- ✓ Add detailed changelog entry
+
+### Validation Checklist:
+- [ ] Priority order clearly defined (1-4)
+- [ ] All non-geographic patterns documented
+- [ ] Geographic validation logic complete
+- [ ] Multiple open areas handling tested
+- [ ] Edge cases covered with solutions
+- [ ] Integration with proximity_scoring_matrix.txt verified
+- [ ] Fuzzy matching rules defined
+- [ ] Database field mapping documented
+- [ ] Examples for each priority level
+
+### Testing Guidelines:
+```
+Test with real vessel position data:
+1. Test Priority 1: open_port, open_area, multiple alternatives
+2. Test Priority 2: valid destination, invalid destination
+3. Test Priority 3: current_area fallback
+4. Test Priority 4: no location available
+5. Test non-geographic detection: "to order", "TBN", crew info
+6. Test fuzzy matching: typos, variations
+7. Test multiple open areas: selection logic
+8. Verify integration with proximity scoring
+```
+
+---
+
+## QUICK REFERENCE
+
+**Priority Order (Strict):**
+1. Open Information (open_port → open_area → alternative_open_areas)
+2. Destination (if valid geographic)
+3. Current Area (fallback)
+4. Unknown (no location → P1 = 0)
+
+**Valid Geographic:**
+- Ports: "Istanbul", "Constanta", "Odessa"
+- Regions: "Black Sea", "Marmara Sea", "East Med"
+- Countries: "Turkey", "Romania", "Greece"
+- Seas: "Black Sea", "Mediterranean"
+
+**Invalid Non-Geographic:**
+- Orders: "to order", "for orders", "awaiting orders"
+- Nominations: "TBN", "TBA", "to be nominated"
+- Crew: "Syrian crew", "Greek crew onboard"
+- Instructions: "INCO", "awaiting instructions", "owners option"
+
+**Multiple Open Areas:**
+- Calculate proximity score for each to cargo loading port
+- Select area with HIGHEST score
+- Use selected area for all downstream scoring
+
+**Example Scenarios:**
+- open_port="Istanbul" → Use Istanbul (Priority 1)
+- destination="to order" → Invalid, use current_area (Priority 3)
+- alternative_areas=["Marmara","East Med"] + cargo="Odessa" → Select Marmara (closest)
+- No data → Location Unknown, P1=0 (Priority 4)
+
+**Critical Notes:**
+- MUST run BEFORE proximity scoring
+- Priority order is STRICT - never skip
+- Geographic validation CRITICAL
+- Output must be normalized entity
+- If location=None, P1=0 (no hard block)
+
+**Integration:**
+```
+vessel_location_determination.txt
+    ↓ (outputs vessel_location)
+proximity_scoring_matrix.txt
+    ↓ (calculates P1 score)
+MASTER_SCORING_SYSTEM.txt
+```
+
+
 # ═══════════════════════════════════════════════════════════════════
 # VESSEL LOCATION DETERMINATION LOGIC
 # VK Charts AI Scoring System
@@ -70,8 +478,8 @@ AI should mark vessel as location unknown.
 #
 # ═══════════════════════════════════════════════════════════════════
 
-version: "1.0"
-last_updated: "2024-11-27"
+version: "1.1"
+last_updated: "2024-12-01"
 source: "Vitaly (VK Charts expert)"
 
 # ═══════════════════════════════════════════════════════════════════
@@ -615,3 +1023,49 @@ database_field_mapping:
     - "Check if open_area is FK or text field"
     - "Verify alternative_open_areas storage method"
     - "Confirm destination field format"
+
+# ═══════════════════════════════════════════════════════════════════
+# METADATA & VERSIONING
+# ═══════════════════════════════════════════════════════════════════
+
+metadata:
+  created_by: "Vitaly (VK Charts expert)"
+  created_date: "2024-11-27"
+  last_modified: "2024-12-01"
+  version: "1.1.0"
+  
+  changelog:
+    - version: "1.1.0"
+      date: "2024-12-01"
+      changes:
+        - "Restructured SHORT SUMMARY in unified format"
+        - "Added comprehensive HOW TO USE DOCUMENT with 3 sections:"
+        - "  - For Developers (Laravel ↔ LangChain integration)"
+        - "  - For AI/LangChain (7-step location determination algorithm)"
+        - "  - For Knowledge Base Updates (maintenance procedures)"
+        - "Added Quick Reference section"
+        - "Enhanced documentation structure for clarity"
+        - "Verified 4-level priority system (open → destination → current → unknown)"
+        - "Confirmed geographic validation logic"
+        - "Verified multiple open areas handling"
+        - "Enhanced integration documentation with proximity_scoring_matrix.txt"
+        - "No logic changes - purely documentation improvements"
+      
+    - version: "1.0.0"
+      date: "2024-11-27"
+      changes:
+        - "Initial vessel location determination logic"
+        - "Defined 4-level priority system"
+        - "Established geographic validation rules"
+        - "Created non-geographic pattern detection"
+        - "Added multiple open areas selection logic"
+        - "Documented edge cases and special handling"
+        - "Created pseudocode for AI implementation"
+  
+  notes:
+    - "This logic MUST run BEFORE proximity scoring"
+    - "Priority order is STRICT - never skip steps"
+    - "Geographic validation is CRITICAL - filters non-geographic text"
+    - "Multiple open areas require proximity calculation for selection"
+    - "Output must be normalized geographic entity"
+    - "If location = None, P1 score = 0 (no hard block)"

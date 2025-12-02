@@ -1,0 +1,737 @@
+# ═══════════════════════════════════════════════════════════════════
+# SHORT SUMMARY
+# ═══════════════════════════════════════════════════════════════════
+
+DOCUMENT: P1A Regional Pattern Scoring Rules - Scoring Algorithm
+PURPOSE: Define scoring algorithm and rules for P1A (Regional Pattern) criterion
+SCORE RANGE: [0, 15] - Independent criterion added to total score
+INTEGRATION: Part of VK Charts AI Scoring System (criterion P1A)
+DOCUMENT_TYPE: RULES - Scoring algorithm and calculation rules
+
+WHAT IS P1A:
+P1A (Regional Pattern Scoring) evaluates how well a vessel's current position 
+fits regional market trading patterns for the cargo loading region. Unlike 
+Proximity (P1) which measures geographic distance, P1A measures economic logic 
+of vessel movement based on actual market behavior.
+
+KEY FEATURES:
+- Based on CURRENT vessel location region (not last discharge port)
+- Uses market patterns from REGIONAL_TRADE_PATTERNS_KB.txt
+- Vessel size scoring: different points for SC/C/SH/H/SS/SM/PM categories
+- Seasonal adjustments: grain season, winter restrictions
+- Port-specific modifiers: different scores for different loading ports
+- Independent from P1 (Proximity) - adds market context to distance
+
+CRITICAL DISTINCTIONS:
+1. P1 (Proximity) = "How close is the vessel?" [0-20 points]
+2. P1A (Regional Patterns) = "How logical is this positioning per market?" [0-15 points]
+3. These are SEPARATE criteria, both contribute to final score
+
+SCORING LOGIC:
+Input: vessel_location_region + cargo_loading_region + vessel_dwt + month (optional)
+Process: Find region_pair → Apply vessel_size_rules → Add seasonal/port modifiers
+Output: Score [0-15] based on how favorable this regional pattern is
+
+RELATED DOCUMENTS:
+- REGIONAL_TRADE_PATTERNS_KB.txt - Market knowledge base
+- vessel_size_classification.txt - Vessel size categories
+- MASTER_SCORING_SYSTEM.txt - Overall scoring framework (P1A range [0, 15])
+
+
+# ═══════════════════════════════════════════════════════════════════
+# HOW TO USE DOCUMENT
+# ═══════════════════════════════════════════════════════════════════
+
+## FOR DEVELOPERS (Laravel ↔ LangChain Integration)
+
+### Data Flow:
+1. **Laravel** prepares data:
+   - Vessel position (lat/lon) → normalize to region via vessel_location_determination.txt
+   - Vessel DWT → determine category via vessel_size_classification.txt
+   - Current date → extract month for seasonal adjustments
+   - Loading port → normalize to region
+
+2. **Laravel** sends to **LangChain Python microservice**:
+   ```json
+   {
+     "vessel_location_region": "Libya",
+     "cargo_loading_region": "Black Sea",
+     "vessel_dwt": 25000,
+     "cargo_type": "wheat",
+     "month": 9,
+     "vessel_category": "H"
+   }
+   ```
+
+3. **LangChain/AI** returns:
+   ```json
+   {
+     "criterion_p1a_regional_patterns_score": 15,
+     "score_range": "[0-15]",
+     "breakdown": {
+       "base_pattern_score": 15,
+       "seasonal_adjustment": 0,
+       "port_modifier": 0,
+       "pattern_found": "black_sea_to_libya",
+       "vessel_size_rule": "handy_plus",
+       "reasoning": "Excellent: vessel in Libya, Black Sea grain loading, grain season"
+     }
+   }
+   ```
+
+### Important Notes:
+- Use normalized region names (not raw port names)
+- Vessel category from vessel_size_classification.txt
+- If no region_pair pattern found, use seasonal + port modifiers only
+- P1A is INDEPENDENT from P1 (Proximity)
+- Range validation: MUST be [0, 15]
+
+---
+
+## FOR AI/LangChain (Scoring Implementation)
+
+### 6-Step Scoring Algorithm:
+
+**STEP 1: Determine Vessel Category**
+```
+vessel_category = get_category_from_dwt(vessel_dwt)
+Reference: vessel_size_classification.txt
+Categories: SC, C, SH, H, SS, SM, PM
+```
+
+**STEP 2: Find Region Pair Pattern**
+```
+Search in REGIONAL_TRADE_PATTERNS_KB.txt: region_pairs section
+Match: from_region (vessel_location_region) → to_region (cargo_loading_region)
+
+Examples:
+  - Libya → Black Sea: use "black_sea_to_libya"
+  - Egypt Mediterranean → Black Sea: use "black_sea_to_egypt_med"
+  - Black Sea → Black Sea: use "black_sea_internal"
+  
+If no exact match: use general pattern or base_score = 0
+```
+
+**STEP 3: Calculate Base Pattern Score**
+```
+Find vessel_size_behavior in KB pattern matching vessel_category
+Apply score_impact from scoring_rules below
+Scale if needed to [0-15] range
+
+Example:
+  Pattern: black_sea_to_libya
+  Vessel: H (Handy, 25000 DWT)
+  
+  From scoring_rules below:
+    handy_plus: score_impact = 15 (already in 0-15 range)
+  
+  base_pattern_score = 15
+```
+
+**STEP 4: Apply Seasonal Adjustments**
+```
+Check seasonal_scoring_adjustments section below:
+- If cargo in Black Sea + month in [7,8,9,10,11,12]:
+    seasonal_adjustment += grain_season_boost
+- If cargo port has winter restrictions + month in [12,1,2,3]:
+    seasonal_adjustment += ice_restriction_penalty
+```
+
+**STEP 5: Apply Port Economics Modifiers**
+```
+Check port_scoring_modifiers section below
+Find loading port → check modifier for vessel_location_region
+
+Example:
+  Port: Odessa
+  Vessel region: Black Sea
+  Modifier: +3 (vessels_in_black_sea)
+```
+
+**STEP 6: Combine and Normalize**
+```
+raw_score = base_pattern_score + seasonal_adjustment + port_modifier
+final_score = clamp(raw_score, 0, 15)
+
+Return in JSON with breakdown for transparency
+```
+
+### JSON Output Format:
+```json
+{
+  "criterion_p1a_regional_patterns_score": 12,
+  "score_range": "[0-15]",
+  "breakdown": {
+    "pattern_found": "mediterranean_to_black_sea",
+    "vessel_size_rule": "large_vessels",
+    "base_pattern_score": 10,
+    "seasonal_adjustment": 3,
+    "port_modifier": 0,
+    "raw_score_before_clamping": 13,
+    "reasoning": "Good: Mediterranean vessel to Black Sea, active grain season"
+  }
+}
+```
+
+### Critical Reminders:
+- ⚠️ Use CURRENT vessel location region (not last discharge port)
+- ⚠️ P1A range is [0, 15] - validate output
+- ⚠️ This is SEPARATE from P1 (Proximity) scoring
+- ⚠️ If no pattern found, use seasonal + port modifiers only
+- ⚠️ Always reference REGIONAL_TRADE_PATTERNS_KB.txt for pattern descriptions
+
+---
+
+## QUICK REFERENCE
+
+**Score Range:** [0, 15]
+**Reference:** MASTER_SCORING_SYSTEM.txt (P1A criterion)
+
+**Typical Scores by Pattern:**
+- Libya → Black Sea (grain season): 15 points (excellent)
+- Egypt Med → Black Sea (grain season): 12-15 points (good to excellent)
+- Black Sea Internal: 15 points (perfect positioning)
+- Mediterranean → Black Sea (grain season): 12-15 points (good positioning)
+- Atlantic → Black Sea (off-season): 5-8 points (possible but costly)
+
+**Seasonal Impact:**
+- Grain Season (Jul-Dec): +3 to +5 bonus
+- Winter Ice Restrictions (Dec-Mar): -3 to -5 penalty
+
+**Port Modifiers:**
+- Vessels in same region: +2 to +3
+- Vessels in adjacent region: +1 to +2
+- Vessels in distant region: 0 to +1
+
+
+# ═══════════════════════════════════════════════════════════════════
+# P1A REGIONAL PATTERN SCORING RULES
+# VK Charts AI Scoring System
+# ═══════════════════════════════════════════════════════════════════
+#
+# Scoring algorithm and calculation rules for P1A criterion
+# References market knowledge from REGIONAL_TRADE_PATTERNS_KB.txt
+#
+# ═══════════════════════════════════════════════════════════════════
+
+version: "1.0"
+last_updated: "2024-12-02"
+
+# ═══════════════════════════════════════════════════════════════════
+# SCORING CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════
+
+scoring_configuration:
+  
+  criterion_code: "P1A"
+  criterion_name: "Regional Pattern Scoring"
+  score_range: [0, 15]
+  weight: 15  # From MASTER_SCORING_SYSTEM.txt
+  
+  reference_files:
+    knowledge_base: "REGIONAL_TRADE_PATTERNS_KB.txt"
+    vessel_categories: "vessel_size_classification.txt"
+    master_system: "MASTER_SCORING_SYSTEM.txt"
+  
+  inputs_required:
+    - vessel_location_region  # Current vessel region (required)
+    - cargo_loading_region    # Loading port region (required)
+    - vessel_dwt              # For size category (required)
+    - month                   # For seasonal adjustments (optional)
+    - cargo_type              # For cargo-specific patterns (optional)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SECTION 1: REGION PAIR SCORING RULES
+# ═══════════════════════════════════════════════════════════════════
+
+region_pair_scoring_rules:
+  
+  # ───────────────────────────────────────────────────────────────────
+  # BLACK SEA → LIBYA
+  # ───────────────────────────────────────────────────────────────────
+  
+  black_sea_to_libya:
+    pattern_id: "BS_TO_LY"
+    knowledge_base_reference: "REGIONAL_TRADE_PATTERNS_KB.txt:black_sea_to_libya"
+    
+    vessel_size_rules:
+      handy_plus:  # H + SS + SM + PM (24001+ DWT)
+        vessel_categories: ["H", "SS", "SM", "PM"]
+        score_impact: 15  # Out of 15 max
+        reasoning: "Excellent pattern - large vessels economically return in ballast"
+        
+      small_handy:  # SH (17001-24000 DWT)
+        vessel_categories: ["SH"]
+        score_impact: 12
+        reasoning: "Good pattern - still economical to ballast"
+        
+      coasters:  # SC + C (0-17000 DWT)
+        vessel_categories: ["SC", "C"]
+        score_impact: 8
+        reasoning: "Fair pattern - smaller vessels may seek backhaul"
+
+  # ───────────────────────────────────────────────────────────────────
+  # BLACK SEA → EGYPT MEDITERRANEAN
+  # ───────────────────────────────────────────────────────────────────
+  
+  black_sea_to_egypt_med:
+    pattern_id: "BS_TO_EG_MED"
+    knowledge_base_reference: "REGIONAL_TRADE_PATTERNS_KB.txt:black_sea_to_egypt_med"
+    
+    vessel_size_rules:
+      handy_plus:
+        vessel_categories: ["H", "SS", "SM", "PM"]
+        score_impact: 12
+        reasoning: "Good pattern with some backhaul options"
+        
+      small_handy:
+        vessel_categories: ["SH"]
+        score_impact: 10
+        reasoning: "Fair pattern - better backhaul chances"
+        
+      coasters:
+        vessel_categories: ["SC", "C"]
+        score_impact: 6
+        reasoning: "Moderate pattern - good backhaul opportunities"
+
+  # ───────────────────────────────────────────────────────────────────
+  # BLACK SEA → TURKEY
+  # ───────────────────────────────────────────────────────────────────
+  
+  black_sea_to_turkey:
+    pattern_id: "BS_TO_TR"
+    knowledge_base_reference: "REGIONAL_TRADE_PATTERNS_KB.txt:black_sea_to_turkey"
+    
+    vessel_size_rules:
+      all_sizes:
+        vessel_categories: ["SC", "C", "SH", "H", "SS", "SM", "PM"]
+        score_impact: 5
+        reasoning: "Low ballast probability - good backhaul available"
+
+  # ───────────────────────────────────────────────────────────────────
+  # BLACK SEA → GREECE
+  # ───────────────────────────────────────────────────────────────────
+  
+  black_sea_to_greece:
+    pattern_id: "BS_TO_GR"
+    knowledge_base_reference: "REGIONAL_TRADE_PATTERNS_KB.txt:black_sea_to_greece"
+    
+    vessel_size_rules:
+      all_sizes:
+        vessel_categories: ["SC", "C", "SH", "H", "SS", "SM", "PM"]
+        score_impact: 9
+        reasoning: "Moderate ballast pattern - some backhaul options"
+
+  # ───────────────────────────────────────────────────────────────────
+  # MEDITERRANEAN → BLACK SEA
+  # ───────────────────────────────────────────────────────────────────
+  
+  mediterranean_to_black_sea:
+    pattern_id: "MED_TO_BS"
+    knowledge_base_reference: "REGIONAL_TRADE_PATTERNS_KB.txt:mediterranean_to_black_sea"
+    
+    vessel_size_rules:
+      all_sizes:
+        vessel_categories: ["SC", "C", "SH", "H", "SS", "SM", "PM"]
+        base_score: 10
+        reasoning: "Good positioning for Black Sea loading"
+    
+    seasonal_variation:
+      grain_season:
+        months: [7, 8, 9, 10, 11, 12]
+        adjustment: +5
+        final_score: 15
+        
+      off_season:
+        months: [1, 2, 3, 4, 5, 6]
+        adjustment: 0
+        final_score: 10
+
+  # ───────────────────────────────────────────────────────────────────
+  # ATLANTIC → BLACK SEA
+  # ───────────────────────────────────────────────────────────────────
+  
+  atlantic_to_black_sea:
+    pattern_id: "ATL_TO_BS"
+    knowledge_base_reference: "REGIONAL_TRADE_PATTERNS_KB.txt:atlantic_to_black_sea"
+    
+    vessel_size_rules:
+      large_vessels:
+        vessel_categories: ["H", "SS", "SM", "PM"]
+        score_impact: 10
+        reasoning: "Long ballast but economical for large vessels"
+        
+      small_vessels:
+        vessel_categories: ["SC", "C", "SH"]
+        score_impact: 5
+        reasoning: "Long ballast less economical for small vessels"
+    
+    seasonal_variation:
+      peak_grain_season:
+        months: [9, 10, 11]
+        adjustment: +3
+
+  # ───────────────────────────────────────────────────────────────────
+  # BLACK SEA → BLACK SEA (INTERNAL)
+  # ───────────────────────────────────────────────────────────────────
+  
+  black_sea_internal:
+    pattern_id: "BS_INTERNAL"
+    knowledge_base_reference: "REGIONAL_TRADE_PATTERNS_KB.txt:black_sea_internal"
+    
+    vessel_size_rules:
+      all_sizes:
+        vessel_categories: ["SC", "C", "SH", "H", "SS", "SM", "PM"]
+        score_impact: 15
+        reasoning: "Perfect positioning - minimal repositioning cost"
+    
+    special_cases:
+      ukraine_to_romania:
+        score_impact: 15
+        reasoning: "Main grain corridor"
+        
+      georgia_to_ukraine:
+        score_impact: 15
+        reasoning: "Good positioning for Ukrainian grain"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SECTION 2: SEASONAL SCORING ADJUSTMENTS
+# ═══════════════════════════════════════════════════════════════════
+
+seasonal_scoring_adjustments:
+  
+  black_sea_grain_season:
+    name: "Black Sea Grain Export Season"
+    knowledge_base_reference: "REGIONAL_TRADE_PATTERNS_KB.txt:black_sea_grain_season"
+    
+    active_months: [7, 8, 9, 10, 11, 12]
+    peak_months: [8, 9, 10, 11]
+    
+    scoring_boost:
+      peak_period:
+        months: [8, 9, 10, 11]
+        adjustment: +5
+        reasoning: "Peak demand period for Black Sea grain positioning"
+        
+      active_period:
+        months: [7, 12]
+        adjustment: +3
+        reasoning: "Active but not peak grain season"
+    
+    applies_to:
+      cargo_loading_region: "Black Sea"
+      vessel_location_regions: ["Mediterranean", "Atlantic", "Libya", "Egypt Mediterranean"]
+  
+  black_sea_winter_restrictions:
+    name: "Black Sea Winter Ice Restrictions"
+    knowledge_base_reference: "REGIONAL_TRADE_PATTERNS_KB.txt:black_sea_winter"
+    
+    affected_months: [12, 1, 2, 3]
+    affected_ports: ["Izmail", "Reni", "Mariupol", "Berdyansk"]
+    
+    scoring_penalty:
+      adjustment: -5
+      reasoning: "Ice restrictions reduce cargo availability and increase costs"
+    
+    applies_to:
+      cargo_loading_port: ["Izmail", "Reni"]  # Only specific ports
+      all_vessel_locations: true
+  
+  mediterranean_summer_demand:
+    name: "Mediterranean Summer Peak Season"
+    knowledge_base_reference: "REGIONAL_TRADE_PATTERNS_KB.txt:mediterranean_summer"
+    
+    months: [5, 6, 7, 8, 9]
+    
+    scoring_boost:
+      adjustment: +2
+      reasoning: "Increased grain demand before harvest"
+    
+    applies_to:
+      cargo_loading_region: "Black Sea"
+      discharge_region: "Mediterranean"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SECTION 3: PORT SCORING MODIFIERS
+# ═══════════════════════════════════════════════════════════════════
+
+port_scoring_modifiers:
+  
+  odessa_ukraine:
+    port_name: "Odessa/Chornomorsk"
+    knowledge_base_reference: "REGIONAL_TRADE_PATTERNS_KB.txt:port_economics.odessa_ukraine"
+    
+    modifiers_by_vessel_region:
+      vessels_in_black_sea: +3
+      vessels_in_mediterranean: +2
+      vessels_in_atlantic: +1
+      vessels_in_far_east: 0
+  
+  constanta_romania:
+    port_name: "Constanta"
+    knowledge_base_reference: "REGIONAL_TRADE_PATTERNS_KB.txt:port_economics.constanta_romania"
+    
+    modifiers_by_vessel_region:
+      vessels_in_black_sea: +3
+      vessels_in_mediterranean: +2
+      vessels_in_bosphorus_area: +3
+  
+  izmail_ukraine:
+    port_name: "Izmail/Reni"
+    knowledge_base_reference: "REGIONAL_TRADE_PATTERNS_KB.txt:port_economics.izmail_ukraine"
+    
+    modifiers_by_vessel_region:
+      vessels_in_danube_area: +3
+      vessels_with_gear: +1
+      vessels_without_gear: 0
+    
+    seasonal_modifier:
+      winter_ice:
+        months: [12, 1, 2]
+        adjustment: -5
+        requirement: "Ice class or icebreaker assistance"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SECTION 4: SCORING ALGORITHM (DETAILED)
+# ═══════════════════════════════════════════════════════════════════
+
+scoring_algorithm:
+  
+  overview: |
+    6-step algorithm to calculate P1A Regional Pattern Score [0-15]
+    Uses patterns from REGIONAL_TRADE_PATTERNS_KB.txt
+    Applies vessel size rules, seasonal adjustments, and port modifiers
+  
+  step_1_determine_vessel_category:
+    description: "Get vessel size category from DWT"
+    reference: "vessel_size_classification.txt"
+    logic: |
+      vessel_category = get_category_from_dwt(vessel_dwt)
+      Categories: SC (0-5000), C (5001-10000), SH (10001-17000), 
+                  H (17001-24000), SS (24001-32000), SM (32001-40000), PM (40001-65000)
+  
+  step_2_find_region_pair:
+    description: "Find matching pattern in region_pair_scoring_rules"
+    logic: |
+      pattern_key = f"{vessel_location_region}_to_{cargo_loading_region}"
+      pattern = region_pair_scoring_rules.get(pattern_key)
+      
+      If pattern not found:
+        - Try general patterns (e.g., "mediterranean_to_black_sea")
+        - If still not found: base_pattern_score = 0, use only seasonal + port modifiers
+  
+  step_3_calculate_base_score:
+    description: "Apply vessel size rule from matched pattern"
+    logic: |
+      for rule in pattern.vessel_size_rules:
+        if vessel_category in rule.vessel_categories:
+          base_pattern_score = rule.score_impact
+          break
+      
+      If no matching size rule:
+        base_pattern_score = 0
+  
+  step_4_apply_seasonal_adjustments:
+    description: "Add seasonal boosts or penalties"
+    logic: |
+      seasonal_adjustment = 0
+      
+      # Check grain season boost
+      if cargo_loading_region == "Black Sea" and month in [7,8,9,10,11,12]:
+        if month in [8,9,10,11]:  # Peak
+          seasonal_adjustment += 5
+        else:  # Active
+          seasonal_adjustment += 3
+      
+      # Check winter restrictions
+      if cargo_loading_port in ["Izmail", "Reni"] and month in [12,1,2,3]:
+        seasonal_adjustment -= 5
+      
+      # Check Mediterranean summer
+      if cargo_loading_region == "Black Sea" and discharge_region == "Mediterranean" and month in [5,6,7,8,9]:
+        seasonal_adjustment += 2
+  
+  step_5_apply_port_modifiers:
+    description: "Add port-specific modifiers based on vessel location"
+    logic: |
+      port_modifier = 0
+      
+      port_entry = port_scoring_modifiers.get(cargo_loading_port)
+      if port_entry:
+        modifier_key = f"vessels_in_{vessel_location_region}"
+        port_modifier = port_entry.modifiers_by_vessel_region.get(modifier_key, 0)
+  
+  step_6_combine_and_normalize:
+    description: "Calculate final score and clamp to [0-15]"
+    logic: |
+      raw_score = base_pattern_score + seasonal_adjustment + port_modifier
+      
+      final_score = max(0, min(15, raw_score))
+      
+      return {
+        "criterion_p1a_regional_patterns_score": final_score,
+        "score_range": "[0-15]",
+        "breakdown": {
+          "base_pattern_score": base_pattern_score,
+          "seasonal_adjustment": seasonal_adjustment,
+          "port_modifier": port_modifier,
+          "raw_score": raw_score,
+          "pattern_found": pattern_key,
+          "vessel_size_rule": rule_name,
+          "reasoning": generate_reasoning(...)
+        }
+      }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SECTION 5: EXAMPLES WITH CALCULATIONS
+# ═══════════════════════════════════════════════════════════════════
+
+scoring_examples:
+  
+  example_1_libya_to_black_sea_peak:
+    name: "Libya vessel → Black Sea grain loading (peak season)"
+    
+    input:
+      vessel_location_region: "Libya"
+      cargo_loading_region: "Black Sea"
+      cargo_loading_port: "Odessa"
+      vessel_dwt: 25000
+      vessel_category: "H"  # Handy
+      cargo_type: "wheat"
+      month: 9  # September - peak grain season
+    
+    calculation:
+      step_1: "vessel_category = H (from DWT 25000)"
+      step_2: "pattern = black_sea_to_libya (reversed: Libya → Black Sea)"
+      step_3: |
+        vessel_size_rule = handy_plus (H in ["H", "SS", "SM", "PM"])
+        base_pattern_score = 15
+      step_4: |
+        Grain season check: cargo_loading_region="Black Sea", month=9 (peak)
+        seasonal_adjustment = +5
+      step_5: |
+        Port: Odessa, vessel_region: Libya
+        No specific modifier for Libya → port_modifier = 0
+      step_6: |
+        raw_score = 15 + 5 + 0 = 20
+        final_score = clamp(20, 0, 15) = 15
+    
+    expected_output:
+      score: 15
+      reasoning: "Excellent pattern: vessel in Libya perfect for ballast return to Black Sea. Peak grain season adds maximum boost. Score: 15/15"
+  
+  example_2_atlantic_to_black_sea_offseason:
+    name: "Atlantic small vessel → Black Sea (off-season)"
+    
+    input:
+      vessel_location_region: "Atlantic"
+      cargo_loading_region: "Black Sea"
+      cargo_loading_port: "Constanta"
+      vessel_dwt: 6000
+      vessel_category: "C"  # Coaster
+      month: 3  # March - off season
+    
+    calculation:
+      step_1: "vessel_category = C (from DWT 6000)"
+      step_2: "pattern = atlantic_to_black_sea"
+      step_3: |
+        vessel_size_rule = small_vessels (C in ["SC", "C", "SH"])
+        base_pattern_score = 5
+      step_4: |
+        Not grain season (month 3)
+        seasonal_adjustment = 0
+      step_5: |
+        Port: Constanta, vessel_region: Atlantic
+        modifiers_by_vessel_region.vessels_in_atlantic = +1
+        port_modifier = +1
+      step_6: |
+        raw_score = 5 + 0 + 1 = 6
+        final_score = 6
+    
+    expected_output:
+      score: 6
+      reasoning: "Fair pattern: Small vessel from Atlantic, long ballast leg. Off-season reduces attractiveness. Constanta adds small positioning bonus. Score: 6/15"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SECTION 6: CRITICAL REMINDERS
+# ═══════════════════════════════════════════════════════════════════
+
+critical_reminders:
+  
+  priority_1_use_current_location:
+    reminder: "ALWAYS use CURRENT vessel location region, NOT last discharge port"
+    reason: "P1A evaluates vessel positioning economics from current location"
+    example: |
+      Vessel discharged in Egypt, now open in Libya
+      → Use vessel_location_region = "Libya" (current)
+      → NOT "Egypt" (last discharge)
+  
+  priority_2_validate_range:
+    reminder: "P1A score MUST be in range [0, 15]"
+    reason: "Defined in MASTER_SCORING_SYSTEM.txt"
+    validation: "final_score = max(0, min(15, raw_score))"
+  
+  priority_3_independent_criterion:
+    reminder: "P1A is INDEPENDENT from P1 (Proximity)"
+    reason: "P1 measures distance, P1A measures market logic"
+    both_contribute: "Both P1 and P1A scores added to total vessel score"
+  
+  priority_4_reference_kb:
+    reminder: "Always reference REGIONAL_TRADE_PATTERNS_KB.txt for pattern context"
+    reason: "KB contains WHY patterns exist, essential for reasoning"
+    usage: "Include KB context in reasoning field of output"
+  
+  priority_5_vessel_categories:
+    reminder: "Use vessel categories from vessel_size_classification.txt"
+    reason: "Consistent categorization across all criteria"
+    categories: "SC, C, SH, H, SS, SM, PM"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# METADATA & VERSIONING
+# ═══════════════════════════════════════════════════════════════════
+
+metadata:
+  created_by: "Vitaly (VK Charts)"
+  created_date: "2024-12-02"
+  last_modified: "2024-12-02"
+  version: "1.0.0"
+  document_type: "RULES"
+  
+  changelog:
+    - version: "1.0.0"
+      date: "2024-12-02"
+      changes:
+        - "БЛОК C, Задача C2: Разделение regional_trade_patterns_corrected.txt"
+        - "Создан файл RULES - scoring algorithm и правила для P1A"
+        - "Извлечены все scoring elements из KB:"
+        - "  - vessel_size_rules → score_impact"
+        - "  - seasonal_patterns → score_boost/penalty"
+        - "  - port_economics → scoring_modifiers"
+        - "Организованы в 6 секций:"
+        - "  1. Region Pair Scoring Rules"
+        - "  2. Seasonal Scoring Adjustments"
+        - "  3. Port Scoring Modifiers"
+        - "  4. Scoring Algorithm (6 steps)"
+        - "  5. Examples with Calculations"
+        - "  6. Critical Reminders"
+        - "Добавлен SHORT SUMMARY и HOW TO USE"
+        - "Добавлен QUICK REFERENCE"
+        - "Все pattern descriptions остались в REGIONAL_TRADE_PATTERNS_KB.txt"
+  
+  related_files:
+    - "REGIONAL_TRADE_PATTERNS_KB.txt - Market knowledge base"
+    - "vessel_size_classification.txt - Vessel categories"
+    - "MASTER_SCORING_SYSTEM.txt - P1A range [0, 15]"
+  
+  notes:
+    - "Score range [0, 15] per MASTER_SCORING_SYSTEM.txt"
+    - "Independent from P1 (Proximity) criterion"
+    - "Use current vessel location region, not last discharge"
+    - "Reference KB for pattern context and reasoning"
