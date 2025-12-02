@@ -1,0 +1,241 @@
+OPEN_AREA_COMMENTS_SCORING
+(Критерий: Manual Voyage-Specific Owner Comments)
+
+Короткое summary
+OpenArea Comments Scoring — это оценка того, насколько текущие, voyage-specific комментарии владельца судна совпадают или конфликтуют с грузом. AI интерпретирует сигналы по трем направлениям (cargo, geography, strategy), применяет бонусы или штрафы, и использует комментарии в reasoning и оффере. Жестких блоков нет, только penalties. Диапазон: −50…+25. Критерий имеет высокий приоритет, так как отражает реальное намерение владельца на текущий рейс.
+
+
+1. Что это за критерий
+
+OpenArea и особенно OpenArea Commons — это живые, актуальные, voyage-specific комментарии от судовладельца, которые отражают реальную текущую стратегию по судну:
+
+какие грузы готовы работать сейчас;
+
+какие грузы не хотят (avoid / no grains / no low SF cargoes);
+
+какие географические направления предпочитают (только nearby cargoes / only East Med / no Black Sea now);
+
+какие рейсы ищут (short / long / repositioning);
+
+ограничения по PSC/флагам;
+
+предпочтения по storage factor (только high SF);
+
+ограничения по draft/density для конкретного рейса.
+
+Эта информация НЕ является долговременной характеристикой судна, как Cargo/Regional Preferences — она относится к конкретному рейсу, в конкретный момент.
+
+→ Поэтому это отдельный критерий, который дополняет, но не заменяет другие.
+
+2. Задача критерия
+
+Дать оценку того, насколько текущие комментарии владельца совпадают или конфликтуют с параметрами груза.
+
+Система должна:
+
+автоматически вычленять релевантные сигналы из OpenArea Comments;
+
+передавать их AI как отдельный блок;
+
+AI должен оценивать их влияние на suitability score и формировать корректный текст в оффере.
+
+3. Типы комментариев (Categories)
+
+Комментарии разделяются на 3 группы:
+
+A. Cargo-Type Related
+
+Примеры:
+
+“no grains”
+
+“no steel coils”
+
+“prefer high SF cargoes”
+
+“only fertilizers”
+
+“not low SF cargoes (<1.0)”
+
+“no dirty bulk”
+
+“no breakbulk”
+
+B. Geography Related
+
+Примеры:
+
+“not going to Black Sea”
+
+“only looking for East Med cargoes”
+
+“prefer close cargo from current port”
+
+“no Libya / no Egypt”
+
+“no Marmara”
+
+“prefer backhaul towards Adriatic”
+
+C. Trade Pattern / Voyage Strategy
+
+Примеры:
+
+“looking for short trip”
+
+“looking for long haul”
+
+“seeking repositioning to Continent”
+
+“avoid long ballast”
+
+“want to stay in Med”
+
+“not ready for canal transit”
+
+“need fast loading”
+
+“PSC concerns in Egypt”
+
+4. Scoring Logic (AI-centric)
+
+AI получает структурированный блок:
+
+OpenArea_Comments:
+  cargo_signals:
+    - "no grains"
+    - "prefer high SF cargo"
+  geography_signals:
+    - "no Egypt"
+    - "prefer nearby cargo only"
+  strategy_signals:
+    - "seek short trip"
+
+
+AI затем сравнивает груз:
+
+Cargo:
+  type: Wheat (grain)
+  stowage_factor: 0.68
+  load_port: Marmara
+  discharge_port: Alexandria, Egypt
+  distance_ballast: 420 nm
+  cargo_distance: 780 nm
+
+Оценка AI по 3 уровням:
+1. Full conflict (Strong Negative)
+
+Если комментарий прямо запрещает работу с этим грузом:
+
+“no grains” → груз = grain
+
+“no Egypt” → discharge in Egypt
+
+“prefer only high SF” → груз с низким SF
+
+“not going to Black Sea” → load Black Sea
+
+→ AI выставляет heavy penalty (-30…-50), но не блок
+(философия мягких правил — см. answered questions)
+
+2. Soft conflict (Moderate Negative)
+
+Комментарии выражают нежелание, но не запрет:
+
+“prefer closer cargo” → груз далеко
+
+“avoid Turkey” → груз грузится в Turkey
+
+“prefer short trip” → груз long haul
+
+“prefer to stay in Med” → груз за пределы Med
+
+→ penalty (-10…-25)
+
+3. Positive match (Bonus)
+
+Если груз соответствует предпочтениям:
+
+“prefer high SF cargo” → cargo SF > 1.25
+
+“prefer short trip” → trip 1–3 days
+
+“seeking Egypt/Libya backhaul” → груз в Egypt
+
+“looking for nearby cargo” → груз < 200 nm
+
+“prefer BS grain” → груз grain ex Black Sea
+
+→ bonus (+10…+25)
+
+5. Финальная оценка критерия
+
+Диапазон: −50 … +25 (влияет на общий score)
+
+Рекомендуемая шкала:
+
+Тип сигнала	Влияние
+Полный конфликт	−40 / −50
+Частичный конфликт	−15 / −25
+Нейтрально	0
+Соответствие предпочтениям	+10 / +15
+Идеальное совпадение (стратегия + тип груза + регион)	+20 / +25
+6. Поведение AI в тексте оффера
+
+AI должен использовать комментарии владельца корректно и дипломатично.
+
+Примеры текста:
+❌ При полном конфликте:
+
+“Я знаю, что вы писали ‘no grains’, но решил отправить в любом случае — вдруг ситуация изменилась.”
+
+⚠️ При частичном несовпадении:
+
+“Понимаю, что вы предпочитаете держаться рядом с текущей позицией, но этот груз не слишком далеко — может быть, он все же подойдет?”
+
+✅ При полном совпадении:
+
+“Вижу в ваших комментариях, что ищете short trip и предпочтительно high SF — этот груз идеально соответствует вашим текущим предпочтениям.”
+
+7. AI Prompt Integration (готовый блок)
+
+В промпт передается:
+
+### OPEN AREA COMMENTS (Voyage-Specific Owner Notes)
+Use these comments to adjust scoring. These comments reflect the owner’s very current preferences for THIS voyage, and may override or complement historical Regional/Cargo settings.
+
+Cargo-related comments:
+  - ...
+
+Geography-related comments:
+  - ...
+
+Strategy-related comments:
+  - ...
+
+Rules:
+  - These comments have medium-to-high priority
+  - They SHOULD influence scoring
+  - They must NOT be treated as hard blocks
+  - Apply penalties or bonuses according to alignment with cargo
+  - Provide human-like reasoning in offer text
+
+8. Где этот критерий в системе
+Вставляется как SECTION 9 (или твой номер) в файл scoring_criteria (методологический раздел)
+Уровень приоритета:
+
+Intake
+
+Cargo Preferences
+
+Regional Preferences
+
+OpenArea Comments ← новый критерий
+
+Last Ports of Call
+
+Proximity
+
+Future criteria
+
+Этот критерий должен стоять выше LPOC и Proximity, потому что он всегда отражает свежие намерения владельца, которые меняются ежедневно.

@@ -1,0 +1,73 @@
+Architecture&RAG
+
+1. Архитектура и системные роли
+
+1.1 Основные компоненты:
+
+Laravel (vkchart) — главный оркестратор бизнес-логики и интерфейса.
+
+LangChain-сервис (Python) — умный ИИ-ассистент:
+
+Progressive Scoring Chains
+
+Rules Engine
+
+Retrieval (RAG)
+
+MongoDB Atlas — хранилище структурированных и векторных данных:
+
+данные по scoring, prefs, правилам, офферам и т.д.
+
+CrewAI (optional) — a framework for multi-agent workflows in the future. Agents can perform roles such as message generation, scoring, memory synchronization, and QA validation. The architecture may include behavioral cloning (mimicking user corrections), self-improvement loops, and distribution of subtasks between specialized agents. CrewAI is expected to enhance modularity, traceability of decision-making, and long-term automation in high-context scenarios.
+
+1.2 AI-интеграции:
+
+Интеграция Laravel ↔ Python через API.
+
+Векторный поиск через Atlas Search.
+
+Автообучение: система задаёт вопросы при непонятных действиях и запоминает ответы.
+
+1.3 Голосовой ввод и контроль:
+
+Минимум: ввод текста голосом через Web Speech API или Whisper.
+
+Максимум: голосовая навигация по интерфейсу vkchart.
+
+Голосовая поддержка важна для сбора reasoning-комментариев и пользовательского обучения.
+
+2. Структура базы знаний (папки и файлы)
+
+vkchart-ai-knowledge/
+├── PROJECT_STATE.md
+├── scoring/
+│      └── common files that may be used for scoring:
+│          └──vessel_location_determination.txt
+This file defines how the AI determines the vessel’s actual location before applying the Proximity Scoring Matrix.
+│          └──vessel_size_classification.txt
+This file defines the official VK Charts vessel size categories for all dry-cargo vessels (bulk + general cargo).
+│          └──COMMENTS_PROCESSING_GUIDE.txt
+This document defines how AI must read, interpret, and apply comments from Companies, Vessels, and Persons during scoring and offer/message generation.
+│   └──Proximity_Scoring_Matrix.txt
+This file defines how AI evaluates proximity (distance-based compatibility) between a vessel’s current/open position and a cargo’s loading port.
+│   └──regional_trade_patterns.txt
+This section defines a separate scoring criterion (0–25 points) that reflects how market trade patterns make the vessel's current position suitable for loading in the selected region.
+│   └──intake_calculator_formula
+This file defines the official VK Charts formula for calculating a vessel’s maximum cargo intake
+│   └──OPEN_AREA_COMMENTS_SCORING.txt
+OpenArea Comments Scoring — this is an evaluation of how the vessel owner's current voyage-specific comments align or conflict with the cargo
+│   └── SCORING_EXAMPLES_LIBRARY.yaml
+├── messages/
+│   └── MESSAGE_TEMPLATES_EXAMPLES.md
+├── behavioral/
+│   └── BEHAVIORAL_LEARNING_CASES.yaml
+├── edge_cases/
+│   └── EDGE_CASES_HANDBOOK.md
+├── trade_knowledge/
+│   ├── regional_trade_patterns.yaml
+│   └── cargo_export_map.yaml
+├── ports/
+│   └── port_restrictions_map.yaml
+├── prefs/
+│   ├── vessel_prefs_examples.yaml
+│   └── company_prefs_examples.yaml.

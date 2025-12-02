@@ -1,0 +1,497 @@
+# 🔔 SCORING RECALCULATION TRIGGERS
+## VK Charts - Detailed Trigger System Specification
+
+```yaml
+# ═══════════════════════════════════════════════════════════════════
+# TRIGGER SYSTEM FOR SCORING RECALCULATION
+# VK Charts AI - Dynamic Scoring Updates
+# ═══════════════════════════════════════════════════════════════════
+#
+# This document defines all triggers that initiate scoring recalculation
+# and their impact on different criteria
+#
+# Version: 1.0
+# Last Updated: 2024-11-28
+# ═══════════════════════════════════════════════════════════════════
+
+metadata:
+  system: "VK Charts Trigger Management"
+  purpose: "Define when and why scoring must be recalculated"
+  integration: "Laravel Events → LangChain Scoring Engine"
+
+# ═══════════════════════════════════════════════════════════════════
+# PRIMARY TRIGGERS (Immediate Recalculation)
+# ═══════════════════════════════════════════════════════════════════
+
+primary_triggers:
+  
+  # ─────────────────────────────────────────────────────────────────
+  CARGO_CHANGES:
+    trigger_name: "Cargo Modification"
+    priority: "CRITICAL"
+    
+    monitored_fields:
+      - field: "loading_port"
+        affects: ["P1", "P1A", "P2", "P5", "P7"]
+        reason: "Changes proximity, patterns, intake, timing"
+        
+      - field: "discharge_port"
+        affects: ["P1A", "P2", "P4", "P5"]
+        reason: "Changes trade patterns, preferences, intake"
+        
+      - field: "cargo_quantity"
+        affects: ["P5"]
+        reason: "Changes intake match ratio"
+        
+      - field: "cargo_type"
+        affects: ["P3", "P5"]
+        reason: "Changes cargo preferences, stowage factor"
+        
+      - field: "laycan_dates"
+        affects: ["P7"]
+        reason: "Changes timing/readiness calculation"
+        
+      - field: "loading_rate"
+        affects: ["P7"]
+        reason: "Affects port stay duration"
+    
+    recalculation_rules:
+      immediate: true
+      scope: "All vessels in current matching batch"
+      
+    notification:
+      user_alert: "Cargo details changed - recalculating scores"
+      log_level: "INFO"
+    
+    example_scenario:
+      change: "Loading port changed from Odessa to Constanta"
+      impact:
+        - "P1: All proximity scores recalculated"
+        - "P1A: Regional patterns updated"
+        - "P5: Port draft limits re-checked"
+        - "P7: New ETAs calculated"
+
+  # ─────────────────────────────────────────────────────────────────
+  VESSEL_POSITION_CHANGES:
+    trigger_name: "Vessel Position Update"
+    priority: "HIGH"
+    
+    monitored_fields:
+      - field: "open_area"
+        affects: ["P1", "P1A", "P7"]
+        threshold: "Any change"
+        
+      - field: "open_port"
+        affects: ["P1", "P1A", "P7"]
+        threshold: "Any change"
+        
+      - field: "open_date"
+        affects: ["P7"]
+        threshold: "Change > 1 day"
+        
+      - field: "destination"
+        affects: ["P1", "P7"]
+        threshold: "Any change"
+        
+      - field: "eta_destination"
+        affects: ["P7"]
+        threshold: "Change > 6 hours"
+        
+      - field: "current_position"
+        affects: ["P1", "P7"]
+        threshold: "Distance > 50nm"
+        
+      - field: "vessel_status"
+        affects: ["P7"]
+        values: ["laden", "ballast", "at_port", "sailing"]
+    
+    recalculation_rules:
+      delay: "5 minutes"  # Batch updates
+      scope: "Specific vessel only"
+      
+    smart_rules:
+      - rule: "If vessel moves closer to loading port"
+        action: "Increase update priority"
+        
+      - rule: "If vessel changes from laden to ballast"
+        action: "Immediate P7 recalculation"
+        
+      - rule: "If vessel enters new sea/region"
+        action: "Trigger P1A regional pattern update"
+
+  # ─────────────────────────────────────────────────────────────────
+  COMMENTS_UPDATES:
+    trigger_name: "Comments and Preferences Change"
+    priority: "MEDIUM"
+    
+    monitored_sources:
+      
+      open_area_comments:
+        affects: ["P6"]
+        keywords_to_detect:
+          negative: ["no", "avoid", "not", "skip"]
+          positive: ["looking", "seeking", "prefer", "only"]
+        action: "Parse and apply immediately"
+        
+      vessel_comments:
+        affects: ["P2", "P3", "P5"]
+        examples:
+          - "Real intake: 4800t at 7m"
+          - "No grain cargoes"
+          - "Prefer Mediterranean only"
+          
+      company_preferences:
+        affects: ["P2", "P3"]
+        ui_fields:
+          - "regional_preferences"
+          - "cargo_preferences"
+          - "special_requirements"
+    
+    recalculation_rules:
+      immediate: true
+      scope: "All vessels of affected company"
+      
+    conflict_resolution:
+      priority_order:
+        1: "open_area_comments (current voyage)"
+        2: "vessel_comments"
+        3: "person_comments"
+        4: "company_preferences"
+
+# ═══════════════════════════════════════════════════════════════════
+# TEMPORAL TRIGGERS (Time-Based)
+# ═══════════════════════════════════════════════════════════════════
+
+temporal_triggers:
+  
+  # ─────────────────────────────────────────────────────────────────
+  PERIODIC_UPDATES:
+    trigger_name: "Scheduled Recalculation"
+    
+    schedules:
+      
+      high_score_vessels:
+        condition: "Score > 80"
+        frequency: "Every 2 hours"
+        affects: ["P7"]  # Mainly timing updates
+        
+      medium_score_vessels:
+        condition: "Score 60-80"
+        frequency: "Every 6 hours"
+        affects: ["P1", "P7"]
+        
+      low_score_vessels:
+        condition: "Score < 60"
+        frequency: "Every 24 hours"
+        affects: "All criteria"
+        
+      approaching_laycan:
+        condition: "Days to laycan < 7"
+        frequency: "Every hour"
+        affects: ["P7"]
+        priority_boost: "+10 to urgency"
+
+  # ─────────────────────────────────────────────────────────────────
+  SEASONAL_CHANGES:
+    trigger_name: "Seasonal Pattern Updates"
+    
+    triggers:
+      
+      month_change:
+        when: "First day of month"
+        affects: ["P1A"]
+        actions:
+          - "Update grain season status"
+          - "Check ice restrictions"
+          - "Update seasonal multipliers"
+          
+      grain_season_start:
+        when: "August 1st"
+        affects: ["P1A"]
+        regions: ["Black Sea"]
+        impact: "+10 to Black Sea positioning scores"
+        
+      winter_restrictions:
+        when: "December 1st - March 31st"
+        affects: ["P5", "P7"]
+        ports: ["Izmail", "Reni", "Baltic ports"]
+        actions:
+          - "Apply ice class requirements"
+          - "Reduce intake calculations"
+          - "Increase ETA buffers"
+
+# ═══════════════════════════════════════════════════════════════════
+# EVENT-DRIVEN TRIGGERS
+# ═══════════════════════════════════════════════════════════════════
+
+event_triggers:
+  
+  # ─────────────────────────────────────────────────────────────────
+  MARKET_EVENTS:
+    trigger_name: "Market Condition Changes"
+    
+    monitored_events:
+      
+      freight_rate_spike:
+        threshold: "Rate change > 20%"
+        affects: ["P1A"]
+        action: "Adjust regional pattern attractiveness"
+        
+      port_congestion:
+        source: "Port authority updates"
+        affects: ["P7"]
+        action: "Add congestion delay to ETA"
+        
+      new_cargo_available:
+        condition: "Similar cargo in same region"
+        affects: ["P1A", "P2", "P3"]
+        action: "Check for combo offer opportunity"
+
+  # ─────────────────────────────────────────────────────────────────
+  GEOPOLITICAL_EVENTS:
+    trigger_name: "Geopolitical Changes"
+    priority: "CRITICAL"
+    
+    monitored_situations:
+      
+      sanctions_update:
+        affects: ["P1", "P1A"]
+        action: "Update blocked routes immediately"
+        example: "Russia-Ukraine restrictions"
+        
+      port_closure:
+        affects: ["P1", "P5", "P7"]
+        action: "Mark port unavailable, recalculate all"
+        
+      new_regulation:
+        affects: ["P3", "P5"]
+        example: "IMO 2020, Environmental zones"
+        action: "Update vessel capabilities"
+
+  # ─────────────────────────────────────────────────────────────────
+  CLIENT_INTERACTIONS:
+    trigger_name: "Client Response Events"
+    
+    response_types:
+      
+      vessel_update:
+        example: "Vessel now fixed elsewhere"
+        affects: "All criteria"
+        action: "Remove vessel from active matching"
+        
+      position_update:
+        example: "Vessel delayed, new open date"
+        affects: ["P1", "P7"]
+        action: "Update position and recalculate"
+        
+      preference_change:
+        example: "Now looking for different cargo"
+        affects: ["P2", "P3", "P6"]
+        action: "Update preferences and recalculate"
+        
+      counter_offer:
+        example: "Can load different quantity"
+        affects: ["P5"]
+        action: "Recalculate with new parameters"
+
+# ═══════════════════════════════════════════════════════════════════
+# TRIGGER MANAGEMENT RULES
+# ═══════════════════════════════════════════════════════════════════
+
+management_rules:
+  
+  batching:
+    description: "Group multiple triggers to avoid excessive recalculation"
+    
+    rules:
+      - condition: "Multiple position updates within 5 minutes"
+        action: "Batch and process once"
+        
+      - condition: "Cargo + Vessel changes simultaneously"
+        action: "Single recalculation covering both"
+        
+      - condition: "More than 10 triggers in 1 minute"
+        action: "Queue and process in priority order"
+  
+  throttling:
+    description: "Prevent system overload"
+    
+    limits:
+      per_vessel_per_hour: 10
+      per_cargo_per_hour: 20
+      total_per_minute: 100
+    
+    overflow_handling:
+      - "Queue lower priority triggers"
+      - "Skip redundant recalculations"
+      - "Alert admin if persistent"
+  
+  caching:
+    description: "Optimize repeated calculations"
+    
+    cache_rules:
+      proximity_scores:
+        ttl: "1 hour"
+        invalidate_on: ["position change", "port change"]
+        
+      regional_patterns:
+        ttl: "24 hours"
+        invalidate_on: ["month change", "major market event"]
+        
+      intake_calculations:
+        ttl: "6 hours"
+        invalidate_on: ["port restriction change", "cargo quantity change"]
+  
+  notification_rules:
+    
+    user_notifications:
+      high_impact:
+        condition: "Score change > 20 points"
+        method: "Push notification"
+        message: "Significant change in vessel matching"
+        
+      offer_ready:
+        condition: "Score crosses threshold (60)"
+        method: "Email + Dashboard"
+        message: "New vessels ready for offers"
+        
+      blocking_event:
+        condition: "Vessel becomes unavailable"
+        method: "Immediate alert"
+        message: "Vessel no longer suitable"
+    
+    system_logs:
+      all_triggers: "DEBUG level"
+      recalculations: "INFO level"
+      errors: "ERROR level with stack trace"
+
+# ═══════════════════════════════════════════════════════════════════
+# IMPLEMENTATION GUIDE
+# ═══════════════════════════════════════════════════════════════════
+
+implementation:
+  
+  laravel_events:
+    description: "Laravel Event System Implementation"
+    
+    event_classes:
+      - "App\Events\CargoUpdated"
+      - "App\Events\VesselPositionChanged"
+      - "App\Events\CommentsUpdated"
+      - "App\Events\MarketConditionChanged"
+    
+    listeners:
+      - "App\Listeners\TriggerScoringRecalculation"
+      - "App\Listeners\UpdateScoringCache"
+      - "App\Listeners\NotifyUsersOfChange"
+    
+    queue_configuration:
+      connection: "redis"
+      queue: "scoring_triggers"
+      tries: 3
+      timeout: 120
+  
+  langchain_integration:
+    description: "LangChain Scoring API"
+    
+    endpoints:
+      recalculate_single:
+        url: "/api/scoring/recalculate/{vessel_id}/{cargo_id}"
+        method: "POST"
+        payload: "Changed fields + trigger reason"
+        
+      batch_recalculate:
+        url: "/api/scoring/batch-recalculate"
+        method: "POST"
+        payload: "Array of vessel-cargo pairs"
+        
+      get_affected_criteria:
+        url: "/api/scoring/affected-criteria"
+        method: "POST"
+        payload: "Trigger type + changed fields"
+        response: "List of criteria to recalculate"
+  
+  monitoring:
+    
+    metrics_to_track:
+      - "Triggers per hour by type"
+      - "Average recalculation time"
+      - "Cache hit ratio"
+      - "Score stability (changes per vessel)"
+      - "System load during peak triggers"
+    
+    alerts:
+      - condition: "Recalculation queue > 100"
+        action: "Scale workers"
+        
+      - condition: "Average calc time > 5 seconds"
+        action: "Investigate performance"
+        
+      - condition: "Error rate > 1%"
+        action: "Page on-call engineer"
+
+# ═══════════════════════════════════════════════════════════════════
+# EXAMPLES AND TEST CASES
+# ═══════════════════════════════════════════════════════════════════
+
+test_scenarios:
+  
+  scenario_1_cargo_date_change:
+    trigger: "Laycan changed from Dec 10-12 to Dec 15-17"
+    affects: ["P7"]
+    expected_behavior:
+      - "All vessels recalculate ETA matching"
+      - "Vessels arriving Dec 10-12 lose points"
+      - "Vessels arriving Dec 15-17 gain points"
+      - "User notified of score changes > 10 points"
+    
+  scenario_2_vessel_position_update:
+    trigger: "Vessel moves from Libya to Malta"
+    affects: ["P1", "P1A", "P7"]
+    expected_behavior:
+      - "Proximity to Black Sea improved"
+      - "Regional pattern updated"
+      - "ETA recalculated with new position"
+      - "If score > 60, generate new offer"
+  
+  scenario_3_open_area_comment:
+    trigger: "Owner adds 'no grains this voyage'"
+    affects: ["P6"]
+    expected_behavior:
+      - "P6 modifier becomes -40"
+      - "If cargo is grain, block offer"
+      - "Mark vessel as unsuitable"
+      - "Send notification to broker"
+  
+  scenario_4_seasonal_change:
+    trigger: "Date changes to December 1st"
+    affects: ["P1A", "P5", "P7"]
+    expected_behavior:
+      - "Winter restrictions activated"
+      - "Danube ports intake reduced"
+      - "Ice class requirements checked"
+      - "All affected vessels recalculated overnight"
+```
+
+## 📊 TRIGGER PRIORITY MATRIX
+
+| Trigger Type | Priority | Latency | Affects Criteria | Action |
+|-------------|----------|---------|-----------------|---------|
+| Cargo port change | CRITICAL | Immediate | P1, P1A, P2, P5, P7 | Full recalc |
+| Vessel position | HIGH | 5 min | P1, P7 | Partial recalc |
+| OpenArea comment | HIGH | Immediate | P6 | Check blocking |
+| Laycan change | HIGH | Immediate | P7 | Timing recalc |
+| Cargo quantity | MEDIUM | 10 min | P5 | Intake recalc |
+| Company prefs | MEDIUM | 10 min | P2, P3 | Prefs recalc |
+| Time passage | LOW | Scheduled | P7 | Batch update |
+| Season change | LOW | Daily | P1A | Overnight batch |
+
+## 🔄 RECALCULATION FLOWCHART
+
+```
+Trigger Event → Validation → Batching Queue → Priority Sort →
+→ Identify Affected Criteria → Check Cache → 
+→ Call LangChain API → Update Scores →
+→ Check Thresholds → Generate Actions →
+→ Notify Users → Log Results
+```

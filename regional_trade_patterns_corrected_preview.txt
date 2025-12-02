@@ -1,0 +1,60 @@
+regional_trade_patterns
+
+Short Summary — P1A: Regional Pattern Scoring Logic
+
+Этот раздел определяет отдельный критерий оценки (0–15 points), который отражает, насколько рыночные торговые паттерны делают текущую позицию судна подходящей для погрузки в выбранном регионе.
+
+В отличие от Proximity Scoring, который оценивает географическую близость,
+P1A оценивает экономическую логику движения флота, используя:
+
+region_pairs (паттерны между регионами)
+
+vessel_size_economics (размер судна → поведение)
+
+seasonal_patterns (зерновой сезон, зима и т. д.)
+
+port_economics (модификаторы конкретных портов погрузки)
+
+Важно:
+Оценка основывается только на текущем регионе открытия судна,
+а НЕ на последнем порту выгрузки.
+
+▶️ How to Use — Short Instructions
+
+1️⃣ Передать в AI следующие данные:
+
+vessel_location_region
+
+cargo_loading_region
+
+vessel_dwt
+
+cargo_type (optional)
+
+month (optional)
+
+2️⃣ AI выполняет алгоритм:
+
+ищет паттерн (region_pairs[from → to])
+
+определяет size bucket → получает базовый score
+
+применяет seasonal adjustments
+
+применяет port economics modifiers
+
+суммирует, ограничивает результат диапазоном 0–15
+
+3️⃣ Вернуть в итоговом ответе поле:
+
+"criterion_regional_patterns_score": <0-15>
+
+
+4️⃣ Не путать с proximity:
+Этот критерий добавляется поверх географической оценки.
+Proximity = «как близко?»
+Regional patterns = «насколько логично сюда идти по рынку?»
+
+5️⃣ Если паттерна нет:
+AI использует только seasonal + port_economics.
+Если нет и их → score = 0.

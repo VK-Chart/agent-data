@@ -1,0 +1,922 @@
+regional_trade_patterns
+
+Short Summary — P1A: Regional Pattern Scoring Logic
+
+Этот раздел определяет отдельный критерий оценки (0–15 points), который отражает, насколько рыночные торговые паттерны делают текущую позицию судна подходящей для погрузки в выбранном регионе.
+
+В отличие от Proximity Scoring, который оценивает географическую близость,
+P1A оценивает экономическую логику движения флота, используя:
+
+region_pairs (паттерны между регионами)
+
+vessel_size_economics (размер судна → поведение)
+
+seasonal_patterns (зерновой сезон, зима и т. д.)
+
+port_economics (модификаторы конкретных портов погрузки)
+
+Важно:
+Оценка основывается только на текущем регионе открытия судна,
+а НЕ на последнем порту выгрузки.
+
+▶️ How to Use — Short Instructions
+
+1️⃣ Передать в AI следующие данные:
+
+vessel_location_region
+
+cargo_loading_region
+
+vessel_dwt
+
+cargo_type (optional)
+
+month (optional)
+
+2️⃣ AI выполняет алгоритм:
+
+ищет паттерн (region_pairs[from → to])
+
+определяет size bucket → получает базовый score
+
+применяет seasonal adjustments
+
+применяет port economics modifiers
+
+суммирует, ограничивает результат диапазоном 0–15
+
+3️⃣ Вернуть в итоговом ответе поле:
+
+"criterion_regional_patterns_score": <0-15>
+
+
+4️⃣ Не путать с proximity:
+Этот критерий добавляется поверх географической оценки.
+Proximity = «как близко?»
+Regional patterns = «насколько логично сюда идти по рынку?»
+
+5️⃣ Если паттерна нет:
+AI использует только seasonal + port_economics.
+Если нет и их → score = 0.
+
+
+# ═══════════════════════════════════════════════════════════════════
+# REGIONAL TRADE PATTERNS - KNOWLEDGE BASE
+# VK Charts AI Scoring System
+# ═══════════════════════════════════════════════════════════════════
+# 
+# Эта база знаний используется для AI-driven scoring совместимости
+# судна с грузом на основе региональных торговых паттернов
+#
+# СТРУКТУРА:
+# - Region Pairs: торговые маршруты между регионами
+# - Port Economics: экономика конкретных портов
+# - Seasonal Patterns: сезонные факторы
+# - Vessel Size Economics: экономика по размерам судов
+# - Learning Log: история обучения от пользователя
+# ═══════════════════════════════════════════════════════════════════
+
+version: "1.0"
+last_updated: "2024-11-27"
+
+# ═══════════════════════════════════════════════════════════════════
+# SECTION 1: REGION PAIR PATTERNS
+# ═══════════════════════════════════════════════════════════════════
+
+region_pairs:
+  
+  # ─────────────────────────────────────────────────────────────────
+  # BLACK SEA → MEDITERRANEAN
+  # ─────────────────────────────────────────────────────────────────
+  
+  black_sea_to_libya:
+    id: "BS_TO_LY"
+    from_region: "Black Sea"
+    to_region: "Libya"
+    
+    # Основной паттерн
+    pattern:
+      description: "Vessels discharging in Libya typically return to Black Sea in ballast"
+      ballast_return_probability: 0.85  # 85% идут в балласте обратно
+      
+      # Причины
+      reasons:
+        primary: "Very low freight rates for backhaul cargo Libya → Black Sea"
+        secondary: 
+          - "Limited cargo availability ex-Libya northbound"
+          - "Most Libya exports go to Europe/Med, not Black Sea"
+          - "Time-sensitive for next Black Sea grain cargo"
+      
+      # Применимость по размеру судна
+      # ❗ ИЗМЕНЕНИЕ: Используем категории из vessel_size_classification
+      vessel_size_rules:
+        handy_plus:  # H + SS + SM + PM (24001+ DWT)
+          vessel_categories: ["H", "SS", "SM", "PM"]
+          reference: "vessel_size_classification.txt"
+          ballast_probability: 0.90
+          reasoning: "Economics favor direct ballast return for larger vessels"
+          score_impact: +25  # Если судно в Ливии и груз в Black Sea
+          
+        small_handy:  # SH (17001-24000 DWT)
+          vessel_categories: ["SH"]
+          reference: "vessel_size_classification.txt"
+          ballast_probability: 0.80
+          reasoning: "Still economical to return ballast, but may consider backhaul"
+          score_impact: +20
+          
+        coasters:  # SC + C (0-17000 DWT)
+          vessel_categories: ["SC", "C"]
+          reference: "vessel_size_classification.txt"
+          ballast_probability: 0.60
+          reasoning: "Smaller vessels try harder to find backhaul cargo"
+          score_impact: +10
+          exceptions:
+            - "If vessel has regular Black Sea program, may still ballast"
+            - "Turkish/Greek owners more likely to seek Mediterranean backhaul"
+      
+      # Типичные альтернативы балласту
+      backhaul_alternatives:
+        - route: "Libya → Turkey"
+          cargo_types: ["steel coils", "cement"]
+          probability: 0.10
+          
+        - route: "Libya → Greece"  
+          cargo_types: ["bauxite", "clinker"]
+          probability: 0.05
+      
+    # Validation examples (для обучения)
+    examples:
+      - vessel_dwt: 15000
+        vessel_category: "C"  # ❗ ДОБАВЛЕНО
+        last_port: "Misrata, Libya"
+        cargo_loading_port: "Odessa, Ukraine"
+        expected_score_boost: +10  # ❗ ИЗМЕНЕНО с +25 на +10 (coaster rule)
+        explanation: "Coaster size vessel discharged in Libya, may seek backhaul but Black Sea grain still attractive"
+        
+      - vessel_dwt: 7200
+        vessel_category: "C"  # ❗ ДОБАВЛЕНО
+        last_port: "Tripoli, Libya"
+        cargo_loading_port: "Constanta, Romania"
+        expected_score_boost: +10
+        explanation: "Small vessel may look for backhaul first, but Black Sea grain still attractive"
+
+  # ─────────────────────────────────────────────────────────────────
+  
+  black_sea_to_egypt_med:
+    id: "BS_TO_EG_MED"
+    from_region: "Black Sea"
+    to_region: "Egypt Mediterranean"
+    
+    pattern:
+      description: "High probability ballast return, but better backhaul opportunities than Libya"
+      ballast_return_probability: 0.70
+      
+      reasons:
+        primary: "Egypt Med ports closer to Black Sea than Libya"
+        secondary:
+          # ❗ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ на основе learning_session_1.txt
+          - "Some backhaul opportunities from Egypt (salt in big bags, steel products)"
+          - "Salt in big bags common backhaul"
+          - "Note: Phosphates come from Red Sea (Aqaba), NOT Egypt Med"
+      
+      vessel_size_rules:
+        handy_plus:
+          vessel_categories: ["H", "SS", "SM", "PM"]
+          reference: "vessel_size_classification.txt"
+          ballast_probability: 0.75
+          score_impact: +20
+          
+        small_handy:
+          vessel_categories: ["SH"]
+          reference: "vessel_size_classification.txt"
+          ballast_probability: 0.65
+          score_impact: +15
+          
+        coasters:
+          vessel_categories: ["SC", "C"]
+          reference: "vessel_size_classification.txt"
+          ballast_probability: 0.55
+          score_impact: +8
+      
+      backhaul_alternatives:
+        # ❗ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ согласно learning_session_1
+        - route: "Egypt → Black Sea"
+          cargo_types: ["salt in big bags", "other big bag cargoes", "steel products"]
+          probability: 0.20
+          source_correction: "learning_session_1.txt - phosphates from Red Sea, not Egypt Med"
+          
+        - route: "Egypt → Turkey"
+          cargo_types: ["cement", "clinker"]
+          probability: 0.10
+
+  # ─────────────────────────────────────────────────────────────────
+  
+  black_sea_to_turkey:
+    id: "BS_TO_TR"
+    from_region: "Black Sea"
+    to_region: "Turkey"
+    
+    pattern:
+      description: "Excellent backhaul opportunities, low ballast probability"
+      ballast_return_probability: 0.30
+      
+      reasons:
+        primary: "Turkey has strong export cargo to Black Sea"
+        secondary:
+          - "Short distance allows quick repositioning"
+          - "Turkish steel, marble, cement all available"
+      
+      vessel_size_rules:
+        all_sizes:
+          vessel_categories: ["SC", "C", "SH", "H", "SS", "SM", "PM"]
+          reference: "vessel_size_classification.txt"
+          ballast_probability: 0.30
+          score_impact: +5  # Lower because backhaul likely
+          reasoning: "Backhaul cargo readily available from Turkey"
+      
+      backhaul_alternatives:
+        - route: "Turkey → Black Sea"
+          cargo_types: ["steel products", "marble", "cement", "clinker"]
+          probability: 0.70
+
+  # ─────────────────────────────────────────────────────────────────
+  
+  black_sea_to_greece:
+    id: "BS_TO_GR"
+    from_region: "Black Sea"
+    to_region: "Greece"
+    
+    pattern:
+      description: "Moderate backhaul probability, depends on Greek ports"
+      ballast_return_probability: 0.55
+      
+      vessel_size_rules:
+        all_sizes:
+          vessel_categories: ["SC", "C", "SH", "H", "SS", "SM", "PM"]
+          reference: "vessel_size_classification.txt"
+          ballast_probability: 0.55
+          score_impact: +12
+      
+      backhaul_alternatives:
+        - route: "Greece → Black Sea"
+          cargo_types: ["bauxite", "alumina", "clinker"]
+          probability: 0.45
+          ports: ["Volos", "Thessaloniki"]
+
+  # ─────────────────────────────────────────────────────────────────
+  
+  mediterranean_to_black_sea:
+    id: "MED_TO_BS"
+    from_region: "Mediterranean"
+    to_region: "Black Sea"
+    
+    pattern:
+      description: "Generally good for positioning, especially before grain season"
+      ballast_return_probability: 0.20  # Low - most find cargo
+      
+      reasons:
+        primary: "Black Sea is major loading area, good for positioning"
+        secondary:
+          - "Grain season creates demand"
+          - "Short ballast leg to major cargo hub"
+      
+      seasonal_variations:
+        grain_season:  # July-December
+          months: [7, 8, 9, 10, 11, 12]
+          ballast_probability: 0.15
+          score_impact: +30
+          reasoning: "Peak demand for Black Sea grain exports"
+          
+        off_season:  # January-June
+          months: [1, 2, 3, 4, 5, 6]
+          ballast_probability: 0.25
+          score_impact: +15
+          reasoning: "Lower demand, but still active"
+
+  # ─────────────────────────────────────────────────────────────────
+  
+  atlantic_to_black_sea:
+    id: "ATL_TO_BS"
+    from_region: "Atlantic"
+    to_region: "Black Sea"
+    
+    pattern:
+      description: "Long ballast leg, but economical during grain season"
+      ballast_return_probability: 0.40
+      
+      reasons:
+        primary: "Long distance makes ballast expensive"
+        secondary:
+          - "Vessels prefer to find intermediate cargo"
+          - "But Black Sea grain rates can justify ballast"
+      
+      vessel_size_rules:
+        large_vessels:
+          vessel_categories: ["H", "SS", "SM", "PM"]
+          reference: "vessel_size_classification.txt"
+          ballast_probability: 0.35
+          score_impact: +15
+          reasoning: "Larger vessels can absorb ballast cost better"
+          
+        small_vessels:
+          vessel_categories: ["SC", "C", "SH"]
+          reference: "vessel_size_classification.txt"
+          ballast_probability: 0.50
+          score_impact: +8
+          reasoning: "Smaller vessels seek intermediate cargo more actively"
+      
+      seasonal_variations:
+        peak_grain_season:
+          months: [9, 10, 11]
+          score_adjustment: +10
+          reasoning: "High grain rates justify long ballast"
+
+  # ─────────────────────────────────────────────────────────────────
+  
+  black_sea_internal:
+    id: "BS_INTERNAL"
+    from_region: "Black Sea"
+    to_region: "Black Sea"
+    
+    pattern:
+      description: "Short repositioning, very favorable"
+      ballast_return_probability: 0.10
+      
+      vessel_size_rules:
+        all_sizes:
+          vessel_categories: ["SC", "C", "SH", "H", "SS", "SM", "PM"]
+          reference: "vessel_size_classification.txt"
+          score_impact: +35
+          reasoning: "Minimal repositioning cost, already in prime cargo area"
+      
+      special_cases:
+        ukraine_to_romania:
+          score_impact: +40
+          reasoning: "Main grain corridor, multiple cargo opportunities"
+          
+        georgia_to_ukraine:
+          score_impact: +30
+          reasoning: "Good positioning for Ukrainian grain"
+
+# ═══════════════════════════════════════════════════════════════════
+# SECTION 2: PORT-SPECIFIC ECONOMICS
+# ═══════════════════════════════════════════════════════════════════
+
+port_economics:
+  
+  # Порты погрузки (loading ports)
+  loading_ports:
+    
+    odessa_ukraine:
+      port_name: "Odessa/Chornomorsk"
+      country: "Ukraine"
+      region: "Black Sea"
+      
+      characteristics:
+        typical_cargoes: ["wheat", "corn", "barley", "sunflower oil"]
+        vessel_size_preference: [3000, 12000]  # DWT sweet spot
+        draft_restriction: 8.5  # meters
+        
+      scoring_modifiers:
+        vessels_in_black_sea: +30
+        vessels_in_mediterranean: +15
+        vessels_in_atlantic: +5
+        vessels_in_far_east: -20
+        
+      special_considerations:
+        - "Major grain export hub"
+        - "High cargo availability"
+        - "Good for vessels returning from Mediterranean"
+    
+    constanta_romania:
+      port_name: "Constanta"
+      country: "Romania"
+      region: "Black Sea"
+      
+      characteristics:
+        typical_cargoes: ["wheat", "corn", "barley"]
+        vessel_size_preference: [3000, 10000]
+        draft_restriction: 8.0
+        
+      scoring_modifiers:
+        vessels_in_black_sea: +32
+        vessels_in_mediterranean: +18
+        vessels_in_bosphorus_area: +25
+    
+    izmail_ukraine:
+      port_name: "Izmail/Reni"
+      country: "Ukraine"
+      region: "Black Sea Danube"
+      
+      characteristics:
+        typical_cargoes: ["wheat", "corn", "barley"]
+        vessel_size_preference: [3000, 8000]  # Smaller due to Danube
+        draft_restriction: 7.0
+        gear_required: true  # Often requires ship's gear
+        
+      seasonal_restrictions:
+        winter_ice:
+          months: [12, 1, 2]
+          score_penalty: -15
+          requirement: "Ice class or icebreaker assistance"
+          
+      scoring_modifiers:
+        vessels_in_danube_area: +35
+        vessels_with_gear: +10
+        vessels_without_gear: -5
+  
+  # Порты выгрузки (discharge ports)
+  discharge_ports:
+    
+    egypt_mediterranean:
+      port_group: "Egypt Med Ports"
+      ports: ["Alexandria", "Damietta", "Port Said"]
+      country: "Egypt"
+      region: "Mediterranean"
+      
+      characteristics:
+        typical_imports: ["wheat", "corn", "barley"]
+        vessel_size_preference: [5000, 15000]
+        draft_restrictions:
+          alexandria: 8.5
+          damietta: 9.0
+          port_said: 10.0
+        
+      return_cargo_analysis:
+        ballast_to_black_sea:
+          probability: 0.70
+          economic_justification: "Good grain rates justify ballast"
+          
+        alternative_routes:
+          - destination: "Turkey"
+            probability: 0.15
+            cargo: "phosphates, steel"
+          - destination: "East Med"
+            probability: 0.15
+            cargo: "trans-shipment"
+    
+    libya_ports:
+      port_group: "Libya Ports"
+      ports: ["Misrata", "Tripoli", "Benghazi"]
+      country: "Libya"
+      region: "North Africa"
+      
+      characteristics:
+        typical_imports: ["wheat", "flour", "barley"]
+        vessel_size_preference: [8000, 20000]
+        
+      return_cargo_analysis:
+        ballast_to_black_sea:
+          probability: 0.85
+          economic_justification: "Limited backhaul options, direct ballast economical"
+          
+        alternative_routes:
+          - destination: "Turkey"
+            probability: 0.10
+            cargo: "steel products"
+          - destination: "Italy"
+            probability: 0.05
+            cargo: "scrap metal"
+
+# ═══════════════════════════════════════════════════════════════════
+# SECTION 3: SEASONAL PATTERNS
+# ═══════════════════════════════════════════════════════════════════
+
+seasonal_patterns:
+  
+  black_sea_grain_season:
+    name: "Black Sea Grain Export Season"
+    peak_months: [8, 9, 10, 11]  # August-November
+    active_months: [7, 8, 9, 10, 11, 12]
+    
+    effects:
+      vessel_demand:
+        description: "High demand for vessels to load Black Sea grain"
+        score_boost_for_positioning: +25
+        
+      freight_rates:
+        level: "high"
+        impact: "Justifies longer ballast legs to position"
+        
+      port_congestion:
+        risk: "medium"
+        delay_probability: 0.30
+  
+  black_sea_winter:
+    name: "Black Sea Winter Restrictions"
+    months: [12, 1, 2, 3]
+    
+    effects:
+      ice_restrictions:
+        affected_ports: ["Izmail", "Reni", "Mariupol", "Berdyansk"]
+        requirements: "Ice class or icebreaker assistance"
+        score_penalty: -15
+        
+      reduced_activity:
+        description: "Lower cargo volumes in winter months"
+        freight_rate_impact: "lower"
+  
+  mediterranean_summer:
+    name: "Mediterranean Peak Season"
+    months: [5, 6, 7, 8, 9]
+    
+    effects:
+      increased_demand:
+        description: "Higher demand for grain imports before harvest"
+        score_boost: +10
+
+# ═══════════════════════════════════════════════════════════════════
+# SECTION 4: VESSEL SIZE ECONOMICS
+# ❗ ПОЛНАЯ ПЕРЕРАБОТКА - убираем дублирование
+# ═══════════════════════════════════════════════════════════════════
+
+vessel_size_economics:
+  
+  # ❗ ИЗМЕНЕНИЕ: Полностью ссылаемся на vessel_size_classification.txt
+  reference_source: "vessel_size_classification.txt"
+  
+  note: |
+    ALL vessel size economics are defined in vessel_size_classification.txt
+    This section only contains TRADE-SPECIFIC exceptions not covered there
+    
+  size_category_mapping:
+    SC: "vessel_size_classification.small_coasters"
+    C:  "vessel_size_classification.coasters"
+    SH: "vessel_size_classification.small_handy"
+    H:  "vessel_size_classification.handy"
+    SS: "vessel_size_classification.small_supramax"
+    SM: "vessel_size_classification.supramax"
+    PM: "vessel_size_classification.panamax"
+  
+  # Только специфичные для региональных паттернов исключения
+  regional_specific_rules:
+    
+    handy_greece_exception:
+      vessel_categories: ["H"]
+      note: "Handy size NOT common in Greek trades per learning_session_1"
+      impact: "Reduce score for Greece destinations"
+      source: "learning_session_1.txt"
+    
+    coasters_black_sea_preference:
+      vessel_categories: ["SC", "C"]
+      note: "Coasters optimal for Black Sea-Med grain trades"
+      impact: "+5 bonus for Black Sea grain cargoes"
+
+# ═══════════════════════════════════════════════════════════════════
+# SECTION 5: CARGO TYPE PATTERNS
+# ═══════════════════════════════════════════════════════════════════
+
+cargo_type_patterns:
+  
+  grain_cargoes:
+    types: ["wheat", "corn", "barley", "soy"]
+    
+    vessel_requirements:
+      size_preference: [3000, 15000]
+      gear_requirement:
+        optional_ports: ["Odessa", "Constanta"]  # Grain terminals have shore gear
+        required_ports: ["Izmail", "Reni"]  # Grain terminals have shore gear
+      
+    trade_routes:
+      main_flows:
+        - from: "Black Sea"
+          to: ["Egypt", "Libya", "Tunisia", "Morocco"]
+          seasonality: "Year-round, peak Aug-Dec"
+          
+        - from: "Black Sea"
+          to: ["Far East", "Bangladesh"]
+          seasonality: "Mainly Oct-Feb"
+    
+    return_patterns:
+      after_north_africa:
+        ballast_probability: 0.75
+        reasoning: "Limited backhaul cargo"
+        
+      after_far_east:
+        ballast_probability: 0.30
+        reasoning: "Good backhaul opportunities from Far East"
+
+# ═══════════════════════════════════════════════════════════════════
+# SECTION 6: LEARNING LOG
+# История обучения от пользователя
+# ═══════════════════════════════════════════════════════════════════
+
+learning_log:
+  # Здесь будут сохраняться corrections от пользователя
+  # Формат:
+  # 
+  # - timestamp: "2024-11-27T10:30:00Z"
+  #   scenario:
+  #     vessel_dwt: 7500
+  #     last_port: "Tripoli, Libya"
+  #     cargo_loading_port: "Constanta, Romania"
+  #     cargo_type: "wheat"
+  #   
+  #   ai_initial_score: 65
+  #   user_corrected_score: 80
+  #   
+  #   ai_question: "Why score higher? Small vessel from Libya should seek backhaul first?"
+  #   user_explanation: "This specific owner has regular Black Sea program, always ballasts back"
+  #   
+  #   new_rule_created:
+  #     rule_id: "owner_specific_pattern_001"
+  #     pattern: "Certain owners with regular Black Sea programs ballast directly regardless of vessel size"
+  #     confidence: 0.8
+  
+  corrections: []
+  
+  # Статистика обучения
+  statistics:
+    total_corrections: 0
+    rules_generated_from_corrections: 0
+    average_score_adjustment: 0
+    most_corrected_scenarios: []
+
+# ═══════════════════════════════════════════════════════════════════
+# SECTION 7: METADATA & VERSIONING
+# ═══════════════════════════════════════════════════════════════════
+
+metadata:
+  created_by: "Vitaly (VK Charts)"
+  created_date: "2024-11-27"
+  last_modified: "2024-11-27"
+  version: "1.0.0"
+  
+  changelog:
+    - version: "1.0.0"
+      date: "2024-11-27"
+      changes:
+        - "Initial structure created"
+        - "Added Libya-Black Sea pattern (from user example)"
+        - "Added basic seasonal patterns"
+        - "Added vessel size economics"
+        - "Added learning log structure"
+  
+  notes:
+    - "This knowledge base will grow through behavioral learning"
+    - "User corrections will automatically generate new rules"
+    - "Confidence scores will increase as patterns are validated"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SECTION 8: REGIONAL PATTERN SCORING LOGIC
+# ═══════════════════════════════════════════════════════════════════
+
+regional_pattern_scoring:
+
+  # Общая идея:
+  # - Это ОТДЕЛЬНЫЙ критерий, независимый от proximity
+  # - Использует:
+  #   - region_pairs
+  #   - port_economics.loading_ports
+  #   - seasonal_patterns
+  #   - vessel_size_economics
+  #
+  # ВАЖНО:
+  # - Используем ТОЛЬКО текущий регион открытия судна
+  #   (vessel_location_region из vessel_location_determination)
+  # - НЕ используем "регион последней выгрузки"
+
+  score_range: [0, 15]   # ❗ ИЗМЕНЕНО с 0-25 на 0-15 согласно MASTER_SCORING
+
+  inputs:
+    vessel_location_region: "Нормализованный регион текущего открытия судна (Black Sea, Libya, Egypt Mediterranean, Mediterranean, Atlantic, Turkey, Greece, etc.)"
+    cargo_loading_region:   "Нормализованный регион порта погрузки (из портовой иерархии/Ports DB)"
+    vessel_dwt:             "DWT судна (для выбора size bucket)"
+    cargo_type:             "Тип груза (grain, steel, fertilizers, etc.) — опционально"
+    month:                  "Текущий месяц (1-12) для сезонности — опционально"
+    market_strength:        "Опционально: soft / neutral / strong (можно добавить позже)"
+
+  algorithm:
+
+    step_1_resolve_regions:
+      description: |
+        Определить нормализованные регионы:
+        - from_region = vessel_location_region
+        - to_region   = cargo_loading_region
+
+        Здесь мы не смотрим на историю рейсов, только на:
+        - где судно открыто СЕЙЧАС
+        - откуда груз будет грузиться
+
+    step_2_find_region_pair_pattern:
+      description: |
+        Найти подходящий элемент в region_pairs:
+
+        1) Сначала ищем точное совпадение:
+           (from_region, to_region) → region_pairs[from_region_to_to_region]
+
+           Примеры:
+           - ("Libya", "Black Sea") → black_sea_to_libya
+           - ("Egypt Mediterranean", "Black Sea") → black_sea_to_egypt_med
+           - ("Mediterranean", "Black Sea") → mediterranean_to_black_sea
+           - ("Atlantic", "Black Sea") → atlantic_to_black_sea
+           - ("Black Sea", "Black Sea") → black_sea_internal
+
+        2) Если точного нет — можно использовать более общий паттерн:
+           - from_region = "Mediterranean", to_region = "Black Sea"
+           - from_region = "Black Sea internal" и т.п.
+
+        3) Если паттерна нет вообще:
+           - base_pattern_score = 0
+           - дальше используем только port_economics + seasonal_patterns (если есть)
+
+    step_3_base_score_from_region_pair:
+      description: |
+        ❗ UPDATED: Now uses vessel categories from vessel_size_classification
+        
+        1. Determine vessel category (SC/C/SH/H/SS/SM/PM)
+        2. Find matching vessel_size_rules by category
+        3. Apply score_impact
+        4. Scale to 0-15 range (was 0-25)
+
+        Пример:
+          black_sea_to_libya.pattern.vessel_size_rules:
+            handy_plus:
+              vessel_categories: ["H", "SS", "SM", "PM"]
+              score_impact: +25
+            small_handy:
+              vessel_categories: ["SH"]
+              score_impact: +20
+            coasters:
+              vessel_categories: ["SC", "C"]
+              score_impact: +10
+
+        Логика:
+        - Находим правило, где vessel_category входит в vessel_categories
+        - Применяем score_impact
+        - Масштабируем к диапазону 0-15
+
+      pseudocode: |
+        # Get vessel category
+        vessel_category = get_category_from_dwt(vessel_dwt)  # uses vessel_size_classification
+        
+        # Find pattern
+        pattern = find_region_pair(from_region, to_region)
+        
+        if pattern exists:
+          # Find rule matching vessel category
+          for rule in pattern.vessel_size_rules:
+            if vessel_category in rule.vessel_categories:
+              raw_score = rule.score_impact
+              # Scale from old 0-25 to new 0-15
+              base_pattern_score = (raw_score / 25) * 15
+              break
+        else:
+          base_pattern_score = 0
+
+    step_4_apply_seasonality:
+      description: |
+        Если передан month и/или cargo_type, можно скорректировать base_pattern_score
+        на основе seasonal_patterns и cargo_type_patterns.
+
+        Примеры использования:
+        - Если груз зерновой (grain) и месяц входит в black_sea_grain_season.active_months:
+            → добавить score_boost_for_positioning / score_impact (но не выходя за общий максимум 15)
+        - Если зима и порт в зоне ice-restrictions:
+            → вычесть score_penalty
+
+      logic: |
+        seasonal_adjustment = 0
+
+        - Если cargo_loading_region в Black Sea и
+          month ∈ black_sea_grain_season.active_months:
+            seasonal_adjustment += black_sea_grain_season.effects.score_boost_for_positioning
+            # Пример: +25 (но масштабировать к 0-15 диапазону)
+
+        - Если cargo_loading_region попадает в порты из black_sea_winter.effects.ice_restrictions.affected_ports
+          и month ∈ black_sea_winter.months:
+            seasonal_adjustment += black_sea_winter.effects.ice_restrictions.score_penalty
+            # Пример: -15 (но масштабировать)
+
+        seasonal_adjustment = может быть положительным или отрицательным
+        # Важно: масштабировать к новому диапазону 0-15
+
+    step_5_apply_port_economics:
+      description: |
+        Если для порта погрузки или его группы есть запись в port_economics.loading_ports,
+        используем scoring_modifiers.
+
+        Идея:
+        - loading_port_entry = port_economics.loading_ports[porto_group_or_name]
+        - Внутри него есть scoring_modifiers:
+            vessels_in_black_sea: +30
+            vessels_in_mediterranean: +15
+            vessels_in_atlantic: +5
+            ...
+
+        - В зависимости от vessel_location_region добавляем соответствующий модификатор.
+        - Важно: модификаторы также нужно масштабировать к диапазону 0-15
+
+      logic: |
+        port_modifier = 0
+
+        loading_port_entry = find_loading_port_entry(cargo_loading_region / конкретный порт)
+        if loading_port_entry and loading_port_entry.scoring_modifiers exists:
+          if vessel_location_region == "Black Sea":
+            port_modifier += loading_port_entry.scoring_modifiers.vessels_in_black_sea
+          else if vessel_location_region == "Mediterranean":
+            port_modifier += loading_port_entry.scoring_modifiers.vessels_in_mediterranean
+          else if vessel_location_region == "Atlantic":
+            port_modifier += loading_port_entry.scoring_modifiers.vessels_in_atlantic
+          # и т.д. по наличию ключей
+          
+        # Масштабировать модификаторы к диапазону 0-15
+        port_modifier = (port_modifier / 50) * 15  # assuming original max was ~50
+
+    step_6_combine_and_normalize:
+      description: |
+        Финальный score для Regional patterns:
+
+        raw_score = base_pattern_score
+                    + seasonal_adjustment
+                    + port_modifier
+
+        final_score = clamp(raw_score, 0, 15)
+
+      pseudocode: |
+        raw_score = base_pattern_score + seasonal_adjustment + port_modifier
+
+        if raw_score < 0:
+          final_score = 0
+        else if raw_score > 15:
+          final_score = 15
+        else:
+          final_score = raw_score
+
+    output:
+      field_name: "criterion_regional_patterns_score"
+      description: "Оценка позиции судна с точки зрения региональных торговых паттернов (независимо от расстояния/proximity)"
+      range: [0, 15]
+
+  examples:
+
+    - name: "Libya vessel → Odessa grain loading (large vessel)"
+      input:
+        vessel_location_region: "Libya"
+        cargo_loading_region:   "Black Sea"
+        vessel_dwt:             25000
+        vessel_category:        "H"  # ❗ ДОБАВЛЕНО
+        cargo_type:             "wheat"
+        month:                  9   # сентябрь, пик зернового сезона
+
+      reasoning: |
+        1) Region pair:
+           from_region = "Libya"
+           to_region   = "Black Sea"
+           → используем black_sea_to_libya
+
+           size_rule (handy_plus):
+             vessel_categories: ["H", "SS", "SM", "PM"]
+             score_impact: +25
+           → base_pattern_score = 25 * (15/25) = 15
+
+        2) Сезонность:
+           month = 9 → входит в black_sea_grain_season.active_months
+           → seasonal_adjustment ≈ +25 * (15/25) = +15 (но общий максимум 15, поэтому по сути усиливает уверенность)
+
+        3) Port economics:
+           loading_port_entry = odessa_ukraine
+           scoring_modifiers.vessels_in_black_sea / mediterranean / atlantic
+           (для Libya отдельного модификатора может не быть → port_modifier = 0)
+
+        4) Комбинация:
+           raw_score ≈ 15 + 15 + 0 = 30 → clamp до 15
+
+      expected_final_score: 15
+      comment: "Очень сильный паттерн: судно в Ливии, груз в Черном море в зерновой сезон"
+
+    - name: "Atlantic small vessel → Black Sea grain off-season"
+      input:
+        vessel_location_region: "Atlantic"
+        cargo_loading_region:   "Black Sea"
+        vessel_dwt:             6000
+        vessel_category:        "C"  # ❗ ДОБАВЛЕНО
+        cargo_type:             "wheat"
+        month:                  3   # март, не пик
+
+      reasoning: |
+        1) Region pair:
+           from_region = "Atlantic"
+           to_region   = "Black Sea"
+           → atlantic_to_black_sea
+
+           size_rule (small_vessels/coasters):
+             vessel_categories: ["SC", "C", "SH"]
+             score_impact: +8
+           → base_pattern_score = 8 * (15/25) = 4.8
+
+        2) Сезонность:
+           month = 3 → не в peak_grain_season
+           → seasonal_adjustment ≈ 0 (или небольшой штраф, если решим)
+
+        3) Port economics:
+           loading_port_entry = odessa_ukraine
+           scoring_modifiers.vessels_in_atlantic: +5
+           → port_modifier = +5 * (15/25) = +3
+
+        4) Комбинация:
+           raw_score = 4.8 + 0 + 3 = 7.8 → final_score = 8
+
+      expected_final_score: 8
+      comment: "Сценарий экономически возможен, но не идеальный: маленькое судно, длинный балласт, не пик сезона"

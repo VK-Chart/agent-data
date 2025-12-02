@@ -1,0 +1,567 @@
+MASTER_SCORING_SYSTEM
+
+# ═══════════════════════════════════════════════════════════════════
+# MASTER SCORING SYSTEM SPECIFICATION
+# VK Charts AI - Central Scoring Configuration
+# ═══════════════════════════════════════════════════════════════════
+#
+# This is the SINGLE SOURCE OF TRUTH for vessel-cargo scoring
+# All scoring components must reference this file
+# 
+# Version: 2.0
+# Last Updated: 2024-11-28
+# Status: AUTHORITATIVE
+# ═══════════════════════════════════════════════════════════════════
+
+metadata:
+  system_name: "VK Charts AI Scoring Engine"
+  version: "2.0"
+  created_by: "Vitaly Kravets"
+  architecture_split:
+    laravel:
+      - "Data retrieval from database"
+      - "Vessel/cargo/company data preparation"
+      - "API endpoint for scoring requests"
+      - "Email generation from scores"
+      - "UI for manual review"
+    langchain:
+      - "Scoring calculation (P1-P7)"
+      - "Comments parsing and interpretation"
+      - "RAG for patterns and knowledge"
+      - "Reasoning generation"
+      - "Learning from corrections"
+    mongodb_atlas:
+      - "Vector search for similar patterns"
+      - "Historical scoring storage"
+      - "Comments embeddings"
+
+# ═══════════════════════════════════════════════════════════════════
+# SCORING CRITERIA STRUCTURE
+# ═══════════════════════════════════════════════════════════════════
+
+scoring_criteria:
+  
+  # ─────────────────────────────────────────────────────────────────
+  P1_PROXIMITY:
+    name: "Geographic Proximity"
+    weight: 20  # out of 100
+    range: [0, 20]
+    
+    description: |
+      Measures geographic distance and economic viability of ballast leg
+      from vessel's current position to loading port.
+      
+    calculation_source: "proximity_scoring_matrix.txt"
+    
+    dependencies:
+      - file: "vessel_location_determination.txt"
+        purpose: "Determine vessel's effective location"
+      - file: "vessel_size_classification.txt"
+        purpose: "Size-based distance penalties"
+      - file: "port_restrictions_map.txt"
+        purpose: "Port accessibility validation"
+    
+    key_factors:
+      - "Distance in nautical miles"
+      - "Vessel size (affects ballast economics)"
+      - "Geographic barriers (straits, canals)"
+      - "Geopolitical restrictions"
+    
+    scoring_logic: |
+      1. Determine vessel location via vessel_location_determination
+      2. Calculate proximity level (same port → far region)
+      3. Apply size-based adjustments
+      4. Scale to 0-20 range
+    
+    blocking_conditions:
+      - "Ukraine-Russia sanctions block"
+      - "Port physically inaccessible for vessel size"
+
+  # ─────────────────────────────────────────────────────────────────
+  P1A_REGIONAL_PATTERNS:
+    name: "Regional Trade Patterns"
+    weight: 15
+    range: [0, 15]
+    
+    description: |
+      Evaluates market logic of vessel positioning from current region
+      to loading region based on typical trade flows.
+      
+    calculation_source: "regional_trade_patterns.txt"
+    
+    dependencies:
+      - file: "cargo_export_map.txt"
+        purpose: "Typical cargo flows and vessel sizes"
+      - file: "vessel_size_classification.txt"
+        purpose: "Size economics and behavior"
+      - file: "learning_session_1.txt"
+        purpose: "Expert corrections and overrides"
+    
+    key_factors:
+      - "Region pairs (from → to patterns)"
+      - "Vessel size economics"
+      - "Seasonal patterns"
+      - "Backhaul probability"
+    
+    scoring_logic: |
+      1. Find region_pair pattern for vessel_location → loading_region
+      2. Apply vessel size bucket rules
+      3. Apply seasonal adjustments
+      4. Scale to 0-15 range
+      
+    important_note: |
+      Uses CURRENT vessel position region, NOT last discharge region
+
+  # ─────────────────────────────────────────────────────────────────
+  P2_REGIONAL_PREFERENCES:
+    name: "Owner's Regional Preferences"
+    weight: 15
+    range: [0, 15]
+    
+    description: |
+      Manual preferences for countries/regions from company/vessel settings
+      and comments history.
+      
+    calculation_source: "COMMENTS_PROCESSING_GUIDE.txt"
+    
+    data_sources:
+      - "Company settings (specializes/prefers/avoids)"
+      - "Vessel snapshot settings"
+      - "Historical comments patterns"
+    
+    preference_levels:
+      specializes: "+15 points"
+      prefers: "+10 points"
+      can_work: "+5 points"
+      neutral: "0 points"
+      avoids: "-10 points"
+      cannot_work: "-15 points"
+    
+    priority_hierarchy:
+      1: "Vessel-specific settings"
+      2: "Person preferences"
+      3: "Company-wide settings"
+      4: "Formal UI settings"
+
+  # ─────────────────────────────────────────────────────────────────
+  P3_CARGO_PREFERENCES:
+    name: "Cargo Type Compatibility"
+    weight: 15
+    range: [0, 15]
+    
+    description: |
+      Compatibility with cargo type, technical requirements, and
+      vessel capabilities.
+      
+    calculation_sources:
+      - "COMMENTS_PROCESSING_GUIDE.txt"
+      - "cargo_export_map.txt"
+    
+    key_factors:
+      - "Cargo type match (grain/steel/fertilizers)"
+      - "Technical requirements (gear/grabs/IMO)"
+      - "Stowage factor compatibility"
+      - "Historical cargo patterns"
+    
+    preference_levels:
+      specializes_in_cargo: "+15 points"
+      regularly_carries: "+10 points"
+      can_carry: "+5 points"
+      neutral: "0 points"
+      avoids_cargo: "-10 points"
+      cannot_carry_technically: "BLOCK"
+
+  # ─────────────────────────────────────────────────────────────────
+  P4_LAST_PORTS:
+    name: "Last Ports of Call Familiarity"
+    weight: 10
+    range: [0, 10]
+    
+    description: |
+      Vessel's historical familiarity with loading/discharge regions
+      based on port call statistics.
+      
+    data_sources:
+      - "Vessel's port call history (%)"
+      - "Company fleet patterns (if vessel new)"
+    
+    scoring_logic: |
+      >30% calls in region: +10 points
+      20-30% calls: +7 points
+      10-20% calls: +5 points
+      5-10% calls: +3 points
+      <5% calls: +1 point
+      Never been: 0 points
+
+  # ─────────────────────────────────────────────────────────────────
+  P5_INTAKE_CAPACITY:
+    name: "Cargo Intake Match"
+    weight: 15
+    range: [0, 15]
+    
+    description: |
+      Vessel's ability to load required cargo quantity considering
+      port restrictions and technical limitations.
+      
+    calculation_source: "intake_calculator_formula.txt"
+    
+    dependencies:
+      - file: "port_restrictions_map.txt"
+        purpose: "Port draft and restrictions"
+      - file: "COMMENTS_PROCESSING_GUIDE.txt"
+        purpose: "Manual intake overrides"
+    
+    scoring_logic: |
+      Ratio = vessel_intake / cargo_quantity
+      
+      ≥110%: 15 points (comfortable margin)
+      100-110%: 12 points (exact fit)
+      95-100%: 8 points (tight fit)
+      90-95%: 3 points (requires negotiation)
+      <90%: BLOCK (cannot carry)
+    
+    override_priority:
+      1: "Manual intake from vessel comments"
+      2: "Calculated intake"
+      3: "DWT-based estimation"
+
+  # ─────────────────────────────────────────────────────────────────
+  P6_OPEN_AREA_COMMENTS:
+    name: "Current Voyage Preferences"
+    type: "MODIFIER"
+    range: [-50, +25]
+    
+    description: |
+      Owner's specific requirements for CURRENT voyage from OpenArea
+      comments. Acts as modifier on top of base score.
+      
+    calculation_source: "OPEN_AREA_COMMENTS_SCORING.txt"
+    
+    key_signals:
+      cargo_related:
+        - "no grains / only grains"
+        - "no steel / prefer steel"
+        - "high SF only / no low SF"
+      geography_related:
+        - "no Black Sea / only Black Sea"
+        - "nearby only / no long ballast"
+        - "seeking backhaul to X"
+      strategy_related:
+        - "short trip only"
+        - "repositioning to X"
+        - "waiting for rates"
+    
+    impact_levels:
+      full_conflict: "-40 to -50 → BLOCK OFFER"
+      partial_conflict: "-15 to -25"
+      neutral: "0"
+      partial_match: "+10 to +15"
+      perfect_match: "+20 to +25"
+    
+    blocking_rule: |
+      If P6 score ≤ -40: Do not send offer, regardless of other scores
+
+  # ─────────────────────────────────────────────────────────────────
+  P7_READINESS_ETA:
+    name: "Timing and Readiness"
+    weight: 10
+    range: [0, 10]
+    
+    description: |
+      Vessel's ability to meet laycan dates considering current position
+      and operational factors.
+      
+    calculation_source: "READINESSETA_TO_LOADING_PORT_SCORING.txt"
+    
+    dependencies:
+      - file: "vessel_location_determination.txt"
+        purpose: "Starting point and time"
+      - file: "vessel_size_classification.txt"
+        purpose: "Service speed by size"
+    
+    key_factors:
+      - "Current position and status (laden/ballast)"
+      - "Distance to loading port"
+      - "ETA calculation vs laycan window"
+      - "Discharge time if laden"
+    
+    scoring_categories:
+      perfect_fit: "9-10 points (within laycan)"
+      slightly_early: "7-8 points (1-3 days wait)"
+      slightly_late: "4-6 points (needs extension)"
+      too_early_or_late: "1-3 points"
+      unknown_eta: "0 points"
+    
+    important_note: |
+      P7 focuses on CALENDAR FIT, not distance economics (that's P1)
+
+# ═══════════════════════════════════════════════════════════════════
+# SCORING CALCULATION FORMULA
+# ═══════════════════════════════════════════════════════════════════
+
+scoring_formula:
+  
+  base_score_calculation: |
+    BASE_SCORE = P1 + P1A + P2 + P3 + P4 + P5 + P7
+    (Maximum: 100 points)
+  
+  modifier_application: |
+    MODIFIED_SCORE = BASE_SCORE + P6
+    (P6 can push score above 100 or below 0)
+  
+  final_score: |
+    FINAL_SCORE = CLAMP(MODIFIED_SCORE, 0, 100)
+    (Bounded between 0 and 100)
+  
+  blocking_conditions:
+    - condition: "P3 = CANNOT_CARRY_TECHNICALLY"
+      action: "BLOCK → No score, no offer"
+      
+    - condition: "P5_ratio < 0.90"
+      action: "BLOCK → Insufficient capacity"
+      
+    - condition: "P6 ≤ -40"
+      action: "BLOCK → Owner explicitly avoids"
+      
+    - condition: "Geopolitical restriction"
+      action: "BLOCK → Sanctions/war"
+
+# ═══════════════════════════════════════════════════════════════════
+# SCORING THRESHOLDS
+# ═══════════════════════════════════════════════════════════════════
+
+thresholds:
+  
+  classification:
+    excellent_match:
+      range: [85, 100]
+      action: "High priority, immediate offer"
+      email_template: "CASE A - Strong Match"
+      
+    good_match:
+      range: [70, 85]
+      action: "Standard offer"
+      email_template: "CASE A - Standard"
+      
+    acceptable_match:
+      range: [60, 70]
+      action: "Offer with caveats"
+      email_template: "CASE B - Not Ideal"
+      
+    marginal_match:
+      range: [50, 60]
+      action: "Low priority or positioning"
+      email_template: "CASE B - Positioning"
+      
+    poor_match:
+      range: [30, 50]
+      action: "Only if requested"
+      email_template: "CASE B - Unlikely"
+      
+    do_not_offer:
+      range: [0, 30]
+      action: "Skip unless manual override"
+      email_template: "Do not send"
+  
+  automatic_actions:
+    score_below_30: "Do not include in offer list"
+    blocked_vessel: "Mark with reason, exclude completely"
+    excellent_match: "Flag for immediate attention"
+
+# ═══════════════════════════════════════════════════════════════════
+# DATA NORMALIZATION RULES
+# ═══════════════════════════════════════════════════════════════════
+
+normalization:
+  
+  vessel_sizes:
+    source: "vessel_size_classification.txt"
+    canonical_ranges:
+      SC: [0, 4000]       # Small Coasters
+      C:  [4001, 17000]   # Coasters
+      SH: [17001, 24000]  # Small Handy
+      H:  [24001, 40000]  # Handy
+      SS: [40001, 50000]  # Small Supramax
+      SM: [50001, 65000]  # Supramax
+      PM: [65001, 80000]  # Panamax
+    
+    rule: "ALL files must use these exact ranges"
+  
+  regions:
+    canonical_names:
+      - "Black Sea"
+      - "Black Sea Danube"
+      - "Mediterranean"
+      - "East Mediterranean"
+      - "West Mediterranean"
+      - "Egypt Mediterranean"
+      - "Libya"
+      - "Turkey"
+      - "Greece"
+      - "Marmara Sea"
+      - "Adriatic"
+      - "Atlantic"
+      - "North Europe"
+      - "Red Sea"
+      - "Arabian Sea"
+      - "Far East"
+    
+    rule: "Use exact names for region_pairs matching"
+
+# ═══════════════════════════════════════════════════════════════════
+# LEARNING AND IMPROVEMENT
+# ═══════════════════════════════════════════════════════════════════
+
+learning_mechanism:
+  
+  behavioral_cloning:
+    description: |
+      System observes user corrections and learns patterns
+    
+    process:
+      1: "AI generates initial score"
+      2: "User corrects score or skips vessel"
+      3: "AI asks: 'Why was this score wrong?'"
+      4: "User provides reasoning"
+      5: "AI stores pattern for future scoring"
+    
+    storage: "MongoDB Atlas - learning_patterns collection"
+  
+  continuous_improvement:
+    - "Track offer → fixture conversion rate"
+    - "Identify patterns in successful matches"
+    - "Adjust weights based on outcomes"
+    - "Regular review of blocking conditions"
+
+# ═══════════════════════════════════════════════════════════════════
+# REASONING GENERATION RULES
+# ═══════════════════════════════════════════════════════════════════
+
+reasoning_templates:
+  
+  structure: |
+    1. Overall Score: {final_score}/100
+    2. Strengths: {top_scoring_criteria}
+    3. Weaknesses: {low_scoring_criteria}
+    4. Key Factors: {decisive_factors}
+    5. Recommendation: {action}
+  
+  criterion_explanations:
+    P1: "Vessel is {distance}nm from loading port ({proximity_level})"
+    P1A: "{match_level} with typical {region_pair} trade pattern"
+    P2: "Owner {preference_level} this region"
+    P3: "Vessel {compatibility} with {cargo_type}"
+    P4: "Vessel has {percentage}% history in this region"
+    P5: "Can load {intake}t vs required {cargo_qty}t ({ratio}%)"
+    P6: "Current voyage: {open_area_signal}"
+    P7: "ETA {eta_date} vs laycan {laycan} ({timing_category})"
+  
+  blocking_explanations:
+    technical: "Vessel cannot technically carry this cargo"
+    capacity: "Insufficient intake capacity ({ratio}% of required)"
+    owner_preference: "Owner explicitly avoids {restriction}"
+    geopolitical: "Blocked due to {restriction_reason}"
+
+# ═══════════════════════════════════════════════════════════════════
+# IMPLEMENTATION NOTES
+# ═══════════════════════════════════════════════════════════════════
+
+implementation:
+  
+  api_flow:
+    1: "Laravel prepares vessel + cargo data"
+    2: "Laravel calls LangChain scoring endpoint"
+    3: "LangChain calculates P1-P7 using knowledge files"
+    4: "LangChain returns scores + reasoning"
+    5: "Laravel generates email based on score"
+    6: "Laravel stores results for learning"
+  
+  critical_validations:
+    - "Vessel DWT → Size category must use vessel_size_classification"
+    - "All regions must be normalized before matching"
+    - "P6 blocking must be checked before sending"
+    - "Manual intake overrides calculated intake"
+  
+  performance_optimizations:
+    - "Cache proximity calculations for same vessel-port pairs"
+    - "Pre-compute regional patterns for common routes"
+    - "Batch scoring for multiple vessels"
+
+# ═══════════════════════════════════════════════════════════════════
+# REFERENCES TO KNOWLEDGE FILES
+# ═══════════════════════════════════════════════════════════════════
+
+knowledge_base_files:
+  
+  core_scoring:
+    - file: "proximity_scoring_matrix.txt"
+      criterion: "P1"
+      purpose: "Distance-based scoring logic"
+      
+    - file: "regional_trade_patterns.txt"
+      criterion: "P1A"
+      purpose: "Market pattern scoring"
+      
+    - file: "COMMENTS_PROCESSING_GUIDE.txt"
+      criteria: ["P2", "P3", "P5"]
+      purpose: "Extract preferences from comments"
+      
+    - file: "OPEN_AREA_COMMENTS_SCORING.txt"
+      criterion: "P6"
+      purpose: "Current voyage preferences"
+      
+    - file: "READINESSETA_TO_LOADING_PORT_SCORING.txt"
+      criterion: "P7"
+      purpose: "Timing calculations"
+      
+    - file: "intake_calculator_formula.txt"
+      criterion: "P5"
+      purpose: "Intake capacity calculation"
+  
+  supporting_data:
+    - file: "vessel_size_classification.txt"
+      used_by: ["P1", "P1A", "P7"]
+      purpose: "Vessel size categories and economics"
+      
+    - file: "vessel_location_determination.txt"
+      used_by: ["P1", "P7"]
+      purpose: "Determine vessel position"
+      
+    - file: "port_restrictions_map.txt"
+      used_by: ["P1", "P5"]
+      purpose: "Port limitations"
+      
+    - file: "cargo_export_map.txt"
+      used_by: ["P1A", "P3"]
+      purpose: "Typical trade flows"
+      
+    - file: "learning_session_1.txt"
+      used_by: ["P1A", "P3"]
+      purpose: "Expert corrections"
+  
+  communication:
+    - file: "emailsexamples.txt"
+      purpose: "Email templates by score range"
+      
+    - file: "ABBREVIATIONS_KNOWLEDGE_BASE.txt"
+      purpose: "Message formatting"
+
+# ═══════════════════════════════════════════════════════════════════
+# VERSION HISTORY
+# ═══════════════════════════════════════════════════════════════════
+
+changelog:
+  v2.0:
+    date: "2024-11-28"
+    changes:
+      - "Complete restructure with P1-P7 system"
+      - "Fixed vessel size conflicts"
+      - "Added P6 as modifier with blocking"
+      - "Clarified Laravel vs LangChain split"
+      - "Normalized scoring ranges"
+      - "Added learning mechanism"
+  
+  v1.0:
+    date: "2024-11-01"
+    changes:
+      - "Initial scoring system"

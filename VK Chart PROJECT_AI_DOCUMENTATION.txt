@@ -1,0 +1,261 @@
+PROJECT_AI_DOCUMENTATION
+
+# VK Charts - AI Coding Documentation
+
+## Описание проекта
+VK Charts - это комплексная CRM-система для автоматизации работы морских фрахтовых брокеров. Система управляет данными о судах, грузах, компаниях и автоматизирует процессы коммуникации между участниками фрахтового рынка.
+
+## Технологический стек
+
+### Backend
+- **PHP 8.3** с Laravel 11
+- **MySQL** - основная БД
+- **MongoDB** - для хранения неструктурированных данных
+- **Redis** - кэширование
+- **RabbitMQ** - очереди для парсинга и обработки email
+
+### Frontend
+- **Inertia.js** с React 18 для SPA
+- **Livewire 3** для интерактивных компонентов
+- **Tailwind CSS** для стилизации
+- **TypeScript** поддержка через Vite
+- **React Query** для управления состоянием
+- **Zustand** для локального state management
+
+### Внешние интеграции
+- **OpenAI API** - для LLM обработки позиций судов
+- **Gmail API** - чтение и отправка email
+- **Microsoft Graph API** (Office 365) - интеграция с Outlook
+- **Google Calendar API** - управление календарем
+- **Airtable API** - синхронизация справочных данных
+- **AWS S3** - хранение файлов
+
+## Архитектура проекта
+
+### Структура директорий
+```
+C:\Projects\vk-charts\
+├── app/                    # Основной код приложения
+│   ├── Actions/           # Действия (бизнес-логика)
+│   ├── Console/           # Консольные команды
+│   ├── Events/            # События системы
+│   ├── Exports/           # Экспорт данных
+│   ├── Filters/           # Фильтры для запросов
+│   ├── Http/              # Контроллеры и middleware
+│   ├── Jobs/              # Фоновые задачи
+│   ├── Livewire/          # Livewire компоненты
+│   ├── Models/            # Eloquent модели
+│   ├── Services/          # Сервисы бизнес-логики
+│   └── Traits/            # Переиспользуемые трейты
+├── database/              
+│   ├── migrations/        # Миграции БД
+│   ├── seeders/           # Сидеры для начальных данных
+│   └── factories/         # Фабрики для тестов
+├── resources/
+│   ├── js/               # React компоненты и JS
+│   ├── views/            # Blade шаблоны
+│   └── css/              # Стили
+├── routes/               # Маршруты приложения
+└── storage/              # Хранилище файлов
+```
+
+## Основные сущности и их связи
+
+### 1. Vessels (Суда)
+- **Таблица**: `vessels`
+- **Ключевые поля**: `imo` (уникальный идентификатор), `name`, `dwcc`, `built_year`, `flag`
+- **Связи**:
+  - belongsToMany: `companies`, `people`, `ports`, `cargo_types`
+  - hasMany: `vessel_data`, `vessel_attributes`, `vessel_cargo_statuses`
+- **Особенности**: Мягкое удаление, уникальный индекс по IMO
+
+### 2. Companies (Компании)
+- **Таблица**: `companies`
+- **Поля**: `name`, `is_charterer` (фрахтователь), `airtable_id`
+- **Связи**:
+  - belongsToMany: `vessels`, `cargo_types`
+  - hasMany: `people`, `vessel_offers`
+
+### 3. Cargos (Грузы)
+- **Таблица**: `cargos`
+- **Поля**: `port_from`, `port_to`, `laycan`, `quantity`, `cargo_catalog_id`
+- **Связи**:
+  - belongsTo: `cargo_catalog`
+  - hasMany: `vessel_cargo_statuses`
+
+### 4. Ports (Порты)
+- **Таблица**: `ports`
+- **Поля**: `name`, `country_id`, `latitude`, `longitude`, `airtable_id`
+- **Связи**:
+  - belongsTo: `country`
+  - belongsToMany: `seas`, `regions`, `vessels`
+
+### 5. VesselCargoStatus (Статус судна по грузу)
+- **Таблица**: `vessel_cargo_statuses`
+- **Поля**: `vessel_id`, `cargo_id`, `vessel_status_id`, `priority`, `is_locked`
+- **Описание**: Связывает суда с грузами и определяет их статус/приоритет
+
+### 6. OutboundMessages (Исходящие сообщения)
+- **Таблица**: `outbound_messages`
+- **Поля**: `company_id`, `template_id`, `content`, `status`
+- **Описание**: Управление рассылкой предложений судовладельцам
+
+### 7. MailMessages (Email сообщения)
+- **Таблица**: `mail_messages`
+- **MongoDB коллекция для хранения полного содержимого
+- **Поля**: `message_id`, `from`, `to`, `subject`, `body`, `parsed_data`
+
+## Ключевые процессы
+
+### 1. Парсинг позиций судов
+```php
+// Команда: php artisan app:parsers-listen
+// Очередь: RABBITMQ_QUEUE_PARSER
+```
+- Получение email с позициями судов
+- LLM обработка через OpenAI для извлечения структурированных данных
+- Fuzzy matching для сопоставления с базой судов
+- Обновление `vessel_data` и `vessel_attributes`
+
+### 2. CRM рассылка предложений
+```php
+// Модели: VesselOffer, OutboundMessage, MessageTemplate
+```
+- Создание предложений на основе `vessel_cargo_statuses`
+- Генерация персонализированных сообщений через шаблоны
+- Multi-channel отправка (email, messengers)
+- Отслеживание откликов и категоризация
+
+### 3. Синхронизация с Airtable
+```php
+// Команда: php artisan app:airtable-sync
+// Модель: AirtableSyncBatch
+```
+- Импорт справочных данных (порты, страны, регионы, моря)
+- Двусторонняя синхронизация через `airtable_id`
+
+### 4. Обработка email
+```php
+// Команда: php artisan app:emails-listen
+// Очередь: RABBITMQ_QUEUE_EMAILS
+```
+- Чтение входящих email через Gmail/Outlook API
+- Классификация и маршрутизация
+- Сохранение в MongoDB для полнотекстового поиска
+
+## Консольные команды
+
+```bash
+# Парсинг
+ddev artisan app:parsers-listen        # Слушатель очереди парсинга
+ddev artisan app:vessel-sync          # Синхронизация данных судов
+
+# Email
+ddev artisan app:emails-listen        # Слушатель email очереди
+ddev artisan app:mark-gmail-read      # Пометка прочитанных в Gmail
+
+# Очереди
+ddev artisan queue:work               # Обработка общей очереди
+ddev artisan schedule:run             # Запуск запланированных задач
+
+# Данные
+ddev artisan app:airtable-sync       # Синхронизация с Airtable
+ddev artisan cache:clear --redis     # Очистка кэша фильтров
+```
+
+## API и маршруты
+
+### Web Routes (`routes/web.php`)
+- `/dashboard` - главная панель
+- `/vessels` - управление судами
+- `/companies` - управление компаниями
+- `/cargos` - управление грузами
+- `/messages` - шаблоны сообщений
+- `/parsers` - настройка парсеров
+
+### API Routes (`routes/api.php`)
+- `/api/vessels` - CRUD операции с судами
+- `/api/vessel-positions` - позиции судов
+- `/api/cargo-matching` - подбор судов под груз
+
+## Особенности для разработки
+
+### 1. Permissions System
+- Использует Spatie Laravel Permission
+- Роли: Admin, Manager, Broker, Viewer
+- Детальные разрешения на уровне модулей
+
+### 2. Multi-tenancy
+- Фильтрация данных по компаниям
+- Изоляция через scopes
+
+### 3. Real-time обновления
+- Livewire для динамических таблиц
+- Broadcasting через WebSockets (планируется)
+
+### 4. Оптимизация производительности
+- Eager loading для предотвращения N+1
+- Redis кэширование фильтров
+- Индексы на часто используемых полях
+
+## Переменные окружения
+
+Критические переменные для настройки:
+- `OPENAI_API_KEY` - для LLM обработки
+- `GMAIL_*` - для интеграции с Gmail
+- `OUTLOOK_*` - для интеграции с Office 365
+- `RABBITMQ_*` - настройки очередей
+- `MONGODB_*` - подключение к MongoDB
+- `AIRTABLE_*` - интеграция с Airtable
+
+## Соглашения по коду
+
+### Naming Conventions
+- Models: PascalCase единственное число (Vessel, Company)
+- Tables: snake_case множественное число (vessels, companies)
+- Controllers: PascalCase + Controller (VesselController)
+- React Components: PascalCase (VesselList.jsx)
+
+### Code Style
+- PSR-12 для PHP
+- ESLint + Prettier для JS/React
+- Tailwind utility-first для стилей
+
+## Полезные SQL запросы
+
+```sql
+-- Найти суда с открытыми позициями
+SELECT v.*, vd.open_date, vd.open_port_id 
+FROM vessels v 
+JOIN vessel_data vd ON v.id = vd.vessel_id 
+WHERE vd.is_locked = 0 
+  AND vd.open_date >= CURDATE();
+
+-- Статистика по компаниям-судовладельцам
+SELECT c.name, COUNT(cv.vessel_id) as vessel_count 
+FROM companies c 
+JOIN company_vessel cv ON c.id = cv.company_id 
+GROUP BY c.id 
+ORDER BY vessel_count DESC;
+```
+
+## Точки расширения
+
+1. **Новые парсеры** - добавить в `app/Services/Parsers/`
+2. **Новые типы сообщений** - расширить `MessageTemplate` модель
+3. **Дополнительные интеграции** - создать сервис в `app/Services/`
+4. **Кастомные фильтры** - добавить в `app/Filters/`
+
+## Известные особенности и ограничения
+
+1. **Уникальность IMO** - soft delete учитывается при проверке
+2. **MongoDB обязательна** для хранения email
+3. **RabbitMQ** критичен для парсинга в реальном времени
+4. **Лимиты API** - учитывать rate limits для Gmail/OpenAI
+
+## Контакты для вопросов
+
+При работе с проектом обращайте внимание на:
+- Комментарии TODO в коде
+- Документацию в `/docs` (если есть)
+- Тесты в `/tests` для понимания ожидаемого поведения
