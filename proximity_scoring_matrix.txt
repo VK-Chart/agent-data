@@ -55,7 +55,6 @@
       step_8: "Scale final internal score to P1 range [0-20]"
       step_9: "Generate explanation and reasoning"
     
-    json_output_format:
       example: |
         {
           "criterion_1_proximity": {
@@ -769,20 +768,3 @@ ai_usage_instructions:
           "reasoning": "For a 7500 DWT coaster, positioning from Marmara Sea to Black Sea represents moderate ballast economics. The vessel needs to transit the Bosphorus Strait, which is a routine operation. While not optimal, this proximity level is commercially acceptable for the cargo opportunity. The P1 score of 7.6/20 (38%) reflects that ballast costs are manageable but not negligible."
         }
       }
-
-# ═══════════════════════════════════════════════════════════════════
-# FUTURE ENHANCEMENTS
-# ═══════════════════════════════════════════════════════════════════
-
-future_enhancements:
-  - "Integrate VesselFinder API for accurate port-to-port distance calculation"
-  - "Add seasonal factors (Bosphorus delays, weather conditions)"
-  - "Real-time market conditions (high demand may justify longer ballast)"
-  - "Owner preferences (some owners more willing to ballast)"
-  - "Fuel prices impact on ballast economics"
-  - "Temporal geopolitical restrictions (valid from/to dates)"
-  - "Learning from behavioral corrections (adjust levels based on expert feedback)"
-
-# ═══════════════════════════════════════════════════════════════════
-# END OF PROXIMITY SCORING MATRIX
-# ═══════════════════════════════════════════════════════════════════
