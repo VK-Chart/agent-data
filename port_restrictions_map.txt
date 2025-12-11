@@ -88,29 +88,6 @@ Constanta → may require gear only during roadstead ops.
 
 This prevents false negatives in matching.
 
-7. Integrate with Airtable
-
-Port names come from Airtable; this file adds expert restrictions.
-During scoring, AI should combine both sources into the port profile.
-
-# ═══════════════════════════════════════════════════════════════════
-# PORT RESTRICTIONS MAP
-# VK Charts AI Scoring System
-# ═══════════════════════════════════════════════════════════════════
-#
-# Эта карта содержит физические ограничения портов и терминалов
-# Данные берутся из Airtable (названия), расширяются здесь (ограничения)
-#
-# СТРУКТУРА:
-# - Country level restrictions
-# - Port level restrictions  
-# - Terminal level restrictions (внутри порта)
-# - Berth level restrictions (конкретные причалы)
-# ═══════════════════════════════════════════════════════════════════
-
-version: "1.0"
-last_updated: "2024-11-27"
-
 # ═══════════════════════════════════════════════════════════════════
 # METADATA & DEFINITIONS
 # ═══════════════════════════════════════════════════════════════════
@@ -435,24 +412,3 @@ port_template:
     notes: ""
     source: "user_knowledge"
     last_updated: "YYYY-MM-DD"
-
-# ═══════════════════════════════════════════════════════════════════
-# EXPANSION NOTES
-# ═══════════════════════════════════════════════════════════════════
-
-expansion_todo:
-  - "Add more Mediterranean ports (Italy, Spain, Greece)"
-  - "Add Asian ports with gear requirements"
-  - "Add Red Sea ports"
-  - "Add African ports"
-  - "Add American ports"
-  - "Clarify WLTHC definition and usage"
-  - "Link to Airtable IDs once integrated"
-  - "Add terminal-level details for major ports"
-  - "Add berth-specific restrictions where relevant"
-  
-integration_plan:
-  step_1: "Import port names from Airtable"
-  step_2: "Match with restrictions in this file"
-  step_3: "Use for AI scoring (draft compatibility will be separate criterion)"
-  step_4: "Continuous expansion based on practical experience"
