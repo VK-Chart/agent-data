@@ -77,14 +77,6 @@ criterion_7_readiness_timing:
     - Sea distance from start point to loading port
     - Realistic service speed by vessel size
   
-  dependencies:
-    - "proximity_scoring_matrix.yaml"
-    - "vessel_location_determination.yaml"
-    - "vessel_size_classification.yaml"
-    - "cargo_export_map.yaml"
-    - "COMMENTS_PROCESSING_GUIDE.yaml"
-    - "Port/region libraries + sea distance service"
-  
   # ───────────────────────────────────────────────────────────────
   # DATA INPUTS
   # ───────────────────────────────────────────────────────────────
@@ -120,14 +112,6 @@ criterion_7_readiness_timing:
       - laycan_start
       - laycan_end
       - cargo_quantity_mt
-    
-    knowledge_bases:
-      vessel_size_classification:
-        source: "vessel_size_classification.yaml"  # size categories + economics
-      cargo_export_map:
-        source: "cargo_export_map.yaml"            # patterns to help infer ballast vs laden
-      comments:
-        source: "COMMENTS_PROCESSING_GUIDE.yaml"   # company/vessel comments about patterns
   
   # ───────────────────────────────────────────────────────────────
   # SPEED BY VESSEL SIZE (SIMPLIFIED)
