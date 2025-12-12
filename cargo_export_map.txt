@@ -1,0 +1,492 @@
+cargo_export_map
+
+# ═══════════════════════════════════════════════════════════════════
+# CARGO EXPORT MAP
+# VK Charts AI Scoring System
+# ═══════════════════════════════════════════════════════════════════
+#
+# Карта экспорта грузов из портов/стран/регионов
+# С статистикой по размерам судов и направлениям
+#
+# СТРУКТУРА:
+# - Port → Cargo types → Destinations → Vessel sizes
+# - Country aggregated data
+# - Region aggregated data
+# ═══════════════════════════════════════════════════════════════════
+
+version: "1.0"
+last_updated: "2024-11-27"
+
+# ═══════════════════════════════════════════════════════════════════
+# METADATA & DEFINITIONS
+# ═══════════════════════════════════════════════════════════════════
+
+definitions:
+  cargo_volume:
+    unit: "metric tons per year (approximate)"
+    reliability: "Estimates based on practical experience, not official statistics"
+    
+  vessel_size_categories:
+    coaster: [3000, 8000]      # DWT
+    handysize: [8000, 12000]   # DWT
+    handymax: [12000, 35000]   # DWT
+    supramax: [35000, 60000]   # DWT
+    panamax: [60000, 80000]    # DWT
+    
+  intake_definition: "Actual cargo capacity based on draft restrictions, not full DWT"
+  
+  destination_regions:
+    - "Mediterranean"
+    - "Black Sea"
+    - "North Africa"
+    - "East Mediterranean"
+    - "West Mediterranean"
+    - "Adriatic"
+    - "Red Sea"
+    - "Arabian Sea"
+    - "Far East"
+    - "South Asia"
+    - "North Europe"
+    - "Baltic"
+    - "Atlantic"
+    - "Americas"
+    - "West Africa"
+    
+  seasonality:
+    year_round: "Available all year"
+    seasonal: "Specific months only"
+    peak_months: "Months with highest volume"
+
+# ═══════════════════════════════════════════════════════════════════
+# PORT-LEVEL EXPORT DATA
+# ═══════════════════════════════════════════════════════════════════
+
+ports:
+  
+  # ─────────────────────────────────────────────────────────────────
+  # UKRAINE - BLACK SEA
+  # ─────────────────────────────────────────────────────────────────
+  
+  odessa_chornomorsk:
+    country: "Ukraine"
+    region: "Black Sea"
+    airtable_id: "TBD"
+    
+    main_cargo_types:
+      
+      wheat:
+        annual_volume: "TBD"
+        seasonality: "peak"
+        peak_months: [8, 9, 10, 11]  # Aug-Nov
+        
+        destinations:
+          
+          egypt_mediterranean:
+            percentage: 25  # % of total wheat export
+            typical_parcel_size: [5000, 15000]  # tons
+            
+            vessel_sizes:
+              coaster:
+                percentage: 30
+                typical_dwt: [5000, 8000]
+                typical_intake: [4500, 7500]
+                notes: "Common size for Egypt Med"
+                
+              handysize:
+                percentage: 50
+                typical_dwt: [8000, 12000]
+                typical_intake: [7500, 11500]
+                notes: "Most popular size"
+                
+              handymax:
+                percentage: 20
+                typical_dwt: [12000, 15000]
+                typical_intake: [11500, 14500]
+                notes: "Larger parcels"
+                
+          libya:
+            percentage: 15
+            typical_parcel_size: [8000, 20000]
+            
+            vessel_sizes:
+              handysize:
+                percentage: 30
+                typical_dwt: [8000, 12000]
+                
+              handymax:
+                percentage: 50
+                typical_dwt: [12000, 20000]
+                
+              supramax:
+                percentage: 20
+                typical_dwt: [20000, 30000]
+                notes: "Larger Libyan parcels"
+                
+          far_east:
+            percentage: 20
+            typical_parcel_size: [20000, 60000]
+            seasonality: "Oct-Feb mainly"
+            
+            vessel_sizes:
+              supramax:
+                percentage: 60
+                typical_dwt: [35000, 60000]
+                notes: "Long haul, large parcels"
+                
+              panamax:
+                percentage: 40
+                typical_dwt: [60000, 75000]
+                notes: "Maximum size ex-Odessa"
+                
+          tunisia_morocco:
+            percentage: 10
+            typical_parcel_size: [5000, 12000]
+            
+          other_mediterranean:
+            percentage: 30
+            destinations: ["Turkey", "Lebanon", "Syria", "Greece", "Italy"]
+            
+      corn:
+        annual_volume: "TBD"
+        seasonality: "year_round"
+        peak_months: [10, 11, 12, 1]  # Oct-Jan
+        
+        destinations:
+          similar_to: "wheat"
+          notes: "Corn follows similar patterns as wheat"
+          
+      barley:
+        annual_volume: "TBD"
+        seasonality: "seasonal"
+        peak_months: [7, 8, 9]  # Jul-Sep
+        
+      sunflower_oil:
+        annual_volume: "TBD"
+        typical_parcel_size: [3000, 8000]
+        
+        vessel_sizes:
+          coaster:
+            percentage: 80
+            notes: "Smaller parcels, liquid bulk"
+            
+        destinations:
+          mediterranean: 40
+          north_europe: 30
+          red_sea: 20
+          other: 10
+  
+  izmail_reni:
+    country: "Ukraine"
+    region: "Black Sea Danube"
+    airtable_id: "TBD"
+    
+    restrictions_note: "Limited to smaller vessels due to Danube draft"
+    
+    main_cargo_types:
+      
+      wheat:
+        destinations:
+          egypt_mediterranean:
+            percentage: 40
+            
+            vessel_sizes:
+              coaster:
+                percentage: 70
+                typical_dwt: [5000, 7000]
+                typical_intake: [4500, 6500]
+                notes: "Draft restricted by Danube"
+                
+              small_handysize:
+                percentage: 30
+                typical_dwt: [7000, 8000]
+                typical_intake: [6500, 7500]
+                notes: "Maximum practical size"
+                
+          tunisia_libya:
+            percentage: 30
+            
+          turkey_marmara:
+            percentage: 20
+            
+          other:
+            percentage: 10
+            
+      corn:
+        similar_to: "wheat"
+        notes: "Same vessel size limitations"
+
+  # ─────────────────────────────────────────────────────────────────
+  # ROMANIA
+  # ─────────────────────────────────────────────────────────────────
+  
+  constanta:
+    country: "Romania"
+    region: "Black Sea"
+    airtable_id: "TBD"
+    
+    main_cargo_types:
+      
+      wheat:
+        destinations:
+          egypt_mediterranean: 30
+          libya: 20
+          tunisia: 15
+          far_east: 15
+          other_mediterranean: 20
+          
+        vessel_sizes:
+          coaster:
+            percentage: 25
+            typical_dwt: [5000, 8000]
+            
+          handysize:
+            percentage: 45
+            typical_dwt: [8000, 12000]
+            
+          handymax:
+            percentage: 20
+            typical_dwt: [12000, 20000]
+            
+          supramax_panamax:
+            percentage: 10
+            typical_dwt: [35000, 75000]
+            notes: "For Far East mainly"
+
+  # ─────────────────────────────────────────────────────────────────
+  # TURKEY - MARMARA SEA
+  # ─────────────────────────────────────────────────────────────────
+  
+  turkish_marmara_ports:
+    country: "Turkey"
+    region: "Marmara Sea"
+    ports: ["Derince", "Bandirma", "Gemlik", "Tekirdag"]
+    
+    main_cargo_types:
+      
+      steel_products:
+        types: ["coils", "billets", "rebar", "slabs"]
+        
+        destinations:
+          black_sea:
+            percentage: 40
+            countries: ["Ukraine", "Georgia", "Romania"]
+            
+            vessel_sizes:
+              coaster:
+                percentage: 50
+                typical_dwt: [5000, 8000]
+                
+              handysize:
+                percentage: 40
+                typical_dwt: [8000, 12000]
+                
+              handymax:
+                percentage: 10
+                typical_dwt: [12000, 15000]
+                
+          mediterranean:
+            percentage: 35
+            
+          north_africa:
+            percentage: 15
+            
+          other:
+            percentage: 10
+            
+      marble:
+        destinations:
+          black_sea: 30
+          mediterranean: 40
+          middle_east: 20
+          other: 10
+          
+      cement_clinker:
+        destinations:
+          black_sea: 45
+          mediterranean: 30
+          red_sea: 15
+          other: 10
+
+  # ─────────────────────────────────────────────────────────────────
+  # RED SEA - AQABA
+  # ─────────────────────────────────────────────────────────────────
+  
+  aqaba_jordan:
+    country: "Jordan"
+    region: "Red Sea"
+    airtable_id: "TBD"
+    
+    main_cargo_types:
+      
+      fertilizers:
+        types: ["phosphates", "DAP", "other fertilizers"]
+        
+        destinations:
+          ukraine_black_sea:
+            percentage: 40
+            ports: ["Odessa", "Yuzhny", "Chornomorsk"]
+            
+            vessel_sizes:
+              coaster:
+                percentage: 70
+                typical_dwt: [5000, 8000]
+                notes: "Main backhaul from Red Sea to Black Sea"
+                
+              handysize:
+                percentage: 30
+                typical_dwt: [8000, 10000]
+                
+          other_black_sea:
+            percentage: 20
+            
+          mediterranean:
+            percentage: 25
+            
+          other:
+            percentage: 15
+
+# ═══════════════════════════════════════════════════════════════════
+# COUNTRY-LEVEL AGGREGATED DATA
+# ═══════════════════════════════════════════════════════════════════
+
+countries:
+  
+  ukraine:
+    main_export_cargoes:
+      - wheat
+      - corn  
+      - barley
+      - sunflower_oil
+      - iron_ore
+      - steel_products
+      
+    main_export_directions:
+      egypt_mediterranean: 25
+      libya: 15
+      tunisia_morocco: 12
+      far_east: 18
+      turkey: 10
+      other_mediterranean: 20
+      
+    typical_vessel_sizes:
+      grain_short_haul_med: [5000, 12000]
+      grain_long_haul_asia: [35000, 75000]
+      oil_products: [3000, 8000]
+      
+  turkey:
+    main_export_cargoes:
+      - steel_products
+      - marble
+      - cement_clinker
+      - chrome_ore
+      
+    main_export_directions:
+      black_sea: 40
+      mediterranean: 35
+      north_africa: 15
+      middle_east: 10
+
+# ═══════════════════════════════════════════════════════════════════
+# REGION-LEVEL PATTERNS
+# ═══════════════════════════════════════════════════════════════════
+
+regions:
+  
+  black_sea:
+    dominant_export: "grain"
+    main_destinations:
+      - "Mediterranean"
+      - "North Africa"
+      - "Far East"
+      
+    seasonal_peak:
+      grain: [8, 9, 10, 11]
+      
+    vessel_size_distribution:
+      coaster: 35
+      handysize: 40
+      handymax: 15
+      supramax_panamax: 10
+
+# ═══════════════════════════════════════════════════════════════════
+# SPECIAL CARGO FLOWS
+# ═══════════════════════════════════════════════════════════════════
+
+special_cargo_flows:
+  
+  interpipe_ukraine_to_arabian_sea:
+    cargo_type: "steel pipes"
+    from: "Ukraine"
+    to: "Arabian Sea"
+    
+    characteristics:
+      volume: "small"
+      parcel_size: "coaster parcels"
+      frequency: "occasional"
+      
+      vessel_requirements:
+        - "Specific vessels returning to Asia region"
+        - "Or part cargo arrangements"
+        
+      typical_scenario:
+        - "Vessels that normally work Asia"
+        - "Were positioned in Black Sea/Med"
+        - "Use this cargo to return to home region"
+
+# ═══════════════════════════════════════════════════════════════════
+# TEMPLATE FOR NEW PORT/CARGO
+# ═══════════════════════════════════════════════════════════════════
+
+port_cargo_template:
+  port_name:
+    country: ""
+    region: ""
+    airtable_id: "TBD"
+    
+    main_cargo_types:
+      
+      cargo_name:
+        annual_volume: "TBD"
+        seasonality: "year_round"  # or "seasonal" or "peak"
+        peak_months: []
+        
+        destinations:
+          
+          destination_name:
+            percentage: 0  # % of this cargo type
+            typical_parcel_size: [min, max]  # tons
+            
+            vessel_sizes:
+              
+              size_category:
+                percentage: 0  # % for this destination
+                typical_dwt: [min, max]
+                typical_intake: [min, max]
+                notes: ""
+
+# ═══════════════════════════════════════════════════════════════════
+# EXPANSION NOTES
+# ═══════════════════════════════════════════════════════════════════
+
+expansion_todo:
+  - "Add more Ukrainian ports (Yuzhny, Nikolaev)"
+  - "Add Russian ports data"
+  - "Add Mediterranean export data"
+  - "Add Asian ports"
+  - "Add Americas"
+  - "Add actual volume statistics when available"
+  - "Validate percentages with real market data"
+  - "Add more special cargo flows (project cargoes, etc)"
+  - "Link vessel size to intake calculations"
+  
+data_sources:
+  - "User expert knowledge (Vitaly)"
+  - "Practical fixture experience"
+  - "Market observations"
+  - "To be enhanced with official statistics when available"
+  
+usage_notes:
+  - "This data helps AI understand typical trade flows"
+  - "Vessel size distributions guide scoring"
+  - "Intake data will connect to draft restriction calculations"
+  - "Seasonal patterns affect vessel positioning strategies"
