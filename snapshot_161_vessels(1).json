@@ -1,3 +1,21 @@
+cargo:
+{
+  "type": "SBS(STW: 49, 51, 49-50, 49-50, 50-51, 52 53"),
+  "STW": "51",
+  "Name": "dimi 3k sbs izmail-crete",
+  "Description": "3 10% sbs 51 reni or izmail\crete 1x be 5\10 dec 2.5",
+  "Load_country": "Ukraine",
+  "Discharge_country": "Greece",
+  "Load_region": "Ukrainian Danube",
+  "Discharge_region": "crete",
+  "Load_port": "Reni",
+  "Lay_day": "15.12.2025",
+  "Canceling_date": "20.12.2025",
+  "LOA": 170,
+  "Draft": 7
+},
+
+
 [
     {
         "entity_id": 9,
