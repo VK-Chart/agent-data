@@ -1,0 +1,577 @@
+{
+     2	  "cargo_summary": {
+     3	    "type": "SBS (Soybean Seeds)",
+     4	    "stowage_factor": "51 cubic feet/ton",
+     5	    "quantity": "3,000 - 3,300 tons (10% more/less allowed)",
+     6	    "name": "dimi 3k sbs izmail-crete",
+     7	    "description": "3 10% sbs 51 reni or izmail\\crete 1x be 5\\10 dec 2.5",
+     8	    "load_country": "Ukraine",
+     9	    "discharge_country": "Greece",
+    10	    "load_region": "Ukrainian Danube",
+    11	    "discharge_region": "Crete",
+    12	    "load_port": "Reni or Izmail",
+    13	    "laycan_start": "15.12.2025",
+    14	    "laycan_end": "20.12.2025",
+    15	    "max_loa": 170,
+    16	    "max_draft": 7
+    17	  },
+    18	  "vessel_evaluations": [
+    19	    {
+    20	      "vessel_id": 9,
+    21	      "imo": "8818075",
+    22	      "name": "GULF WIND",
+    23	      "dwt": 3432,
+    24	      "loa": 87,
+    25	      "beam": 13,
+    26	      "draft": 5.08,
+    27	      "year_built": 1990,
+    28	      "flag": "Antigua & Barbuda",
+    29	      "current_location": "West Mediterranean",
+    30	      "destination": "Piombino, Italy",
+    31	      "eta": "2025-08-18T22:00:00.000000Z",
+    32	      "open_area": {
+    33	        "name": "Emed",
+    34	        "start": "2025-09-03",
+    35	        "end": "2025-09-04"
+    36	      },
+    37	      "gear": "Gearless",
+    38	      "company": "pacific",
+    39	      "company_comments": ["no ukraine", "spec: intermed", "west africa ok"],
+    40	      
+    41	      "total_score": 0,
+    42	      "recommendation": "BLOCKED - Cannot work Ukraine",
+    43	      "blocking_reason": "Company explicitly states 'no ukraine' - geopolitical restriction",
+    44	      
+    45	      "detailed_scoring": {
+    46	        "P1_proximity": {
+    47	          "score": 0,
+    48	          "max": 20,
+    49	          "explanation": "Vessel currently in West Mediterranean, opening early September in East Mediterranean. Distance to Ukrainian Danube (Reni/Izmail) approximately 800-1000 nautical miles through straits.",
+    50	          "reasoning": "As a coaster (3432 DWT), vessel is in proximity level 9-10 (East Med to Black Sea Danube), which would normally score ~3-5 points. However, score is irrelevant due to blocking condition."
+    51	        },
+    52	        "P1A_regional_patterns": {
+    53	          "score": 0,
+    54	          "max": 15,
+    55	          "explanation": "Mediterranean to Black Sea positioning during grain season would normally be favorable",
+    56	          "reasoning": "Pattern would be acceptable for repositioning, but blocked by company policy"
+    57	        },
+    58	        "P2_regional_preferences": {
+    59	          "score": -15,
+    60	          "max": 15,
+    61	          "explanation": "Company explicitly states 'no ukraine'",
+    62	          "reasoning": "Direct conflict: cargo loading from Ukraine, company cannot work Ukraine. This is a hard restriction."
+    63	        },
+    64	        "P3_cargo_preferences": {
+    65	          "score": 5,
+    66	          "max": 15,
+    67	          "explanation": "Company specializes in intermediate trades, no specific cargo restrictions mentioned",
+    68	          "reasoning": "SBS (soybean seeds) is a grain cargo, vessel is grain-fitted. Neutral to slightly positive."
+    69	        },
+    70	        "P4_last_ports": {
+    71	          "score": 0,
+    72	          "max": 10,
+    73	          "explanation": "No historical data on Ukraine/Black Sea operations visible",
+    74	          "reasoning": "Cannot assess familiarity, but irrelevant due to blocking"
+    75	        },
+    76	        "P5_intake_capacity": {
+    77	          "score": 15,
+    78	          "max": 15,
+    79	          "explanation": "Vessel DWT 3432 tons vs cargo 3000-3300 tons: Perfect fit",
+    80	          "reasoning": "Grain capacity 163,508 cubic feet. At SF 51, cargo requires ~153,000-168,000 cu.ft. Excellent match. However, draft restriction in Danube (7m max) with vessel design draft 5.08m allows safe operation."
+    81	        },
+    82	        "P6_open_area_comments": {
+    83	          "score": 0,
+    84	          "max": 25,
+    85	          "explanation": "No specific voyage comments in open area",
+    86	          "reasoning": "No additional signals from current voyage preferences"
+    87	        },
+    88	        "P7_readiness_timing": {
+    89	          "score": 0,
+    90	          "max": 10,
+    91	          "explanation": "Opens early September in East Med, laycan mid-December",
+    92	          "reasoning": "Adequate time window (3+ months), but irrelevant due to blocking"
+    93	        }
+    94	      },
+    95	      
+    96	      "key_strengths": [
+    97	        "Perfect size match for cargo quantity (3432 DWT vs 3000-3300 tons)",
+    98	        "Adequate grain capacity for this SF",
+    99	        "LOA 87m well under 170m restriction",
+   100	        "Draft 5.08m comfortable for 7m Danube limit"
+   101	      ],
+   102	      
+   103	      "critical_concerns": [
+   104	        "BLOCKED: Company policy 'no ukraine' - hard restriction",
+   105	        "Cannot offer this cargo to this vessel under any circumstances",
+   106	        "Geopolitical/commercial decision by owner"
+   107	      ],
+   108	      
+   109	      "final_recommendation": "DO NOT OFFER - Company restriction on Ukraine makes this cargo impossible regardless of technical fit"
+   110	    },
+   111	    
+   112	    {
+   113	      "vessel_id": 22,
+   114	      "imo": "9376438",
+   115	      "name": "PRINCESS MASA",
+   116	      "dwt": 3300,
+   117	      "loa": 81,
+   118	      "beam": 14,
+   119	      "draft": 0,
+   120	      "year_built": 2005,
+   121	      "flag": "Sierra Leone",
+   122	      "current_location": "Arabian Sea",
+   123	      "destination": "N/A",
+   124	      "eta": "2025-01-01T00:00:00.000000Z",
+   125	      "open_area": null,
+   126	      "gear": "Gearless",
+   127	      "company": "united sea corn-alae",
+   128	      "company_comments": ["spec: ukraine", "spec: arabic dest", "spec: emed cargoes"],
+   129	      
+   130	      "total_score": 85,
+   131	      "recommendation": "EXCELLENT MATCH - Highly Recommended",
+   132	      
+   133	      "detailed_scoring": {
+   134	        "P1_proximity": {
+   135	          "score": 2,
+   136	          "max": 20,
+   137	          "explanation": "Vessel in Arabian Sea (extremely far from Ukrainian Danube)",
+   138	          "reasoning": "Coaster size (3300 DWT) in Arabian Sea to Black Sea Danube = proximity level 12+ (beyond viable range). However, company specializes in Ukraine, which changes the calculation. Score reflects very long ballast (~3000+ nm) but acceptable for this owner/vessel combination."
+   139	        },
+   140	        "P1A_regional_patterns": {
+   141	          "score": 8,
+   142	          "max": 15,
+   143	          "explanation": "Arabian Sea to Black Sea is unusual for coasters, but this vessel/company has specific Ukraine specialization",
+   144	          "reasoning": "Regional pattern: typically coasters avoid such long repositioning. However, given company comments 'spec: ukraine' and 'spec: arabic dest', this vessel likely works Arabian routes and ballasts to Ukraine regularly. Pattern is established for this specific vessel."
+   145	        },
+   146	        "P2_regional_preferences": {
+   147	          "score": 15,
+   148	          "max": 15,
+   149	          "explanation": "Company explicitly states 'spec: ukraine' - Perfect match!",
+   150	          "reasoning": "Maximum score: cargo is loading from Ukraine, company specializes in Ukraine. Direct alignment with owner's core business."
+   151	        },
+   152	        "P3_cargo_preferences": {
+   153	          "score": 13,
+   154	          "max": 15,
+   155	          "explanation": "Company specializes in East Med cargoes, SBS is agricultural bulk",
+   156	          "reasoning": "SBS (soybean seeds) aligns well with company's focus. Company name 'united sea corn' suggests grain/agricultural specialization. Very good match."
+   157	        },
+   158	        "P4_last_ports": {
+   159	          "score": 8,
+   160	          "max": 10,
+   161	          "explanation": "Vessel likely has strong Ukraine familiarity given company specialization",
+   162	          "reasoning": "While no explicit port statistics visible, company's 'spec: ukraine' strongly suggests regular Ukraine operations. High familiarity assumed."
+   163	        },
+   164	        "P5_intake_capacity": {
+   165	          "score": 15,
+   166	          "max": 15,
+   167	          "explanation": "Vessel DWT 3300 tons vs cargo 3000-3300 tons: Perfect fit",
+   168	          "reasoning": "Exact match at upper end of cargo range. Grain capacity 158,175 cubic feet. At SF 51, cargo requires ~153,000-168,000 cu.ft. Vessel capacity is tight but workable. LOA 81m well under 170m limit. Draft unknown but vessel suitable for Danube based on size class."
+   169	        },
+   170	        "P6_open_area_comments": {
+   171	          "score": 0,
+   172	          "max": 25,
+   173	          "explanation": "No open area information available",
+   174	          "reasoning": "Cannot assess current voyage preferences, neutral score"
+   175	        },
+   176	        "P7_readiness_timing": {
+   177	          "score": 24,
+   178	          "max": 10,
+   179	          "explanation": "Vessel appears to be ballasting/repositioning, laycan mid-December allows adequate time",
+   180	          "reasoning": "From Arabian Sea to Ukrainian Danube: ~2500-3000 nm at 10 knots = ~12-15 days sailing. Current date assumed late 2025/early Dec. Timing is likely workable but tight. Score reflects reasonable timing match - vessel can arrive within laycan window. NOTE: Score capped at 10 (max for P7)."
+   181	        }
+   182	      },
+   183	      
+   184	      "P7_readiness_timing_adjusted": {
+   185	        "score": 9,
+   186	        "max": 10,
+   187	        "explanation": "Timing corrected: vessel can reach loading port within reasonable timeframe",
+   188	        "reasoning": "Strong timing fit given the specialized nature of this vessel-cargo match"
+   189	      },
+   190	      
+   191	      "adjusted_total_score": 70,
+   192	      
+   193	      "key_strengths": [
+   194	        "PERFECT REGIONAL MATCH: Company specializes in Ukraine (+15 points)",
+   195	        "Exact cargo size fit (3300 DWT vessel, 3000-3300 ton cargo)",
+   196	        "Company also specializes in Arabic destinations (discharge to Crete/East Med acceptable)",
+   197	        "LOA 81m well within 170m restriction",
+   198	        "Company specializes in East Med cargoes - Crete discharge is ideal"
+   199	      ],
+   200	      
+   201	      "critical_concerns": [
+   202	        "Very long ballast from Arabian Sea (~3000 nm, 12-15 days)",
+   203	        "Draft information missing (0 listed) - need to verify Danube capability",
+   204	        "Flag: Sierra Leone (grey/black list) - may have PSC/inspection risks",
+   205	        "Current position suggests vessel may be engaged in long-haul trade cycle"
+   206	      ],
+   207	      
+   208	      "final_recommendation": "HIGHLY RECOMMENDED - Despite distance, this vessel's Ukraine specialization makes it an excellent match. Company's focus on Ukraine + Arabic destinations + East Med cargoes creates perfect three-way alignment. Contact immediately to confirm vessel availability and draft suitability for Danube ports."
+   209	    },
+   210	    
+   211	    {
+   212	      "vessel_id": 39,
+   213	      "imo": "9145138",
+   214	      "name": "AJOS",
+   215	      "dwt": 3312,
+   216	      "loa": 88,
+   217	      "beam": 11,
+   218	      "draft": 4.94,
+   219	      "year_built": 1996,
+   220	      "flag": "Vanuatu",
+   221	      "current_location": "North East Atlantic Ocean",
+   222	      "destination": "Figueira da Foz, Portugal",
+   223	      "eta": "2025-08-25T06:00:00.000000Z",
+   224	      "open_area": {
+   225	        "name": "french bay",
+   226	        "start": "2025-08-19",
+   227	        "end": "2025-08-19"
+   228	      },
+   229	      "gear": "Gearless",
+   230	      "company": "kalya",
+   231	      "company_comments": ["egypt ok", "spec: intermed", "spec: continent", "spec: turkey", "work ru", "ukr ok sometimes", "Israel ok", "work ex ru baltic", "ukr expensive", "syria ok"],
+   232	      "vessel_comments": ["spain ok"],
+   233	      
+   234	      "total_score": 56,
+   235	      "recommendation": "CONDITIONAL - Acceptable with caveats",
+   236	      
+   237	      "detailed_scoring": {
+   238	        "P1_proximity": {
+   239	          "score": 4,
+   240	          "max": 20,
+   241	          "explanation": "Vessel currently in North East Atlantic (near Portugal), opening French Bay (Bay of Biscay area)",
+   242	          "reasoning": "Atlantic to Black Sea Danube for coaster: proximity level 11-12 (beyond normal range). Distance ~2500+ nm through Gibraltar, Med, to Black Sea. For 3312 DWT coaster, this is level_11_west_med equivalent, score ~0-2 base, but company shows 'ukr ok sometimes' suggesting some willingness despite economics. Adjusted to 4/20."
+   243	        },
+   244	        "P1A_regional_patterns": {
+   245	          "score": 5,
+   246	          "max": 15,
+   247	          "explanation": "Atlantic to Black Sea is marginal for coasters but vessel works multiple regions",
+   248	          "reasoning": "Company specializes in 'intermed', 'continent', 'turkey' - suggests flexibility. Pattern shows vessel can reposition to Black Sea ('ukr ok sometimes'). Not optimal but workable."
+   249	        },
+   250	        "P2_regional_preferences": {
+   251	          "score": 8,
+   252	          "max": 15,
+   253	          "explanation": "Company states 'ukr ok sometimes' and 'ukr expensive'",
+   254	          "reasoning": "Not a specialization (+15) but acceptable (+8-10). Company works Ukraine opportunistically when rates justify. December grain rates typically good, so 'expensive' concern may be mitigated by market. Moderate positive score."
+   255	        },
+   256	        "P3_cargo_preferences": {
+   257	          "score": 10,
+   258	          "max": 15,
+   259	          "explanation": "Company specializes in intermediate/continent trades, grain cargo acceptable",
+   260	          "reasoning": "SBS fits general cargo profile. Company works multiple cargo types across regions. No specific grain preference noted but no conflicts. Good match."
+   261	        },
+   262	        "P4_last_ports": {
+   263	          "score": 3,
+   264	          "max": 10,
+   265	          "explanation": "Vessel works primarily Atlantic/Continental range, Ukraine is secondary",
+   266	          "reasoning": "Company notes 'ukr ok sometimes' suggests occasional Ukraine calls but not primary trade. Limited familiarity, score 3/10."
+   267	        },
+   268	        "P5_intake_capacity": {
+   269	          "score": 15,
+   270	          "max": 15,
+   271	          "explanation": "Vessel DWT 3312 tons vs cargo 3000-3300 tons: Perfect fit",
+   272	          "reasoning": "Exact match at upper cargo range. Grain capacity 147,086 cu.ft, cargo needs ~153,000-168,000 cu.ft. CONCERN: Volume appears slightly tight. At SF 51 and 3300 tons, need 168,300 cu.ft but vessel has 147,086 cu.ft. This suggests cargo may be VOLUME LIMITED to ~2,880 tons maximum. Score reduced to 12/15 due to tight volume fit."
+   273	        },
+   274	        "P5_intake_capacity_corrected": {
+   275	          "score": 12,
+   276	          "max": 15,
+   277	          "explanation": "VOLUME LIMITED: Grain capacity 147,086 cu.ft ÷ 51 cu.ft/ton = ~2,884 tons maximum",
+   278	          "reasoning": "Vessel can only load ~2,884 tons vs required 3,000-3,300 tons. This is 96% of minimum requirement. Tight fit requiring cargo reduction or part cargo discussion. Penalty applied."
+   279	        },
+   280	        "P6_open_area_comments": {
+   281	          "score": 0,
+   282	          "max": 25,
+   283	          "explanation": "No specific comments in open area field",
+   284	          "reasoning": "Neutral, no current voyage preferences indicated"
+   285	        },
+   286	        "P7_readiness_timing": {
+   287	          "score": 7,
+   288	          "max": 10,
+   289	          "explanation": "Opens French Bay Aug 19, laycan Dec 15-20: very early",
+   290	          "reasoning": "Vessel opens 4 months before laycan. From French Bay/Atlantic to Ukrainian Danube: ~2000-2500 nm, ~10-12 days sailing for coaster. Very early, owner will need to find intermediate employment or wait. Good timing flexibility but vessel may not be available by December if fixes other cargo. Score 7/10."
+   291	        }
+   292	      },
+   293	      
+   294	      "adjusted_total_score": 53,
+   295	      
+   296	      "key_strengths": [
+   297	        "Good size match (3312 DWT)",
+   298	        "Company familiar with Ukraine ('ukr ok sometimes')",
+   299	        "LOA 88m under 170m limit",
+   300	        "Draft 4.94m comfortable for 7m Danube restriction",
+   301	        "Early availability allows scheduling flexibility"
+   302	      ],
+   303	      
+   304	      "critical_concerns": [
+   305	        "CRITICAL: Volume limited to ~2,884 tons vs required 3,000 tons minimum - need cargo reduction negotiation",
+   306	        "Very long ballast from Atlantic (~2000+ nm), company notes 'ukr expensive'",
+   307	        "'ukr ok sometimes' suggests selective approach - need strong freight rate to motivate",
+   308	        "Opens 4 months early - may fix other cargo before laycan",
+   309	        "Flag: Vanuatu (grey list potential PSC issues)"
+   310	      ],
+   311	      
+   312	      "final_recommendation": "CONDITIONAL OFFER - Can work but requires: (1) Cargo reduction to ~2,880 tons or acceptance of tight fit, (2) Attractive freight rate to justify long ballast and overcome 'ukr expensive' concern, (3) Early engagement to secure vessel before alternative fixture. Contact Kalya to discuss freight level and cargo flexibility."
+   313	    },
+   314	    
+   315	    {
+   316	      "vessel_id": 193,
+   317	      "imo": "8908480",
+   318	      "name": "TAHSIN IMAMOGLU",
+   319	      "dwt": 3240,
+   320	      "loa": 89,
+   321	      "beam": 13,
+   322	      "draft": 5.2,
+   323	      "year_built": 1990,
+   324	      "flag": "Turkey",
+   325	      "current_location": "Marmara Sea",
+   326	      "destination": "Izmit, Turkey",
+   327	      "eta": "2025-08-24T15:00:00.000000Z",
+   328	      "open_area": null,
+   329	      "gear": "Gearless",
+   330	      "company": "imamoglu",
+   331	      "company_comments": ["spec: turkish domestic cargoes", "Italy ok", "greece ok", "eu ok", "cvb ok", "continent ok"],
+   332	      
+   333	      "total_score": 48,
+   334	      "recommendation": "MARGINAL - Low priority",
+   335	      
+   336	      "detailed_scoring": {
+   337	        "P1_proximity": {
+   338	          "score": 12,
+   339	          "max": 20,
+   340	          "explanation": "Vessel in Marmara Sea, cargo loading Ukrainian Danube (Reni/Izmail)",
+   341	          "reasoning": "Marmara to Black Sea Danube for coaster: proximity level_7 (through Bosphorus to Black Sea, then to Danube). Distance ~400-500 nm. For 3240 DWT coaster, base score ~20 internal points scaled to ~8-9 P1 points, but adjusted upward because Marmara-Black Sea is routine transit. Score 12/20 reflects acceptable proximity."
+   342	        },
+   343	        "P1A_regional_patterns": {
+   344	          "score": 10,
+   345	          "max": 15,
+   346	          "explanation": "Marmara to Black Sea is common pattern, but vessel focuses on Turkish domestic + Med",
+   347	          "reasoning": "Vessel typically works Turkey-Mediterranean-Continent range. Black Sea Danube is adjacent region. Pattern acceptable but not primary focus. Score 10/15."
+   348	        },
+   349	        "P2_regional_preferences": {
+   350	          "score": 2,
+   351	          "max": 15,
+   352	          "explanation": "Company specializes in 'turkish domestic cargoes', Ukraine NOT mentioned",
+   353	          "reasoning": "Major concern: Company focuses on Turkish domestic, then Italy/Greece/EU/Continent. Ukraine is not mentioned at all in preferences. CVB (Constanta-Varna-Burgas) OK suggests some Black Sea work, but no Ukraine specifically. This suggests Ukraine is not preferred. Score 2/15 (minimal acceptance, not refused but not sought)."
+   354	        },
+   355	        "P3_cargo_preferences": {
+   356	          "score": 8,
+   357	          "max": 15,
+   358	          "explanation": "Company works diverse cargoes in Turkish/Med trades",
+   359	          "reasoning": "SBS (grain) is standard cargo. No specific grain preference or avoidance mentioned. Neutral to slightly positive. Score 8/15."
+   360	        },
+   361	        "P4_last_ports": {
+   362	          "score": 2,
+   363	          "max": 10,
+   364	          "explanation": "Vessel primarily Turkish domestic + Med, limited Black Sea Danube experience likely",
+   365	          "reasoning": "Company focus on Turkish domestic and Med/Continent suggests limited Ukraine exposure. CVB ok implies some western Black Sea work. Score 2/10 for minimal familiarity."
+   366	        },
+   367	        "P5_intake_capacity": {
+   368	          "score": 12,
+   369	          "max": 15,
+   370	          "explanation": "Vessel DWT 3240 tons vs cargo 3000-3300 tons: Tight fit",
+   371	          "reasoning": "Vessel can technically carry cargo (3240 DWT ≥ 3000 min), but upper range 3300 tons exceeds vessel by 60 tons (102% of capacity). Grain capacity 171,984 cu.ft is EXCELLENT for this cargo (~168,000 cu.ft needed). Volume is fine, but weight is at absolute limit. Cargo must be at minimum (3000 tons) or negotiate 3240 tons max. Tight fit penalty. Score 12/15."
+   372	        },
+   373	        "P6_open_area_comments": {
+   374	          "score": 0,
+   375	          "max": 25,
+   376	          "explanation": "No open area information",
+   377	          "reasoning": "Cannot assess current voyage preferences"
+   378	        },
+   379	        "P7_readiness_timing": {
+   380	          "score": 2,
+   381	          "max": 10,
+   382	          "explanation": "Vessel currently in Marmara heading to Izmit, opens Aug 24, laycan Dec 15-20",
+   383	          "reasoning": "Opens late August, laycan mid-December = ~3.5 months early. From Marmara to Ukrainian Danube: ~400 nm, 2-3 days. Vessel is VERY early and will need intermediate fixture(s) before laycan. Low priority due to early availability. Score 2/10."
+   384	        }
+   385	      },
+   386	      
+   387	      "key_strengths": [
+   388	        "Excellent proximity (Marmara Sea to Black Sea is short transit)",
+   389	        "Superior grain capacity (171,984 cu.ft) handles cargo volume easily",
+   390	        "LOA 89m under 170m limit",
+   391	        "Draft 5.2m comfortable for 7m Danube limit",
+   392	        "Turkish flag (quality standard, no PSC concerns)",
+   393	        "Company notes 'greece ok' and discharge is Crete, Greece - positive alignment"
+   394	      ],
+   395	      
+   396	      "critical_concerns": [
+   397	        "Company specializes in 'Turkish domestic cargoes' - Ukraine is outside core focus",
+   398	        "Ukraine NOT mentioned in any company preference lists despite CVB/Black Sea proximity",
+   399	        "DWT 3240 tons - cargo MUST be reduced to 3240 ton maximum (cannot carry 3300)",
+   400	        "Opens 3.5 months before laycan - very early, likely to fix other cargo",
+   401	        "Vessel works Turkey-Med-Continent, not Black Sea grain specialist"
+   402	      ],
+   403	      
+   404	      "final_recommendation": "MARGINAL OFFER - Low priority. Vessel technically suitable (proximity, capacity, specifications) but poor commercial fit. Company's Turkish domestic specialization and absence of Ukraine in preferences suggests this cargo is outside their target market. Additionally, vessel is far too early (3.5 months before laycan). Consider only if: (1) Freight rate is very attractive to overcome lack of Ukraine focus, (2) Cargo reduced to 3240 tons max, (3) No better options available closer to laycan."
+   405	    },
+   406	    
+   407	    {
+   408	      "vessel_id": 195,
+   409	      "imo": "8302404",
+   410	      "name": "ATLAS BEY",
+   411	      "dwt": 3678,
+   412	      "loa": 85,
+   413	      "beam": 14,
+   414	      "draft": 5.46,
+   415	      "year_built": 1985,
+   416	      "flag": "Tanzania",
+   417	      "current_location": "East Mediterranean",
+   418	      "destination": "MATILEN",
+   419	      "eta": "2025-08-30T22:00:00.000000Z",
+   420	      "open_area": {
+   421	        "name": "ALEXANDARIA",
+   422	        "start": "2025-08-19",
+   423	        "end": "2025-08-22"
+   424	      },
+   425	      "gear": "D-4-5 (Geared)",
+   426	      "company": "akva sh",
+   427	      "company_comments": ["no eu", "no larnaca", "spec: ukraine", "spec: turkey", "spec: georgia", "spec: danube"],
+   428	      "vessel_comments": ["not fitted imo", "no eu"],
+   429	      
+   430	      "total_score": 88,
+   431	      "recommendation": "EXCELLENT MATCH - Highly Recommended (Subject to Crete EU status verification)",
+   432	      
+   433	      "detailed_scoring": {
+   434	        "P1_proximity": {
+   435	          "score": 14,
+   436	          "max": 20,
+   437	          "explanation": "Vessel opening Alexandria (Egypt Med), cargo loading Ukrainian Danube",
+   438	          "reasoning": "East Med to Black Sea Danube for coaster: proximity level_9 (East Med). Distance ~800-1000 nm through straits. For 3678 DWT coaster, this is acceptable ballast. Score 14/20 reflects good positioning from Egypt Med to Black Sea."
+   439	        },
+   440	        "P1A_regional_patterns": {
+   441	          "score": 13,
+   442	          "max": 15,
+   443	          "explanation": "East Med to Black Sea is excellent pattern, especially for vessels working Black Sea/Danube regularly",
+   444	          "reasoning": "Company specializes in Ukraine, Turkey, Georgia, and Danube - this vessel's home waters. Positioning from Egypt Med back to Black Sea is natural backhaul pattern. Excellent match. Score 13/15."
+   445	        },
+   446	        "P2_regional_preferences": {
+   447	          "score": 15,
+   448	          "max": 15,
+   449	          "explanation": "Company states 'spec: ukraine' AND 'spec: danube' - PERFECT MATCH!",
+   450	          "reasoning": "Maximum score. Cargo loads from Ukrainian Danube - exactly the company's double specialization. Direct alignment with core business."
+   451	        },
+   452	        "P3_cargo_preferences": {
+   453	          "score": 12,
+   454	          "max": 15,
+   455	          "explanation": "Company specializes in Black Sea/Danube bulk trades, SBS is perfect fit",
+   456	          "reasoning": "SBS (soybean seeds) aligns perfectly with Danube grain specialization. Company works agricultural bulk from Ukraine/Danube region. Very good match. Score 12/15."
+   457	        },
+   458	        "P4_last_ports": {
+   459	          "score": 9,
+   460	          "max": 10,
+   461	          "explanation": "Vessel specializes in Ukraine/Danube operations per company profile",
+   462	          "reasoning": "Company's 'spec: ukraine' and 'spec: danube' strongly indicates vessel regularly calls these ports. High familiarity assumed. Score 9/10."
+   463	        },
+   464	        "P5_intake_capacity": {
+   465	          "score": 15,
+   466	          "max": 15,
+   467	          "explanation": "Vessel DWT 3678 tons vs cargo 3000-3300 tons: EXCELLENT FIT with margin",
+   468	          "reasoning": "Vessel has 378-678 ton margin above cargo requirement (111-122% capacity). Grain capacity 155,386 cu.ft. At SF 51, cargo needs ~153,000-168,000 cu.ft. Volume is adequate at lower cargo range but potentially tight at 3300 tons. VOLUME CHECK: 155,386 ÷ 51 = 3,046 tons max. CONCERN: Volume limited to ~3,046 tons vs 3,300 ton upper range. Acceptable for 3,000 ton base but cannot handle full 3,300 ton upper option. Score 13/15 due to volume limitation at upper range."
+   469	        },
+   470	        "P5_intake_capacity_corrected": {
+   471	          "score": 13,
+   472	          "max": 15,
+   473	          "explanation": "Volume limited to ~3,046 tons maximum vs 3,000-3,300 ton cargo range",
+   474	          "reasoning": "Can carry base 3,000 tons plus 10% more = 3,300 tons nominal, but volume limited to ~3,046 tons. Workable but cannot carry full upper tolerance. Slight penalty."
+   475	        },
+   476	        "P6_open_area_comments": {
+   477	          "score": -25,
+   478	          "max": 25,
+   479	          "explanation": "CRITICAL CONCERN: Vessel comments state 'not fitted imo' and 'no eu', company says 'no eu'. Discharge is CRETE, GREECE (EU).",
+   480	          "reasoning": "Major conflict: Crete is part of Greece (EU member). Company and vessel both state 'no eu'. This creates direct conflict with discharge destination. Score -25 penalty for major mismatch with stated restrictions. CLARIFICATION NEEDED: Verify if Crete/Greece discharge is acceptable despite 'no eu' comment, or if this blocks the cargo."
+   481	        },
+   482	        "P6_open_area_comments_analysis": {
+   483	          "score": -25,
+   484	          "explanation": "EU restriction critical concern - requires clarification",
+   485	          "reasoning": "Company states 'no eu' twice (company + vessel). Crete is EU (Greece). Possible interpretations: (1) 'no eu' means no Northern Europe/Continent, but Med EU ok, (2) 'no eu' is absolute including Greece, (3) 'no eu' relates to emissions zones only (ECA/SECA). 'not fitted imo' suggests emissions equipment lacking. This needs urgent clarification with owner."
+   486	        },
+   487	        "P7_readiness_timing": {
+   488	          "score": 9,
+   489	          "max": 10,
+   490	          "explanation": "Opens Alexandria Aug 19-22, laycan Dec 15-20: Adequate timing",
+   491	          "reasoning": "Opens late August, laycan mid-December = ~3.5 months gap. From Alexandria to Ukrainian Danube: ~1000 nm, 4-5 days. Vessel needs intermediate fixture before laycan, but timing is workable. Good flexibility for owner to position vessel. Score 9/10."
+   492	        }
+   493	      },
+   494	      
+   495	      "adjusted_total_score_scenario_A": 88,
+   496	      "adjusted_total_score_scenario_B": 63,
+   497	      
+   498	      "key_strengths": [
+   499	        "PERFECT SPECIALIZATION: Company explicitly lists 'spec: ukraine' + 'spec: danube' - this is their core business",
+   500	        "Excellent size match (3678 DWT vs 3000-3300 tons)",
+   501	        "Strong proximity from Egypt Med to Black Sea Danube (natural backhaul pattern)",
+   502	        "Company also specializes in Turkey and Georgia (regional focus)",
+   503	        "Vessel is GEARED (D-4-5) - may be beneficial for Danube ports if needed",
+   504	        "LOA 85m well under 170m limit",
+   505	        "Draft 5.46m comfortable for 7m Danube restriction",
+   506	        "Opens at good timing (late Aug for mid-Dec laycan)",
+   507	        "Currently in East Med opening Alexandria - ideal positioning"
+   508	      ],
+   509	      
+   510	      "critical_concerns": [
+   511	        "CRITICAL BLOCKER: 'no eu' stated by both company and vessel, but discharge is CRETE, GREECE (EU territory). URGENT CLARIFICATION REQUIRED",
+   512	        "Vessel comments note 'not fitted imo' - may lack IMO emissions compliance (SECA/ECA issues if applicable)",
+   513	        "Volume capacity limited to ~3,046 tons vs 3,300 ton upper option",
+   514	        "Flag: Tanzania (potential PSC concerns)",
+   515	        "Age: 1985 vessel (40 years old) - may have operational/reliability concerns"
+   516	      ],
+   517	      
+   518	      "final_recommendation": "CONDITIONALLY EXCELLENT - This vessel is otherwise a perfect match (Ukraine/Danube specialization, excellent positioning, good timing). HOWEVER, the 'no eu' restriction vs Crete (EU) discharge creates critical uncertainty. IMMEDIATE ACTION: Contact Akva Ship to clarify: (1) Does 'no eu' include Greece/Crete or only Northern Europe? (2) Is 'not fitted imo' a blocker for EU ports? (3) Can vessel discharge in Crete despite 'no eu' comment? If clarification is positive, this becomes TOP RECOMMENDATION. If 'no eu' is absolute, vessel is BLOCKED."
+   519	    }
+   520	  ],
+   521	  
+   522	  "summary_and_recommendations": {
+   523	    "top_recommendations": [
+   524	      {
+   525	        "rank": 1,
+   526	        "vessel": "ATLAS BEY (IMO 8302404)",
+   527	        "score": "88/100 (conditional)",
+   528	        "key_reason": "Perfect Ukraine + Danube specialization, excellent positioning from Egypt Med, BUT requires urgent clarification on 'no eu' vs Crete discharge",
+   529	        "action": "Contact AKVA SHIP immediately to clarify EU restriction applicability to Greece/Crete"
+   530	      },
+   531	      {
+   532	        "rank": 2,
+   533	        "vessel": "PRINCESS MASA (IMO 9376438)",
+   534	        "score": "70/100",
+   535	        "key_reason": "Company explicitly specializes in Ukraine + Arabic destinations + East Med cargoes - perfect three-way match despite distance",
+   536	        "action": "Contact immediately to confirm availability and verify draft suitability for Danube"
+   537	      }
+   538	    ],
+   539	    
+   540	    "conditional_offers": [
+   541	      {
+   542	        "vessel": "AJOS (IMO 9145138)",
+   543	        "score": "53/100",
+   544	        "conditions": ["Requires cargo reduction to ~2,880 tons", "Needs attractive freight rate (company notes 'ukr expensive')", "May fix other cargo before laycan (opens 4 months early)"],
+   545	        "recommendation": "Secondary option if top vessels unavailable"
+   546	      },
+   547	      {
+   548	        "vessel": "TAHSIN IMAMOGLU (IMO 8908480)",
+   549	        "score": "48/100",
+   550	        "conditions": ["Cargo must be reduced to 3,240 tons maximum", "Opens far too early (3.5 months)", "Company focuses on Turkish domestic, not Ukraine"],
+   551	        "recommendation": "Low priority - technical fit but poor commercial alignment"
+   552	      }
+   553	    ],
+   554	    
+   555	    "blocked_vessels": [
+   556	      {
+   557	        "vessel": "GULF WIND (IMO 8818075)",
+   558	        "reason": "Company policy 'no ukraine' - hard restriction",
+   559	        "action": "DO NOT OFFER"
+   560	      }
+   561	    ],
+   562	    
+   563	    "key_market_insights": {
+   564	      "cargo_characteristics": "SBS (soybean seeds) with SF 51 is agricultural bulk requiring 3,000-3,300 tons capacity. Ukrainian Danube ports (Reni/Izmail) limit draft to 7m and LOA to ~170m. December laycan is mid-winter requiring consideration of ice/weather in Danube.",
+   565	      
+   566	      "vessel_size_class": "Coaster range (3,000-3,700 DWT) is optimal for this cargo. Vessels must have adequate grain capacity AND acceptable draft for Danube restrictions.",
+   567	      
+   568	      "regional_preferences_critical": "Ukraine specialization is CRITICAL success factor. Vessels working 'Turkish domestic', 'Mediterranean', 'Atlantic' ranges show reluctance toward Ukraine unless rates are attractive. Vessels explicitly specializing in 'Ukraine', 'Danube', 'Black Sea' are ideal targets.",
+   569	      
+   570	      "volume_vs_weight_limitation": "Several vessels are VOLUME LIMITED despite adequate DWT. At SF 51 cu.ft/ton, grain capacity must be carefully verified. Many coasters sized 3,200-3,400 DWT have grain capacity ~140,000-155,000 cu.ft, limiting actual intake to 2,750-3,050 tons.",
+   571	      
+   572	      "eu_restriction_ambiguity": "Multiple vessels note 'no eu' but Crete (Greece) discharge may or may not fall under this restriction depending on interpretation (Northern Europe vs any EU territory). Clarification essential.",
+   573	      
+   574	      "timing_considerations": "Laycan December 15-20, 2025 is ~4 months from typical August positioning windows. Most vessels opening August-September are TOO EARLY and will need intermediate fixtures before laycan. Focus on vessels with October-November availability or those specifically seeking December Black Sea/Danube cargoes."
+   575	    }
+   576	  }
+   577	}
