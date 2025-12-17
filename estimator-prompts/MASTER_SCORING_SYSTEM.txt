@@ -40,14 +40,14 @@ scoring_criteria:
       Measures geographic distance and economic viability of ballast leg
       from vessel's current position to loading port.
       
-    calculation_source: "https://github.com/VK-Chart/agent-data/blob/develop-1/proximity_scoring_matrix.txt"
+    calculation_source: "proximity_scoring_matrix.txt"
     
     dependencies:
-      - file: "https://github.com/VK-Chart/agent-data/blob/develop-1/vessel_location_determination.txt"
+      - file: "vessel_location_determination.txt"
         purpose: "Determine vessel's effective location"
-      - file: "https://github.com/VK-Chart/agent-data/blob/develop-1/vessel_size_classification.txt"
+      - file: "vessel_size_classification.txt"
         purpose: "Size-based distance penalties"
-      - file: "https://github.com/VK-Chart/agent-data/blob/develop-1/port_restrictions_map.txt"
+      - file: "port_restrictions_map.txt"
         purpose: "Port accessibility validation"
     
     key_factors:
@@ -81,7 +81,7 @@ scoring_criteria:
     dependencies:
       - file: "cargo_export_map.txt"
         purpose: "Typical cargo flows and vessel sizes"
-      - file: "https://github.com/VK-Chart/agent-data/blob/develop-1/vessel_size_classification.txt"
+      - file: "vessel_size_classification.txt"
         purpose: "Size economics and behavior"
       - file: "learning_session_1.txt"
         purpose: "Expert corrections and overrides"
@@ -143,7 +143,7 @@ scoring_criteria:
       vessel capabilities.
       
     calculation_sources:
-      - "https://github.com/VK-Chart/agent-data/blob/develop-1/COMMENTS_PROCESSING_GUIDE.txt"
+      - "COMMENTS_PROCESSING_GUIDE.txt"
       - "cargo_export_map.txt"
     
     key_factors:
@@ -192,7 +192,7 @@ scoring_criteria:
       Vessel's ability to load required cargo quantity considering
       port restrictions and technical limitations.
       
-    calculation_source: "https://github.com/VK-Chart/agent-data/blob/develop-1/intake_calculator_formula.txt"
+    calculation_source: "intake_calculator_formula.txt"
     
     scoring_logic: |
       Ratio = vessel_intake / cargo_quantity
@@ -218,7 +218,7 @@ scoring_criteria:
       Owner's specific requirements for CURRENT voyage from OpenArea
       comments. Acts as modifier on top of base score.
       
-    calculation_source: "https://github.com/VK-Chart/agent-data/blob/develop-1/OPEN_AREA_COMMENTS_SCORING.txt"
+    calculation_source: "OPEN_AREA_COMMENTS_SCORING.txt"
     
     key_signals:
       cargo_related:
@@ -254,7 +254,7 @@ scoring_criteria:
       Vessel's ability to meet laycan dates considering current position
       and operational factors.
       
-    calculation_source: "https://github.com/VK-Chart/agent-data/blob/develop-1/READINESSETA_TO_LOADING_PORT_SCORING.txt"
+    calculation_source: "READINESSETA_TO_LOADING_PORT_SCORING.txt"
     
     key_factors:
       - "Current position and status (laden/ballast)"
