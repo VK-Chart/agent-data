@@ -6,6 +6,9 @@ on:
       - 'estimator-prompts/**' # Only runs when files in the prompts folder change
   workflow_dispatch: # Allows manual triggering
 
+permissions:
+  contents: write
+
 jobs:
   merge:
     runs-on: ubuntu-latest
