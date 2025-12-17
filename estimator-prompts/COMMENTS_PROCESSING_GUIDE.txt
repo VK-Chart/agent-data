@@ -5,11 +5,11 @@ SHORT SUMMARY
 This document defines how AI must read, interpret, and apply comments from Companies, Vessels, and Persons during scoring and offer/message generation.
 
 The comments contain expert, non-structured knowledge:
-– cargo preferences,
-– geographic restrictions,
-– intake data,
-– technical limitations,
-– behavioral and communication notes.
+– cargo preferences
+– geographic restrictions
+– intake data
+– technical limitations
+– behavioral and communication notes
 
 AI must extract structured meaning from unstructured comments, filter them by relevance to the current cargo, resolve contradictions, and incorporate them into:
 
@@ -811,4 +811,5 @@ summary:
     poor_processing:
       - "AI ignores available comments"
       - "Uses comment info that's not relevant"
+
       - "Contradicts comment without explanation"
