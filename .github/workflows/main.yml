@@ -1,0 +1,46 @@
+name: Compile Compressed Prompts
+
+on:
+  push:
+    paths:
+      - 'estimator-prompts/**' # Only runs when files in the prompts folder change
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Merge and Compress Prompts
+        run: |
+          mkdir -p output
+          # Clear the file if it exists
+          echo "" > output/final_prompt.txt
+          
+          # Loop through all files in the prompts directory
+          # We sort them alphabetically to ensure a consistent structure
+          for file in $(ls estimator-prompts/* | sort); do
+            echo "--- START OF $file ---" >> output/final_prompt.txt
+            cat "$file" >> output/final_prompt.txt
+            echo -e "\n" >> output/final_prompt.txt
+          done
+          
+          echo "Merging complete."
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: compressed-prompt
+          path: output/final_prompt.txt
+
+      # Optional: Push the merged file back to a 'build' branch 
+      # so your Agents/Laravel can fetch it via URL
+      - name: Commit Merged Prompt
+        run: |
+          git config --local user.email "oleksiy.perepelytsya@gmail.com"
+          git config --local user.name "GitHub Action"
+          git add output/final_prompt.txt
+          git commit -m "chore: update compressed prompt [skip ci]" || exit 0
+          git push
