@@ -41,32 +41,6 @@
 # according to MASTER_SCORING_SYSTEM.txt formula.
 #
 # ═══════════════════════════════════════════════════════════════════
-
-# ═══════════════════════════════════════════════════════════════════
-# HOW TO USE THIS DOCUMENT
-# ═══════════════════════════════════════════════════════════════════
-
-how_to_use:
-  
-  for_developers:
-    role: "Laravel Backend Integration"
-    responsibilities:
-      - "Pass this file to AI as knowledge source (not for AI to rewrite)"
-      - "Provide vessel's current location (use vessel_location_determination.txt)"
-      - "Provide cargo's loading port information"
-      - "Receive P1 score [0-20] from AI with explanation"
-      - "DO NOT implement scoring formula in code - AI computes it"
-    
-    data_flow:
-      step_1: "Determine vessel effective location (port, region, sea)"
-      step_2: "Get cargo loading port (port, region, sea)"
-      step_3: "Pass both locations + this file content to AI"
-      step_4: "AI returns: P1 score [0-20], explanation, reasoning"
-    
-    important_notes:
-      - "This file = single source of truth for P1 proximity logic"
-      - "All scoring happens in AI, not in Laravel code"
-      - "Changes to this file automatically affect all future scores"
   
   for_ai_langchain:
     role: "Proximity Scoring Implementation"
@@ -81,7 +55,6 @@ how_to_use:
       step_8: "Scale final internal score to P1 range [0-20]"
       step_9: "Generate explanation and reasoning"
     
-    json_output_format:
       example: |
         {
           "criterion_1_proximity": {
@@ -99,67 +72,7 @@ how_to_use:
       example_2: "Internal 25 → P1 = 10 (mid-range)"
       example_3: "Internal 0 → P1 = 0 (minimum)"
       example_4: "Internal -10 → P1 = 0 (blocked, cannot be negative)"
-  
-  for_knowledge_base_updates:
-    role: "Maintaining Proximity Logic"
-    when_to_update:
-      - "New trade patterns emerge (e.g., new strategic routes)"
-      - "Geopolitical changes (sanctions, war zones)"
-      - "Market behavior shifts (vessel sizes, ballast economics)"
-      - "Port restrictions change (draft, vessel size limits)"
-    
-    update_process:
-      step_1: "Identify what needs changing (specific level, penalty, restriction)"
-      step_2: "Update only affected sections in this file"
-      step_3: "Document change in version history at bottom"
-      step_4: "Test with sample vessel-cargo pairs"
-      step_5: "AI automatically uses new logic (no code deployment needed)"
-    
-    important_principles:
-      - "Keep internal scoring levels (0-50) for granularity"
-      - "Always scale to P1 final range [0-20]"
-      - "Document reasoning for any level adjustments"
-      - "Preserve vessel size differentiation"
-  
-  quick_reference:
-    p1_range: "[0, 20] - final score range for P1"
-    internal_range: "[0, 50] - used for detailed level scoring"
-    vessel_sizes:
-      - "Coasters: 4001-17000 DWT"
-      - "Small Handy: 17001-24000 DWT"
-      - "Handy: 24001-40000 DWT"
-      - "Supramax/Panamax: 40000-80000 DWT"
-    key_levels:
-      - "Level 1 (same port): 50 internal → ~20 P1"
-      - "Level 6 (same sea): 30 internal → ~12 P1"
-      - "Level 7 (Marmara): 20 internal → ~8 P1"
-      - "Level 11 (West Med): 0-8 internal → ~0-3 P1"
-    blocking_conditions:
-      - "Ukraine ↔ Russia: IMPOSSIBLE"
-      - "Vessel DWT > Port capacity: IMPOSSIBLE"
 
-# ═══════════════════════════════════════════════════════════════════
-# METADATA
-# ═══════════════════════════════════════════════════════════════════
-
-version: "1.1"
-last_updated: "2024-12-01"
-source: "Vitaly (VK Charts expert)"
-
-changelog:
-  - version: "1.1"
-    date: "2024-12-01"
-    changes:
-      - "Added structured SHORT SUMMARY block"
-      - "Added comprehensive HOW TO USE DOCUMENT block"
-      - "FIXED: Clarified P1 final range [0, 20] vs internal scoring [0-50]"
-      - "FIXED: Corrected JSON example from <0-25> to <0-20>"
-      - "Added scaling formula: (internal_score / 50) * 20 = P1_final"
-      - "Enhanced documentation for developers and AI implementation"
-  - version: "1.0"
-    date: "2024-11-27"
-    changes:
-      - "Initial version with proximity levels and vessel size adjustments"
 
 # ═══════════════════════════════════════════════════════════════════
 # SCORING PRINCIPLE
@@ -178,9 +91,6 @@ scoring_principle: |
 # ═══════════════════════════════════════════════════════════════════
 # GEOGRAPHIC HIERARCHY
 # ═══════════════════════════════════════════════════════════════════
-
-geographic_structure:
-  description: "Based on Airtable cargo geographic data"
   
   hierarchy:
     - "Port (lowest level)"
@@ -848,7 +758,7 @@ ai_usage_instructions:
       step_5: "P1_final = (19.04 / 50) * 20 = 7.6 points"
       step_6: "Generate explanation below"
       
-    json_output:
+    example_output:
       {
         "criterion_1_proximity": {
           "score": 7.6,
@@ -858,20 +768,3 @@ ai_usage_instructions:
           "reasoning": "For a 7500 DWT coaster, positioning from Marmara Sea to Black Sea represents moderate ballast economics. The vessel needs to transit the Bosphorus Strait, which is a routine operation. While not optimal, this proximity level is commercially acceptable for the cargo opportunity. The P1 score of 7.6/20 (38%) reflects that ballast costs are manageable but not negligible."
         }
       }
-
-# ═══════════════════════════════════════════════════════════════════
-# FUTURE ENHANCEMENTS
-# ═══════════════════════════════════════════════════════════════════
-
-future_enhancements:
-  - "Integrate VesselFinder API for accurate port-to-port distance calculation"
-  - "Add seasonal factors (Bosphorus delays, weather conditions)"
-  - "Real-time market conditions (high demand may justify longer ballast)"
-  - "Owner preferences (some owners more willing to ballast)"
-  - "Fuel prices impact on ballast economics"
-  - "Temporal geopolitical restrictions (valid from/to dates)"
-  - "Learning from behavioral corrections (adjust levels based on expert feedback)"
-
-# ═══════════════════════════════════════════════════════════════════
-# END OF PROXIMITY SCORING MATRIX
-# ═══════════════════════════════════════════════════════════════════

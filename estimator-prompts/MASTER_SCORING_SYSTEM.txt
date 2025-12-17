@@ -21,66 +21,8 @@ FINAL_SCORE = CLAMP(MODIFIED_SCORE, 0, 100)
 
 Blocking conditions: technical impossibility, insufficient capacity, geopolitical restrictions, or P6 ≤ -40.
 
-HOW TO USE THIS DOCUMENT (INSTRUCTIONS)
-
-**For Developers:**
-1. This file defines the scoring contract between Laravel and LangChain
-2. Laravel prepares vessel/cargo data → LangChain calculates P1-P7 → returns scores + reasoning
-3. All criteria must reference their calculation_source files (e.g., proximity_scoring_matrix.txt)
-4. Implement blocking_conditions checks before generating offers
-5. Use normalization rules for vessel sizes and region names
-
-**For AI/LangChain:**
-1. Read this file to understand the complete scoring structure
-2. For each criterion, consult its calculation_source file for detailed logic
-3. Apply scoring_logic as defined in each criterion
-4. Check blocking_conditions and return BLOCK if triggered
-5. Generate reasoning using reasoning_templates
-6. Learn from user corrections via behavioral_cloning mechanism
-
-**For Knowledge Base Updates:**
-1. When updating any referenced file (e.g., proximity_scoring_matrix.txt), ensure changes align with ranges defined here
-2. Use canonical vessel sizes from normalization section
-3. All cross-references between files must remain valid
-4. Update changelog when making significant changes
-
 **Quick Reference - Scoring Ranges:**
 P1: [0, 20] | P1A: [0, 15] | P2: [0, 15] | P3: [0, 15] | P4: [0, 10] | P5: [0, 15] | P6: [-50, +25] | P7: [0, 10]
-
-# ═══════════════════════════════════════════════════════════════════
-# MASTER SCORING SYSTEM SPECIFICATION
-# VK Charts AI - Central Scoring Configuration
-# ═══════════════════════════════════════════════════════════════════
-#
-# This is the SINGLE SOURCE OF TRUTH for vessel-cargo scoring
-# All scoring components must reference this file
-# 
-# Version: 2.1
-# Last Updated: 2024-12-01
-# Status: AUTHORITATIVE
-# ═══════════════════════════════════════════════════════════════════
-
-metadata:
-  system_name: "VK Charts AI Scoring Engine"
-  version: "2.1"
-  created_by: "Vitaly Kravets"
-  architecture_split:
-    laravel:
-      - "Data retrieval from database"
-      - "Vessel/cargo/company data preparation"
-      - "API endpoint for scoring requests"
-      - "Email generation from scores"
-      - "UI for manual review"
-    langchain:
-      - "Scoring calculation (P1-P7)"
-      - "Comments parsing and interpretation"
-      - "RAG for patterns and knowledge"
-      - "Reasoning generation"
-      - "Learning from corrections"
-    mongodb_atlas:
-      - "Vector search for similar patterns"
-      - "Historical scoring storage"
-      - "Comments embeddings"
 
 # ═══════════════════════════════════════════════════════════════════
 # SCORING CRITERIA STRUCTURE
@@ -98,14 +40,14 @@ scoring_criteria:
       Measures geographic distance and economic viability of ballast leg
       from vessel's current position to loading port.
       
-    calculation_source: "proximity_scoring_matrix.txt"
+    calculation_source: "https://github.com/VK-Chart/agent-data/blob/develop-1/proximity_scoring_matrix.txt"
     
     dependencies:
-      - file: "vessel_location_determination.txt"
+      - file: "https://github.com/VK-Chart/agent-data/blob/develop-1/vessel_location_determination.txt"
         purpose: "Determine vessel's effective location"
-      - file: "vessel_size_classification.txt"
+      - file: "https://github.com/VK-Chart/agent-data/blob/develop-1/vessel_size_classification.txt"
         purpose: "Size-based distance penalties"
-      - file: "port_restrictions_map.txt"
+      - file: "https://github.com/VK-Chart/agent-data/blob/develop-1/port_restrictions_map.txt"
         purpose: "Port accessibility validation"
     
     key_factors:
@@ -139,7 +81,7 @@ scoring_criteria:
     dependencies:
       - file: "cargo_export_map.txt"
         purpose: "Typical cargo flows and vessel sizes"
-      - file: "vessel_size_classification.txt"
+      - file: "https://github.com/VK-Chart/agent-data/blob/develop-1/vessel_size_classification.txt"
         purpose: "Size economics and behavior"
       - file: "learning_session_1.txt"
         purpose: "Expert corrections and overrides"
@@ -201,7 +143,7 @@ scoring_criteria:
       vessel capabilities.
       
     calculation_sources:
-      - "COMMENTS_PROCESSING_GUIDE.txt"
+      - "https://github.com/VK-Chart/agent-data/blob/develop-1/COMMENTS_PROCESSING_GUIDE.txt"
       - "cargo_export_map.txt"
     
     key_factors:
@@ -250,13 +192,7 @@ scoring_criteria:
       Vessel's ability to load required cargo quantity considering
       port restrictions and technical limitations.
       
-    calculation_source: "intake_calculator_formula.txt"
-    
-    dependencies:
-      - file: "port_restrictions_map.txt"
-        purpose: "Port draft and restrictions"
-      - file: "COMMENTS_PROCESSING_GUIDE.txt"
-        purpose: "Manual intake overrides"
+    calculation_source: "https://github.com/VK-Chart/agent-data/blob/develop-1/intake_calculator_formula.txt"
     
     scoring_logic: |
       Ratio = vessel_intake / cargo_quantity
@@ -282,7 +218,7 @@ scoring_criteria:
       Owner's specific requirements for CURRENT voyage from OpenArea
       comments. Acts as modifier on top of base score.
       
-    calculation_source: "OPEN_AREA_COMMENTS_SCORING.txt"
+    calculation_source: "https://github.com/VK-Chart/agent-data/blob/develop-1/OPEN_AREA_COMMENTS_SCORING.txt"
     
     key_signals:
       cargo_related:
@@ -318,13 +254,7 @@ scoring_criteria:
       Vessel's ability to meet laycan dates considering current position
       and operational factors.
       
-    calculation_source: "READINESSETA_TO_LOADING_PORT_SCORING.txt"
-    
-    dependencies:
-      - file: "vessel_location_determination.txt"
-        purpose: "Starting point and time"
-      - file: "vessel_size_classification.txt"
-        purpose: "Service speed by size"
+    calculation_source: "https://github.com/VK-Chart/agent-data/blob/develop-1/READINESSETA_TO_LOADING_PORT_SCORING.txt"
     
     key_factors:
       - "Current position and status (laden/ballast)"
@@ -422,7 +352,6 @@ thresholds:
 normalization:
   
   vessel_sizes:
-    source: "vessel_size_classification.txt"
     canonical_ranges:
       SC: [0, 4000]       # Small Coasters
       C:  [4001, 17000]   # Coasters
@@ -456,31 +385,6 @@ normalization:
     rule: "Use exact names for region_pairs matching"
 
 # ═══════════════════════════════════════════════════════════════════
-# LEARNING AND IMPROVEMENT
-# ═══════════════════════════════════════════════════════════════════
-
-learning_mechanism:
-  
-  behavioral_cloning:
-    description: |
-      System observes user corrections and learns patterns
-    
-    process:
-      1: "AI generates initial score"
-      2: "User corrects score or skips vessel"
-      3: "AI asks: 'Why was this score wrong?'"
-      4: "User provides reasoning"
-      5: "AI stores pattern for future scoring"
-    
-    storage: "MongoDB Atlas - learning_patterns collection"
-  
-  continuous_improvement:
-    - "Track offer → fixture conversion rate"
-    - "Identify patterns in successful matches"
-    - "Adjust weights based on outcomes"
-    - "Regular review of blocking conditions"
-
-# ═══════════════════════════════════════════════════════════════════
 # REASONING GENERATION RULES
 # ═══════════════════════════════════════════════════════════════════
 
@@ -508,116 +412,3 @@ reasoning_templates:
     capacity: "Insufficient intake capacity ({ratio}% of required)"
     owner_preference: "Owner explicitly avoids {restriction}"
     geopolitical: "Blocked due to {restriction_reason}"
-
-# ═══════════════════════════════════════════════════════════════════
-# IMPLEMENTATION NOTES
-# ═══════════════════════════════════════════════════════════════════
-
-implementation:
-  
-  api_flow:
-    1: "Laravel prepares vessel + cargo data"
-    2: "Laravel calls LangChain scoring endpoint"
-    3: "LangChain calculates P1-P7 using knowledge files"
-    4: "LangChain returns scores + reasoning"
-    5: "Laravel generates email based on score"
-    6: "Laravel stores results for learning"
-  
-  critical_validations:
-    - "Vessel DWT → Size category must use vessel_size_classification"
-    - "All regions must be normalized before matching"
-    - "P6 blocking must be checked before sending"
-    - "Manual intake overrides calculated intake"
-  
-  performance_optimizations:
-    - "Cache proximity calculations for same vessel-port pairs"
-    - "Pre-compute regional patterns for common routes"
-    - "Batch scoring for multiple vessels"
-
-# ═══════════════════════════════════════════════════════════════════
-# REFERENCES TO KNOWLEDGE FILES
-# ═══════════════════════════════════════════════════════════════════
-
-knowledge_base_files:
-  
-  core_scoring:
-    - file: "proximity_scoring_matrix.txt"
-      criterion: "P1"
-      purpose: "Distance-based scoring logic"
-      
-    - file: "regional_trade_patterns.txt"
-      criterion: "P1A"
-      purpose: "Market pattern scoring"
-      
-    - file: "COMMENTS_PROCESSING_GUIDE.txt"
-      criteria: ["P2", "P3", "P5"]
-      purpose: "Extract preferences from comments"
-      
-    - file: "OPEN_AREA_COMMENTS_SCORING.txt"
-      criterion: "P6"
-      purpose: "Current voyage preferences"
-      
-    - file: "READINESSETA_TO_LOADING_PORT_SCORING.txt"
-      criterion: "P7"
-      purpose: "Timing calculations"
-      
-    - file: "intake_calculator_formula.txt"
-      criterion: "P5"
-      purpose: "Intake capacity calculation"
-  
-  supporting_data:
-    - file: "vessel_size_classification.txt"
-      used_by: ["P1", "P1A", "P7"]
-      purpose: "Vessel size categories and economics"
-      
-    - file: "vessel_location_determination.txt"
-      used_by: ["P1", "P7"]
-      purpose: "Determine vessel position"
-      
-    - file: "port_restrictions_map.txt"
-      used_by: ["P1", "P5"]
-      purpose: "Port limitations"
-      
-    - file: "cargo_export_map.txt"
-      used_by: ["P1A", "P3"]
-      purpose: "Typical trade flows"
-      
-    - file: "learning_session_1.txt"
-      used_by: ["P1A", "P3"]
-      purpose: "Expert corrections"
-  
-  communication:
-    - file: "emailsexamples.txt"
-      purpose: "Email templates by score range"
-      
-    - file: "ABBREVIATIONS_KNOWLEDGE_BASE.txt"
-      purpose: "Message formatting"
-
-# ═══════════════════════════════════════════════════════════════════
-# VERSION HISTORY
-# ═══════════════════════════════════════════════════════════════════
-
-changelog:
-  v2.1:
-    date: "2024-12-01"
-    changes:
-      - "Added SHORT SUMMARY section at document start"
-      - "Added HOW TO USE DOCUMENT section with instructions for developers, AI, and knowledge base updates"
-      - "Added Quick Reference scoring ranges for easy lookup"
-      - "Updated version number and date"
-      - "No changes to scoring logic or ranges"
-  
-  v2.0:
-    date: "2024-11-28"
-    changes:
-      - "Complete restructure with P1-P7 system"
-      - "Fixed vessel size conflicts"
-      - "Added P6 as modifier with blocking"
-      - "Clarified Laravel vs LangChain split"
-      - "Normalized scoring ranges"
-      - "Added learning mechanism"
-  
-  v1.0:
-    date: "2024-11-01"
-    changes:
-      - "Initial scoring system"

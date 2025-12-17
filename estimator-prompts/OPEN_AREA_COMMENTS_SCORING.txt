@@ -57,115 +57,12 @@ High priority - placed above LPOC and Proximity because it reflects CURRENT dail
 changing intentions, not historical patterns.
 
 
-# ═══════════════════════════════════════════════════════════════════
-# HOW TO USE DOCUMENT
-# ═══════════════════════════════════════════════════════════════════
-
-## FOR DEVELOPERS (Laravel ↔ LangChain Integration)
-
-### Data Flow:
-1. **Laravel** retrieves OpenArea comment data:
-   - Vessel OpenArea comments: vessels.open_area_comments field
-   - Company OpenArea comments: companies.open_area_comments field (if exists)
-   - Person notes: people.notes field (if voyage-specific)
-
-2. **Laravel** sends to **LangChain Python microservice**:
-   ```json
-   {
-     "open_area_comments": "no grains, prefer nearby cargo only, seeking short trip to Egypt area",
-     "cargo": {
-       "type": "Wheat",
-       "quantity": 5000,
-       "loading_port": "Constanta, Romania",
-       "discharge_port": "Alexandria, Egypt",
-       "stowage_factor": 0.68,
-       "distance_ballast": 420,
-       "voyage_duration_days": 5
-     },
-     "vessel": {
-       "current_position": "Marmara Sea",
-       "dwt": 8500
-     }
-   }
-   ```
-
-3. **LangChain/AI** processes OpenArea comments:
-   - Extracts cargo-type signals
-   - Extracts geography signals
-   - Extracts strategy signals
-   - Evaluates conflicts and matches
-   - Calculates P6 score
-
-4. **LangChain/AI** returns:
-   ```json
-   {
-     "criterion_p6_open_area_score": -32,
-     "score_range": "[-50, +25]",
-     "signals_extracted": {
-       "cargo_type": [
-         {
-           "signal": "no grains",
-           "relevance": "HIGH",
-           "conflict_level": "FULL",
-           "impact": -45
-         }
-       ],
-       "geography": [
-         {
-           "signal": "prefer nearby cargo only",
-           "relevance": "MEDIUM",
-           "conflict_level": "SOFT",
-           "impact": -10,
-           "reasoning": "Cargo 420nm away, not very close"
-         }
-       ],
-       "strategy": [
-         {
-           "signal": "seeking short trip to Egypt area",
-           "relevance": "HIGH",
-           "conflict_level": "POSITIVE_MATCH",
-           "impact": +15,
-           "reasoning": "Cargo to Egypt, 5-day trip matches preference"
-         }
-       ]
-     },
-     "breakdown": {
-       "cargo_type_score": -45,
-       "geography_score": -10,
-       "strategy_score": +15,
-       "raw_total": -40,
-       "clamped_score": -32,
-       "reasoning": "Strong conflict on cargo type (no grains vs wheat), soft conflict on distance, but positive match on Egypt destination and short trip duration"
-     },
-     "offer_text_guidance": {
-       "acknowledge_conflict": true,
-       "conflict_text": "I see you mentioned 'no grains' in your current preferences",
-       "positive_angle": "However, this is a short trip to Egypt area which matches your strategy",
-       "recommendation": "Diplomatically present, acknowledge preferences, emphasize positive aspects"
-     }
-   }
-   ```
-
-5. **Integration with scoring system:**
-   - P6 score [-50, +25] added to total score
-   - Conflicts acknowledged in offer text reasoning
-   - Positive matches highlighted in offer text
-   - NO HARD BLOCKS - cargo always shown with explanation
-
 ### Important Notes:
 - OpenArea comments are CURRENT and VOYAGE-SPECIFIC
 - P6 complements (not replaces) P2/P3 (historical preferences)
 - Score range is ASYMMETRIC: more penalty (-50) than bonus (+25)
 - NO HARD BLOCKS - even with -50, cargo is shown with reasoning
 - Comments integration with COMMENTS_PROCESSING_GUIDE.txt for parsing
-- AI must explain conflicts diplomatically in offer text
-
-### Comment Format Examples:
-```
-Good format: "no grains, prefer nearby cargo only, seeking short trip to Egypt"
-Bad format: "maybe grain ok sometimes if good freight but usually no"
-(AI can handle both, but clear statements work better)
-```
 
 ---
 
@@ -367,16 +264,6 @@ Include in offer:
     "positive_angle": "string"
   }
 }
-```
-
-### Critical Reminders:
-- ⚠️ OpenArea comments are CURRENT - they change daily/weekly
-- ⚠️ NO HARD BLOCKS - even -50 score still shows cargo with reasoning
-- ⚠️ P6 is ASYMMETRIC: -50 max penalty, +25 max bonus (penalties dominate)
-- ⚠️ Conflicts must be acknowledged diplomatically in offer text
-- ⚠️ Use COMMENTS_PROCESSING_GUIDE.txt for parsing consistency
-
----
 
 ## FOR KNOWLEDGE BASE UPDATES (Maintenance)
 
