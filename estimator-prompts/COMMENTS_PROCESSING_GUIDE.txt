@@ -14,13 +14,9 @@ The comments contain expert, non-structured knowledge:
 AI must extract structured meaning from unstructured comments, filter them by relevance to the current cargo, resolve contradictions, and incorporate them into:
 
 Regional scoring
-
 Cargo scoring
-
 Intake evaluation
-
 Offer text reasoning
-
 Communication tone and formatting
 
 The guide also defines keyword detection patterns, priority order (vessel > person > company), parsing rules, and examples for every scoring criterion.
@@ -813,3 +809,4 @@ summary:
       - "Uses comment info that's not relevant"
 
       - "Contradicts comment without explanation"
+
