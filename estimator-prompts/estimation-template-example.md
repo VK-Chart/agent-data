@@ -3,7 +3,8 @@ Use this estimation's markdown (specifically Scoring Breakdown) as template for 
 **Vessel:** VERA SU (DWT: 3,217)  
 **Cargo:** 3,000t SBS (Sunflower Seed Meal) | Reni > Crete  
 **Total Score:** **51/100**
-
+**Short summary** This vessel reccomended to process if no better options you have
+**Confidence** 70% (Not enough data for P6)
 ---
 
 ### 1. Scoring Breakdown
