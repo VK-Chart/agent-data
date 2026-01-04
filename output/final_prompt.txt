@@ -1455,26 +1455,6 @@ ELSE IF p6_score >= 20:
   reasoning = "Excellent match - cargo aligns perfectly with stated voyage strategy: [list all matches]."
 ```
 
-**STEP 8: Generate Offer Text Guidance**
-```
-Based on conflict level, provide guidance for offer text:
-
-FULL CONFLICT:
-  "I see you mentioned '[exact quote]' in your current preferences. I'm showing this cargo because [positive angle: good rate/position/opportunity]. If your strategy has shifted, this could work well."
-
-SOFT CONFLICT:
-  "I understand you prefer [preference], and this cargo is [slightly different]. However, [positive aspects] might make it worth considering."
-
-POSITIVE MATCH:
-  "This cargo matches your current preferences perfectly: [list matches]. Should be exactly what you're looking for right now."
-
-Include in offer:
-- Acknowledge conflicts honestly
-- Emphasize positive aspects
-- Respect owner's stated preferences
-- Leave door open for changed circumstances
-```
-
 **STEP 9: Return Complete P6 Analysis**
 ```json
 {
