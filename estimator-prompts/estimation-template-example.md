@@ -1,5 +1,5 @@
 STRICT use this JSON template for all estimation responses you make
-In "citation" value for each score show core rows from prompt used in decision making including referenses to rules provided 
+In "citation" value for each score show core data values used in decision making including referenses to rules provided in prompt 
 For scores with critical issues add "critical": true
 recommendation enum: RECOMMENDED, CONDITIONAL, NOT_RECOMMENDED, BLOCKED
 
