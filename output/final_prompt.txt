@@ -2102,6 +2102,379 @@ summary:
       - "Score outside [-50, +25] range"
 
 
+--- START OF estimator-prompts/P2A_PSC_PORT_ACCESSIBILITY_SCORING.txt ---
+# ═══════════════════════════════════════════════════════════════════
+# P2A: PSC PORT ACCESSIBILITY SCORING
+# VK Charts AI - Port State Control Based Vessel-Port Matching  
+# ═══════════════════════════════════════════════════════════════════
+#
+# PURPOSE: 
+# Determine if a vessel with certain PSC (Port State Control) status
+# can enter a port without high risk of detention, considering the
+# vessel's technical/safety record and port's PSC enforcement severity.
+#
+# SCORE RANGE: 0-20 points
+#
+# KEY PRINCIPLE:
+# Vessels with poor PSC status AVOID ports with strict PSC enforcement
+# because detention risk = lost time and money. This scoring reflects
+# real shipowner behavioral patterns.
+#
+# ═══════════════════════════════════════════════════════════════════
+
+version: "1.0"
+last_updated: "2026-01-16"
+author: "VK Charts AI Team"
+
+# ───────────────────────────────────────────────────────────────────
+# DATA SOURCES
+# ───────────────────────────────────────────────────────────────────
+
+equasis_data_fields:
+  required:
+    - "Paris MOU status (White/Grey/Black)"
+    - "Tokyo MOU status (White/Grey/Black)" 
+    - "USCG status (White/Grey/Black)"
+    - "Detention rate (% of inspections resulting in detention)"
+    - "Overview text (contains detention history)"
+    - "IMO number (for sanctions verification)"
+  
+  optional_bonus_factors:
+    - "Classification Society name (IACS vs non-IACS)"
+    - "P&I Club name (International Group vs others)"
+    - "Vessel age (affects PSC targeting probability)"
+    - "Recent detention dates and deficiency details"
+
+# ───────────────────────────────────────────────────────────────────
+# SCORING PRINCIPLE
+# ───────────────────────────────────────────────────────────────────
+
+scoring_principle: |
+  P2A Score = Vessel PSC Status × Port PSC Severity
+  
+  Key Logic:
+  • Vessels with GOOD PSC status → can go anywhere
+  • Vessels with POOR PSC status → AVOID strict ports, PREFER lax ports
+  • This reflects real shipowner behavior (avoiding detention = saving time/money)
+
+# ═══════════════════════════════════════════════════════════════════
+# VESSEL PSC STATUS CLASSIFICATION
+# ═══════════════════════════════════════════════════════════════════
+
+vessel_psc_status:
+  
+  GOOD:
+    definition: "Clean PSC record, can enter any port"
+    conditions:
+      - "Paris MOU = White"
+      - "OR (Paris MOU = Grey AND detention_rate < 3%)"
+      - "No detentions in last 12 months"
+    characteristics: "Low PSC risk, accepted at all ports"
+    examples:
+      - "Paris MOU: White, Detention rate: 1.8%"
+      - "Paris MOU: Grey, Detention rate: 2.5%, no recent detentions"
+  
+  MEDIUM:
+    definition: "Some PSC issues, will avoid strict ports when possible"
+    conditions:
+      - "Paris MOU = Grey AND detention_rate 3-8%"
+      - "1-2 detentions in last 24 months (now resolved)"
+    characteristics: "Moderate PSC risk, prefers moderate ports"
+    examples:
+      - "Paris MOU: Grey, Detention rate: 5.0%"
+      - "1 detention 18 months ago, deficiencies cleared"
+  
+  POOR:
+    definition: "Significant PSC problems, actively seeks lax PSC ports"
+    conditions:
+      - "Paris MOU = Black"
+      - "OR detention_rate > 8%"
+      - "OR 2+ detentions in last 36 months"
+    characteristics: "High PSC risk, strongly PREFERS lax enforcement"
+    examples:
+      - "Paris MOU: Black, Detention rate: 11.1%"
+      - "3 detentions in last 24 months"
+  
+  BANNED:
+    definition: "Vessel banned from specific MOU region"
+    conditions:
+      - "Paris MOU: 3 detentions in 24-36 months (depending on flag)"
+      - "USCG: 3 detentions in 12 months"
+      - "Jumped detention (left port before clearance)"
+    impact: "ABSOLUTE BLOCK for entire MOU region"
+
+# ═══════════════════════════════════════════════════════════════════
+# PORT PSC SEVERITY CLASSIFICATION
+# ═══════════════════════════════════════════════════════════════════
+
+port_psc_severity:
+  
+  VERY_STRICT:
+    description: "Highest PSC risk - vessels with issues avoid these"
+    countries:
+      tier_1_maximum: ["Italy", "France", "Greece"]
+      tier_2_high: ["Germany", "Netherlands", "Belgium", "UK"]
+      tier_3_medium_high: ["Spain", "Portugal", "Scandinavia", "Canada"]
+      tokyo_mou: ["Japan", "Singapore", "South Korea", "Australia"]
+      uscg: ["USA"]
+  
+  MODERATE:
+    description: "Moderate PSC enforcement"
+    countries:
+      mediterranean_mou: ["Turkey", "Egypt", "Morocco", "Tunisia", "Algeria"]
+      eu_moderate: ["Cyprus", "Malta", "Romania", "Bulgaria"]
+      black_sea_mou: ["Georgia", "Ukraine"]
+  
+  LAX:
+    description: "Minimal PSC enforcement - preferred by vessels with issues"
+    countries:
+      non_mou: ["Libya", "Syria"]
+      weak_enforcement: ["Lebanon"]
+
+# ═══════════════════════════════════════════════════════════════════
+# SCORING MATRIX
+# ═══════════════════════════════════════════════════════════════════
+
+scoring_matrix:
+  
+  GOOD_vessel:
+    VERY_STRICT_port: 
+      score: [18, 20]
+      reasoning: "Clean record, no restrictions"
+    MODERATE_port:
+      score: [18, 20]
+      reasoning: "No issues"
+    LAX_port:
+      score: [18, 20]
+      reasoning: "Can go anywhere"
+  
+  MEDIUM_vessel:
+    VERY_STRICT_port:
+      score: [8, 12]
+      reasoning: "May face inspection, prefers other ports"
+    MODERATE_port:
+      score: [12, 15]
+      reasoning: "Acceptable, moderate risk"
+    LAX_port:
+      score: [15, 18]
+      reasoning: "Vessel prefers lax ports to avoid scrutiny"
+  
+  POOR_vessel:
+    VERY_STRICT_port:
+      score: [0, 5]
+      reasoning: "CRITICAL - vessel will AVOID, high detention risk"
+      owner_behavior: "Will NOT accept"
+    MODERATE_port:
+      score: [8, 12]
+      reasoning: "Moderate risk, may attempt if necessary"
+    LAX_port:
+      score: [15, 18]
+      reasoning: "Vessel STRONGLY PREFERS lax PSC - minimal risk"
+      owner_behavior: "Actively seeks"
+  
+  BANNED_vessel:
+    banned_region:
+      score: 0
+      reasoning: "ABSOLUTE BLOCK - cannot enter MOU region"
+
+# ═══════════════════════════════════════════════════════════════════
+# HARD BLOCKS (Absolute Restrictions)
+# ═══════════════════════════════════════════════════════════════════
+
+hard_blocks:
+  
+  eu_sanctions:
+    description: "EU sanctioned vessels (Russian shadow fleet)"
+    source: "Danish Maritime Authority EU Vessel Designations"
+    url: "https://www.dma.dk/.../eu-vessel-designations"
+    format: "Downloadable .xlsx/.csv with IMO numbers"
+    list_size: "~600 vessels (Jan 2026)"
+    
+    implementation:
+      - "Download IMO list from DMA"
+      - "Store locally in database"
+      - "IF vessel.IMO IN sanctions_list → P2A = 0 for ALL EU ports"
+    
+    blocked_regions: ["ALL EU countries", "ALL Paris MOU EU members"]
+    allowed_regions: ["Turkey", "Egypt", "Libya", "Other non-EU"]
+    
+    note: "This is ABSOLUTE BAN, not low score. Vessel cannot legally enter."
+  
+  mou_banning:
+    paris_mou:
+      rule: "3 detentions in 24-36 months → BAN"
+      verification: "https://parismou.org/current-bannings"
+    
+    uscg:
+      rule: "3 detentions in 12 months → BAN"
+      note: "Strictest timeline globally"
+    
+    implementation: "IF vessel.banned → P2A = 0 for that MOU region"
+
+# ═══════════════════════════════════════════════════════════════════
+# SOFT FACTORS (Score Modifiers)
+# ═══════════════════════════════════════════════════════════════════
+
+soft_factors:
+  
+  classification_society:
+    iacs_members: 
+      list: ["DNV", "ABS", "Lloyd's Register", "ClassNK", "Bureau Veritas", "RINA", "CCS", "IRS", "PRS", "RMRS", "CRS"]
+      impact: "+1 to +2 points"
+    
+    non_iacs:
+      impact: "0 to -1 points"
+    
+    CRITICAL_RULE: "⚠️ NEVER block vessel based on class alone"
+  
+  pni_club:
+    international_group:
+      impact: "+1 point"
+      examples: ["UK P&I", "Gard", "Skuld", "Standard Club"]
+    
+    CRITICAL_RULE: "⚠️ NEVER block vessel based on P&I alone (often missing in Equasis)"
+  
+  vessel_age:
+    age_15_20: "-0 to -1 points"
+    age_20_25: "-1 to -2 points"
+    age_25_plus: "-2 to -3 points"
+    
+    CRITICAL_RULE: "⚠️ For dry cargo: NO hard age limits (age affects score, NOT access)"
+
+# ═══════════════════════════════════════════════════════════════════
+# CALCULATION STEPS
+# ═══════════════════════════════════════════════════════════════════
+
+calculation:
+  
+  step_1_hard_blocks:
+    priority: "FIRST - before any scoring"
+    - "IF vessel.IMO IN eu_sanctions → RETURN P2A = 0"
+    - "IF vessel.banned IN MOU → RETURN P2A = 0 for that region"
+  
+  step_2_vessel_status:
+    - "Extract Paris MOU status + detention rate from Equasis"
+    - "Categorize as: GOOD / MEDIUM / POOR / BANNED"
+  
+  step_3_port_severity:
+    - "Map discharge country to: VERY_STRICT / MODERATE / LAX"
+  
+  step_4_base_score:
+    - "Lookup scoring_matrix[vessel_status][port_severity]"
+  
+  step_5_soft_modifiers:
+    - "Apply class (+/-1-2), P&I (+0-1), age (0 to -3)"
+    - "Max adjustment: ±3 points"
+  
+  step_6_final:
+    - "P2A = CLAMP(base_score + modifiers, 0, 20)"
+
+# ═══════════════════════════════════════════════════════════════════
+# EXAMPLES
+# ═══════════════════════════════════════════════════════════════════
+
+examples:
+  
+  good_vessel_strict_port:
+    vessel: "Paris MOU: White, 1.8% detention, DNV class"
+    port: "Genoa, Italy (tier 1 strict)"
+    calculation: "GOOD + VERY_STRICT → base 19 + IACS +1 = 20"
+    result: "P2A = 20/20 - excellent match"
+  
+  poor_vessel_strict_port:
+    vessel: "Paris MOU: Black, 11.1% detention"
+    port: "Marseille, France (tier 1 strict)"
+    calculation: "POOR + VERY_STRICT → base 2 + age -1 = 1"
+    result: "P2A = 1/20 - CRITICAL, owner will REJECT"
+  
+  poor_vessel_lax_port:
+    vessel: "Paris MOU: Black, 11.1% detention"
+    port: "Tripoli, Libya (no MOU)"
+    calculation: "POOR + LAX → base 17"
+    result: "P2A = 17/20 - vessel PREFERS this, will accept"
+  
+  sanctioned_vessel:
+    vessel: "IMO 9329760 (Eagle S) on EU sanctions list"
+    port: "Rotterdam, Netherlands"
+    calculation: "HARD BLOCK - IMO in sanctions list"
+    result: "P2A = 0 - BLOCKED, cannot enter ANY EU port"
+
+# ═══════════════════════════════════════════════════════════════════
+# AI TRANSPARENCY
+# ═══════════════════════════════════════════════════════════════════
+
+transparency:
+  
+  always_show:
+    - "Vessel PSC status: 'Paris MOU: Black, Detention rate: 11.1%'"
+    - "Port severity: 'France - VERY STRICT PSC region (Paris MOU tier 1)'"
+    - "Reasoning: 'Poor vessel + Very strict port → Base: 2'"
+    - "Final: 'P2A: 2/20 - CRITICAL, owner will avoid'"
+    - "Source: 'Based on Equasis Overview PSC data'"
+  
+  for_hard_blocks:
+    sanctions: "⛔ BLOCKED - Vessel IMO {imo} on EU sanctions list"
+    banning: "⛔ BLOCKED - Vessel banned from {mou} region"
+
+# ═══════════════════════════════════════════════════════════════════
+# CRITICAL RULES
+# ═══════════════════════════════════════════════════════════════════
+
+critical_rules:
+  
+  1_no_class_blocks:
+    rule: "NEVER block vessel based on class or P&I alone"
+    reason: "Equasis data can be outdated, vessels always have some class"
+  
+  2_sanctions_absolute:
+    rule: "EU sanctions = P2A = 0, not negotiable"
+    reason: "Legal prohibition under EU Council Regulation 833/2014"
+  
+  3_poor_plus_lax_high:
+    rule: "Poor vessel + Lax port = HIGH score (15-18)"
+    reason: "Vessels with PSC problems SEEK lax enforcement - this is CORRECT"
+  
+  4_no_age_limits:
+    rule: "For dry cargo, age affects score but NEVER blocks"
+    reason: "Unlike tankers, no regulatory age limits for bulkers/general cargo"
+  
+  5_detention_thresholds:
+    good: "<3% detention rate"
+    medium: "3-8% detention rate"
+    poor: ">8% detention rate"
+    context: "Average Paris MOU detention rate = 3-4%"
+
+# ═══════════════════════════════════════════════════════════════════
+# REFERENCE LINKS
+# ═══════════════════════════════════════════════════════════════════
+
+references:
+  paris_mou: "https://www.parismou.org"
+  tokyo_mou: "https://www.tokyo-mou.org"
+  eu_sanctions: "https://www.dma.dk/.../eu-vessel-designations"
+  equasis: "https://www.equasis.org"
+
+# ═══════════════════════════════════════════════════════════════════
+# VERSION HISTORY
+# ═══════════════════════════════════════════════════════════════════
+
+version_history:
+  v1.0_2026_01_16:
+    - "Initial production version"
+    - "PSC status classification + port severity mapping"
+    - "Scoring matrix for all combinations"
+    - "Hard blocks: EU sanctions + MOU banning"
+    - "Soft factors: Class, P&I, Age (NO hard blocks)"
+    
+    key_decisions:
+      - "NO hard blocks for class/P&I (Equasis can be outdated)"
+      - "NO age restrictions for dry cargo vessels"
+      - "EU sanctions = absolute block (legal requirement)"
+      - "Poor vessel + Lax port = HIGH score (reflects reality)"
+
+# ═══════════════════════════════════════════════════════════════════
+
+
 --- START OF estimator-prompts/READINESSETA_TO_LOADING_PORT_SCORING.txt ---
 READINESS/ETA_TO_LOADING PORT_SCORING
 # ───────────────────────────────────────────────────────────────
