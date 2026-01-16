@@ -9,20 +9,21 @@ The system evaluates:
 • P1 (20pts): Geographic proximity (distance-based)
 • P1A (15pts): Regional trade patterns (market logic)
 • P2 (15pts): Regional preferences (manual owner settings)
+• P2A (20pts): PSC port accessibility (vessel PSC status vs port strictness)
 • P3 (15pts): Cargo type compatibility
 • P4 (10pts): Last ports familiarity
 • P5 (15pts): Intake capacity match
 • P6 (modifier, -50 to +25): Current voyage preferences (OpenArea comments)
 • P7 (10pts): Timing and readiness (ETA vs laycan)
 
-BASE_SCORE = P1 + P1A + P2 + P3 + P4 + P5 + P7 (max 100)
+BASE_SCORE = P1 + P1A + P2 + P2A + P3 + P4 + P5 + P7 (max 115)
 MODIFIED_SCORE = BASE_SCORE + P6
 FINAL_SCORE = CLAMP(MODIFIED_SCORE, 0, 100)
 
 Blocking conditions: technical impossibility, insufficient capacity, geopolitical restrictions, or P6 ≤ -40.
 
 **Quick Reference - Scoring Ranges:**
-P1: [0, 20] | P1A: [0, 15] | P2: [0, 15] | P3: [0, 15] | P4: [0, 10] | P5: [0, 15] | P6: [-50, +25] | P7: [0, 10]
+P1: [0, 20] | P1A: [0, 15] | P2: [0, 15] | P2A: [0, 20] | P3: [0, 15] | P4: [0, 10] | P5: [0, 15] | P6: [-50, +25] | P7: [0, 10]
 
 # ═══════════════════════════════════════════════════════════════════
 # SCORING CRITERIA STRUCTURE
@@ -131,7 +132,96 @@ scoring_criteria:
       2: "Person preferences"
       3: "Company-wide settings"
       4: "Formal UI settings"
-
+  # ─────────────────────────────────────────────────────────────────
+  P2A_PSC_PORT_ACCESSIBILITY:
+    name: "PSC Port Accessibility"
+    weight: 20
+    range: [0, 20]
+    
+    description: |
+      Evaluates whether a vessel can enter a port based on Port State
+      Control (PSC) status and port's PSC enforcement severity.
+      Reflects real shipowner behavior: vessels with poor PSC records
+      AVOID strict ports (detention risk) and PREFER lax ports.
+    
+    calculation_source: "P2A_PSC_PORT_ACCESSIBILITY_SCORING.txt"
+    
+    data_sources:
+      equasis:
+        - "Paris MOU status (White/Grey/Black)"
+        - "Detention rate (%)"
+        - "IMO number (for sanctions check)"
+      external:
+        - "EU sanctions list (Danish Maritime Authority)"
+        - "Paris/Tokyo/USCG MOU banning lists"
+    
+    key_factors:
+      vessel_psc_status:
+        - "GOOD: Paris White or (Grey + <3% detention)"
+        - "MEDIUM: Paris Grey + 3-8% detention"
+        - "POOR: Paris Black or >8% detention"
+        - "BANNED: Currently banned from MOU region"
+      
+      port_psc_severity:
+        - "VERY_STRICT: Italy, France, Greece, Germany, Netherlands, Belgium, UK, USA, Japan, Singapore"
+        - "MODERATE: Turkey, Egypt, Romania, Bulgaria, Cyprus, Malta"
+        - "LAX: Libya, Syria, Lebanon (weak enforcement)"
+    
+    scoring_logic: |
+      Matrix-based scoring: Vessel_Status × Port_Severity
+      
+      GOOD vessel:
+        - Any port: 18-20 points
+      
+      MEDIUM vessel:
+        - Very strict port: 8-12 points
+        - Moderate port: 12-15 points
+        - Lax port: 15-18 points
+      
+      POOR vessel:
+        - Very strict port: 0-5 points (CRITICAL - owner will AVOID)
+        - Moderate port: 8-12 points
+        - Lax port: 15-18 points (owner PREFERS lax PSC)
+      
+      Soft modifiers (±3 points max):
+        - IACS class: +1-2 points
+        - International Group P&I: +1 point
+        - Age >20 years: -1 to -3 points
+    
+    blocking_conditions:
+      hard_blocks:
+        - "EU sanctions: Vessel IMO on EU sanctions list → P2A = 0 for ALL EU ports"
+        - "MOU banning: Vessel banned from Paris/Tokyo/USCG MOU → P2A = 0 for that region"
+      
+      critical_scores:
+        - "P2A ≤ 5 for Poor vessel at Very strict port → Strong signal to avoid"
+    
+    behavioral_logic:
+      key_principle: |
+        Poor PSC vessel + Lax PSC port = HIGH score (15-18)
+        This is CORRECT behavior - reflects real shipowner strategy
+        Vessels with PSC problems actively SEEK ports with weak enforcement
+      
+      critical_rules:
+        - "⚠️ NEVER block on class/P&I alone (Equasis can be outdated)"
+        - "⚠️ NO age restrictions for dry cargo (unlike tankers)"
+        - "⚠️ EU sanctions = absolute legal block (not negotiable)"
+    
+    dependencies:
+      - file: "P2A_PSC_PORT_ACCESSIBILITY_SCORING.txt"
+        purpose: "Complete PSC scoring logic and country classifications"
+    
+    reasoning_template: |
+      "{vessel_name} PSC status: {paris_mou}, {detention_rate}% detention rate
+      {port_name}, {country}: {severity} PSC enforcement ({mou_region})
+      {vessel_status} vessel + {port_severity} port → Base: {base_score}
+      Modifiers: {modifiers}
+      P2A = {final_score}/20 - {interpretation}"
+    
+    confidence_indicators:
+      high: "Complete Equasis PSC data available"
+      medium: "MOU status present, missing class/P&I"
+      low: "Only flag data, no MOU information (assume MEDIUM status)"
   # ─────────────────────────────────────────────────────────────────
   P3_CARGO_PREFERENCES:
     name: "Cargo Type Compatibility"
