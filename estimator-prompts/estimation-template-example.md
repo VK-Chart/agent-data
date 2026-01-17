@@ -36,6 +36,14 @@ recommendation enum: RECOMMENDED, CONDITIONAL, NOT_RECOMMENDED, BLOCKED
       "confidence": "test",
       "citations": ["ref:23"]
     },
+    "port_accessibility": {
+      "code": "P2A",
+      "score": 5,
+      "max_score": 20,
+      "reasoning": "France - VERY STRICT PSC region",
+      "confidence": "test",
+      "citations": ["ref:23"]
+    },
     "cargo_preferences": {
       "code": "P3",
       "score": 12,
