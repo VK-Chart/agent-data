@@ -15,9 +15,13 @@
 # because detention risk = lost time and money. This scoring reflects
 # real shipowner behavioral patterns.
 #
+# CROSS-VALIDATION ENHANCEMENT:
+# Uses P4 (Last Ports) historical patterns to validate PSC status.
+# Frequent calls to strict PSC ports confirm GOOD/MEDIUM status.
+#
 # ═══════════════════════════════════════════════════════════════════
 
-version: "1.0"
+version: "1.1"
 last_updated: "2026-01-16"
 author: "VK Charts AI Team"
 
@@ -39,6 +43,18 @@ equasis_data_fields:
     - "P&I Club name (International Group vs others)"
     - "Vessel age (affects PSC targeting probability)"
     - "Recent detention dates and deficiency details"
+  
+  cross_validation_data:
+    from_p4_last_ports:
+      - "Historical port call patterns (% by region)"
+      - "Frequency of calls to strict PSC countries"
+      - "Recent port history (last 12-24 months)"
+    
+    purpose: |
+      Use Last Ports data to validate PSC assessment.
+      Vessels that regularly call strict PSC ports (Italy, France, Germany)
+      must have GOOD or MEDIUM PSC status - they couldn't sustain regular
+      calls with Black status (would face constant detentions).
 
 # ───────────────────────────────────────────────────────────────────
 # SCORING PRINCIPLE
@@ -51,6 +67,11 @@ scoring_principle: |
   • Vessels with GOOD PSC status → can go anywhere
   • Vessels with POOR PSC status → AVOID strict ports, PREFER lax ports
   • This reflects real shipowner behavior (avoiding detention = saving time/money)
+  
+  Cross-Validation Enhancement:
+  • Historical port patterns (P4) validate PSC assessment
+  • Regular EU port calls → confirms GOOD/MEDIUM status
+  • Contradictions → flag for manual review
 
 # ═══════════════════════════════════════════════════════════════════
 # VESSEL PSC STATUS CLASSIFICATION
@@ -97,6 +118,94 @@ vessel_psc_status:
       - "USCG: 3 detentions in 12 months"
       - "Jumped detention (left port before clearance)"
     impact: "ABSOLUTE BLOCK for entire MOU region"
+  
+  # ─────────────────────────────────────────────────────────────────
+  validation_using_historical_patterns:
+    description: "Cross-validate PSC status using P4 Last Ports data"
+    
+    principle: |
+      Vessel's historical port calling patterns serve as indirect 
+      PSC status validation. Frequent successful calls to strict PSC 
+      ports indicate GOOD or MEDIUM PSC status.
+      
+      Logic: Vessel with POOR status (Paris Black) CANNOT sustain 
+      regular calls to Italy/France/Germany - would face frequent 
+      detentions and be denied entry.
+    
+    positive_validation:
+      if_last_ports_shows:
+        strict_psc_calls:
+          - "Regular calls to Italy, France, Greece, Germany, Netherlands"
+          - "Percentage: >20% of total port calls"
+          - "Pattern: Consistent over 12-24 months"
+        
+        examples:
+          - "35% calls in EU (Italy 12%, Germany 8%, Netherlands 6%)"
+          - "40% calls in strict PSC regions (EU 30%, Japan 5%, Singapore 5%)"
+      
+      then_vessel_likely_has:
+        psc_status: "GOOD or MEDIUM (NOT Poor)"
+        reasoning: |
+          Cannot regularly call strict PSC ports with Black status.
+          Historical pattern confirms vessel can access:
+          - Most European ports (including strict ones)
+          - Turkish ports (moderate PSC)
+          - Ukrainian ports (moderate PSC)
+          - Arab ports (moderate/lax PSC)
+        
+        only_exceptions:
+          - "Few ports with MAXIMUM strictness (top tier Italian ports)"
+          - "Recent PSC degradation (check dates)"
+    
+    conflict_detection:
+      if_contradiction_detected:
+        condition: "Last Ports shows frequent EU calls BUT Equasis shows Black"
+        action: "🚨 FLAG for manual review - data conflict"
+        
+        possible_explanations:
+          - "Recent PSC status degradation (within last 6 months)"
+          - "Equasis data lag/outdated information"
+          - "Vessel changed ownership/management recently"
+          - "Different vessel with similar name"
+        
+        ai_response:
+          - "Show both data sources to user"
+          - "Explain the contradiction"
+          - "Request manual verification"
+          - "Use conservative scoring (assume MEDIUM until verified)"
+    
+    confidence_adjustment:
+      when_data_aligns:
+        condition: "Equasis PSC status + Last Ports pattern AGREE"
+        action: "Boost confidence: MEDIUM → HIGH"
+        example: "Equasis Grey + 30% EU calls → HIGH confidence MEDIUM status"
+      
+      when_data_conflicts:
+        condition: "Equasis and Last Ports CONTRADICT"
+        action: "Flag uncertainty, use conservative approach"
+        example: "Equasis Black + 40% EU calls → Manual review needed"
+      
+      when_equasis_limited:
+        condition: "Equasis data incomplete/missing"
+        action: "Use Last Ports as SECONDARY indicator"
+        heuristic: "Frequent EU calls → assume at least MEDIUM status"
+    
+    application_guidelines:
+      use_as_validation_not_override:
+        correct_usage:
+          - "✓ Boost confidence when Equasis + Last Ports align"
+          - "✓ Flag conflicts when they contradict"  
+          - "✓ Use as secondary indicator when Equasis incomplete"
+        
+        incorrect_usage:
+          - "❌ Do NOT ignore Equasis Black status based only on Last Ports"
+          - "❌ Do NOT assume GOOD status based ONLY on port history"
+          - "❌ Do NOT override hard blocks (sanctions, banning)"
+        
+        priority_order:
+          1: "Hard blocks (EU sanctions, MOU bans) - ABSOLUTE"
+          2: "Equasis PSC data - PRIMARY source"
+          3: "Last Ports pattern - VALIDATION/CONFIDENCE tool"
 
 # ═══════════════════════════════════════════════════════════════════
 # PORT PSC SEVERITY CLASSIFICATION
@@ -251,65 +360,221 @@ calculation:
     - "Extract Paris MOU status + detention rate from Equasis"
     - "Categorize as: GOOD / MEDIUM / POOR / BANNED"
   
-  step_3_port_severity:
+  step_3_cross_validate_with_p4:
+    - "Check P4 Last Ports for strict PSC country calls"
+    - "IF >20% calls in strict PSC ports → confirms GOOD/MEDIUM"
+    - "IF Equasis Black + frequent EU calls → FLAG conflict"
+    - "Adjust confidence level based on alignment"
+  
+  step_4_port_severity:
     - "Map discharge country to: VERY_STRICT / MODERATE / LAX"
   
-  step_4_base_score:
+  step_5_base_score:
     - "Lookup scoring_matrix[vessel_status][port_severity]"
   
-  step_5_soft_modifiers:
+  step_6_soft_modifiers:
     - "Apply class (+/-1-2), P&I (+0-1), age (0 to -3)"
     - "Max adjustment: ±3 points"
   
-  step_6_final:
+  step_7_final:
     - "P2A = CLAMP(base_score + modifiers, 0, 20)"
 
 # ═══════════════════════════════════════════════════════════════════
-# EXAMPLES
+# AI IMPLEMENTATION GUIDELINES  
+# ═══════════════════════════════════════════════════════════════════
+
+ai_implementation:
+  
+  data_extraction:
+    from_equasis:
+      - "Parse Paris MOU status: White/Grey/Black"
+      - "Extract detention rate percentage"
+      - "Extract IMO number"
+      - "Parse class society name (optional)"
+      - "Parse P&I club name (optional)"
+    
+    from_p4_last_ports:
+      - "Extract % of calls in strict PSC countries"
+      - "Identify recent port patterns (12-24 months)"
+      - "Note frequency of EU/strict PSC port calls"
+  
+  cross_validation_with_p4_last_ports:
+    description: "Use historical port patterns to validate PSC assessment"
+    
+    step_1_analyze_port_history:
+      calculate:
+        - "% calls to VERY_STRICT countries (Italy, France, Germany, etc.)"
+        - "% calls to MODERATE countries (Turkey, Egypt, etc.)"
+        - "% calls to LAX countries (Libya, Syria, etc.)"
+      
+      thresholds:
+        high_strict_exposure: ">20% calls in VERY_STRICT countries"
+        moderate_strict_exposure: "10-20% calls in VERY_STRICT countries"
+        low_strict_exposure: "<10% calls in VERY_STRICT countries"
+    
+    step_2_cross_validate:
+      if_high_strict_exposure:
+        expectation: "Vessel should have GOOD or MEDIUM PSC status"
+        reasoning: |
+          Cannot sustain >20% calls to strict PSC ports with Black status.
+          Would face frequent detentions and entry denials.
+        
+        validation_checks:
+          - "IF Equasis = White/Grey AND Last Ports >20% EU → ✓ ALIGNED"
+          - "IF Equasis = Black AND Last Ports >20% EU → 🚨 CONFLICT"
+      
+      if_low_strict_exposure:
+        note: "Neutral - vessel may have any PSC status"
+        reasoning: "Lack of strict port calls doesn't indicate poor PSC"
+    
+    step_3_confidence_adjustment:
+      aligned_data:
+        condition: "Equasis PSC + Last Ports pattern agree"
+        examples:
+          - "Equasis Grey 5% + 30% EU calls → MEDIUM status confirmed"
+          - "Equasis White + 45% EU calls → GOOD status confirmed"
+        action: "Set confidence = HIGH"
+      
+      conflicting_data:
+        condition: "Equasis and Last Ports contradict"
+        examples:
+          - "Equasis Black 11% + 40% EU calls → DATA CONFLICT"
+          - "Equasis White + 0% strict port calls → unusual but possible"
+        action: "Flag for manual review, use conservative scoring"
+      
+      missing_equasis:
+        condition: "Equasis PSC data incomplete/unavailable"
+        action: "Use Last Ports as SECONDARY indicator"
+        heuristic:
+          - "IF >30% strict PSC calls → assume GOOD status"
+          - "IF 15-30% strict PSC calls → assume MEDIUM status"
+          - "IF <15% strict PSC calls → assume MEDIUM status (conservative)"
+    
+    step_4_apply_insights:
+      vessel_accessibility_conclusion:
+        if_validated_good_medium:
+          can_access:
+            - "Most European ports (including strict ones)"
+            - "Turkish ports (moderate PSC)"
+            - "Ukrainian ports (moderate PSC)"
+            - "Arab ports (moderate/lax PSC)"
+          
+          exceptions:
+            - "Few ports with MAXIMUM strictness (e.g., certain Italian ports)"
+            - "Recent PSC degradation (check dates)"
+        
+        if_poor_status:
+          will_avoid:
+            - "Strict European ports (Italy, France, Germany)"
+          
+          will_prefer:
+            - "Lax PSC ports (Libya, Syria, Lebanon)"
+            - "Moderate ports if necessary (Turkey, Egypt)"
+  
+  transparency_requirements:
+    always_show:
+      - "Vessel PSC status: 'Paris MOU: {status}, Detention rate: {rate}%'"
+      - "Port severity: '{country} - {severity} PSC region ({mou})'"
+      - "Cross-validation: '{last_ports_pattern}' → '{validation_result}'"
+      - "Reasoning: '{vessel_status} vessel + {port_severity} port → Base: {score}'"
+      - "Final: 'P2A: {score}/20 - {interpretation}'"
+      - "Confidence: '{level}' based on data alignment"
+    
+    when_using_p4_validation:
+      show:
+        - "Last Ports: {pct}% calls in strict PSC countries"
+        - "Validation: Historical pattern {confirms/contradicts} Equasis status"
+        - "Confidence: {HIGH/MEDIUM/LOW} - {reason}"
+      
+      examples:
+        aligned: |
+          "Last Ports: 35% calls in EU (Italy, Germany, Netherlands)
+          Validation: ✓ Confirms Equasis Grey status - vessel can reliably access strict PSC ports
+          Confidence: HIGH - data sources aligned"
+        
+        conflicting: |
+          "Last Ports: 42% calls in EU strict PSC ports
+          Equasis: Paris MOU Black, 11.1% detention
+          ⚠️ DATA CONFLICT - Historical pattern contradicts current PSC status
+          Possible causes: Recent PSC degradation, Equasis lag, or data error
+          Recommendation: Manual review required
+          Using: Conservative MEDIUM status assumption"
+
+# ═══════════════════════════════════════════════════════════════════
+# EXAMPLES WITH CROSS-VALIDATION
 # ═══════════════════════════════════════════════════════════════════
 
 examples:
   
-  good_vessel_strict_port:
-    vessel: "Paris MOU: White, 1.8% detention, DNV class"
-    port: "Genoa, Italy (tier 1 strict)"
-    calculation: "GOOD + VERY_STRICT → base 19 + IACS +1 = 20"
-    result: "P2A = 20/20 - excellent match"
+  example_1_aligned_data:
+    scenario: "Equasis and Last Ports both confirm GOOD status"
+    
+    vessel:
+      equasis: "Paris Grey, 2.8% detention, DNV class"
+      last_ports: "39% EU calls (Italy 12%, Germany 17%, Netherlands 10%)"
+    
+    validation:
+      result: "✓ CONFIRMS GOOD status"
+      confidence: "HIGH - data aligned"
+      accessibility: "Can access most EU, Turkish, Ukrainian, Arab ports"
+    
+    cargo:
+      port: "Constanta, Romania (MODERATE)"
+    
+    score: "20/20"
+    
+    reasoning: |
+      "Vessel has excellent PSC record: Paris Grey with only 2.8% detention rate.
+      Historical pattern shows 39% of calls in strict EU ports.
+      This validates vessel can reliably access European ports without issues.
+      P2A = 20/20 - HIGH confidence, vessel will accept."
   
-  poor_vessel_strict_port:
-    vessel: "Paris MOU: Black, 11.1% detention"
-    port: "Marseille, France (tier 1 strict)"
-    calculation: "POOR + VERY_STRICT → base 2 + age -1 = 1"
-    result: "P2A = 1/20 - CRITICAL, owner will REJECT"
+  example_2_conflict_detected:
+    scenario: "Equasis Black but Last Ports shows frequent EU calls"
+    
+    vessel:
+      equasis: "Paris Black, 9.5% detention"
+      last_ports: "40% EU calls (France, Germany, Italy until Oct 2025)"
+    
+    validation:
+      result: "🚨 CONFLICT DETECTED"
+      possible_causes: "Recent PSC degradation, Equasis lag, management change"
+      action: "FLAG for manual review"
+      conservative_approach: "Assume MEDIUM status until verified"
+    
+    cargo:
+      port: "Marseille, France (VERY_STRICT)"
+    
+    score: "10/20 (conservative)"
+    
+    reasoning: |
+      "⚠️ DATA CONFLICT: Equasis shows Black but vessel called EU ports 40% of time.
+      This is contradictory - Black vessels typically cannot sustain EU pattern.
+      Using conservative MEDIUM assumption → Score: 10/20
+      Confidence: LOW - Manual review required"
   
-  poor_vessel_lax_port:
-    vessel: "Paris MOU: Black, 11.1% detention"
-    port: "Tripoli, Libya (no MOU)"
-    calculation: "POOR + LAX → base 17"
-    result: "P2A = 17/20 - vessel PREFERS this, will accept"
-  
-  sanctioned_vessel:
-    vessel: "IMO 9329760 (Eagle S) on EU sanctions list"
-    port: "Rotterdam, Netherlands"
-    calculation: "HARD BLOCK - IMO in sanctions list"
-    result: "P2A = 0 - BLOCKED, cannot enter ANY EU port"
-
-# ═══════════════════════════════════════════════════════════════════
-# AI TRANSPARENCY
-# ═══════════════════════════════════════════════════════════════════
-
-transparency:
-  
-  always_show:
-    - "Vessel PSC status: 'Paris MOU: Black, Detention rate: 11.1%'"
-    - "Port severity: 'France - VERY STRICT PSC region (Paris MOU tier 1)'"
-    - "Reasoning: 'Poor vessel + Very strict port → Base: 2'"
-    - "Final: 'P2A: 2/20 - CRITICAL, owner will avoid'"
-    - "Source: 'Based on Equasis Overview PSC data'"
-  
-  for_hard_blocks:
-    sanctions: "⛔ BLOCKED - Vessel IMO {imo} on EU sanctions list"
-    banning: "⛔ BLOCKED - Vessel banned from {mou} region"
+  example_3_poor_vessel_lax_port:
+    scenario: "Poor PSC vessel heading to lax port - validated"
+    
+    vessel:
+      equasis: "Paris Black, 11.1% detention"
+      last_ports: "0% strict PSC, 100% moderate/lax (Libya 36%, Egypt 29%, Syria 21%)"
+    
+    validation:
+      result: "✓ CONFIRMS POOR status"
+      reasoning: "Vessel actively avoids strict PSC - behavioral pattern matches"
+      confidence: "HIGH - perfectly aligned"
+    
+    cargo:
+      port: "Tripoli, Libya (LAX)"
+    
+    score: "17/20"
+    
+    reasoning: |
+      "Vessel has poor PSC record confirmed by behavior pattern.
+      Actively avoids EU (0% strict calls), seeks lax enforcement (Libya 36%).
+      Tripoli, Libya (LAX PSC) → Perfect match.
+      P2A = 17/20 - HIGH confidence, owner PREFERS this"
 
 # ═══════════════════════════════════════════════════════════════════
 # CRITICAL RULES
@@ -338,9 +603,25 @@ critical_rules:
     medium: "3-8% detention rate"
     poor: ">8% detention rate"
     context: "Average Paris MOU detention rate = 3-4%"
+  
+  6_p4_validation_not_override:
+    rule: "Last Ports pattern validates but does NOT override Equasis"
+    priority_order:
+      1: "Hard blocks (sanctions, bans) - ABSOLUTE"
+      2: "Equasis PSC data - PRIMARY source"
+      3: "Last Ports pattern - VALIDATION tool"
+    
+    correct_use:
+      - "✓ Boost confidence when data aligns"
+      - "✓ Flag conflicts for review"
+      - "✓ Use as secondary when Equasis missing"
+    
+    incorrect_use:
+      - "❌ Do NOT ignore Black status based only on port history"
+      - "❌ Do NOT override hard blocks"
 
 # ═══════════════════════════════════════════════════════════════════
-# REFERENCE LINKS
+# REFERENCES
 # ═══════════════════════════════════════════════════════════════════
 
 references:
@@ -354,17 +635,23 @@ references:
 # ═══════════════════════════════════════════════════════════════════
 
 version_history:
+  v1.1_2026_01_16:
+    changes:
+      - "Added P4 Last Ports cross-validation"
+      - "Historical patterns validate PSC status"
+      - "Conflict detection when data contradicts"
+      - "Confidence adjustment based on alignment"
+      - "Accessibility conclusions from port history"
+    
+    key_feature:
+      logic: |
+        Frequent calls to strict PSC ports (>20% in Italy, France, Germany)
+        confirms GOOD/MEDIUM status. Cannot sustain with Black status.
+        Use for validation and confidence boost, NOT override.
+  
   v1.0_2026_01_16:
     - "Initial production version"
-    - "PSC status classification + port severity mapping"
-    - "Scoring matrix for all combinations"
     - "Hard blocks: EU sanctions + MOU banning"
     - "Soft factors: Class, P&I, Age (NO hard blocks)"
-    
-    key_decisions:
-      - "NO hard blocks for class/P&I (Equasis can be outdated)"
-      - "NO age restrictions for dry cargo vessels"
-      - "EU sanctions = absolute block (legal requirement)"
-      - "Poor vessel + Lax port = HIGH score (reflects reality)"
 
 # ═══════════════════════════════════════════════════════════════════
