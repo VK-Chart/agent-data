@@ -204,7 +204,7 @@ scoring_matrix_v2:
   under_utilization_formula:
     condition: "utilization < 90%"
     
-    penalty_formula: "penalty_percent = (90 - utilization) × 0.5"
+    penalty_formula: "penalty_percent = (90 - utilization) × 2.0"
     final_score_formula: "score = 15 × (1 - penalty_percent/100)"
     
     explanation: |
@@ -213,31 +213,24 @@ scoring_matrix_v2:
     
     examples:
       
-      example_1:
-        utilization: "85%"
-        penalty_calculation: "(90 - 85) × 0.5 = 2.5%"
-        final_score: "15 × (1 - 0.025) = 14.6"
-        reasoning: "Minor under-utilization, acceptable"
-      
-      example_2:
-        utilization: "79%"
-        penalty_calculation: "(90 - 79) × 0.5 = 5.5%"
-        final_score: "15 × (1 - 0.055) = 14.2"
-        reasoning: "Moderate under-utilization"
-        citations:
-          - "Correction (valmiera): 7782 DWT for 6000t cargo = significant under-utilization"
-      
-      example_3:
-        utilization: "70%"
-        penalty_calculation: "(90 - 70) × 0.5 = 10%"
-        final_score: "15 × (1 - 0.10) = 13.5"
-        reasoning: "Vessel significantly too large"
-      
-      example_4:
-        utilization: "60%"
-        penalty_calculation: "(90 - 60) × 0.5 = 15%"
-        final_score: "15 × (1 - 0.15) = 12.8"
-        reasoning: "Poor match - vessel far too large"
+      example_1_severe:
+  utilization: "73.8%"
+  penalty_calculation: "(90 - 73.8) × 2.0 = 32.4%"
+  final_score: "15 × (1 - 0.324) = 10.14/15"
+  reasoning: "2,125 t underload – severe underutilization"
+
+example_2_moderate:
+  utilization: "80%"
+  penalty_calculation: "(90 - 80) × 2.0 = 20%"
+  final_score: "15 × (1 - 0.20) = 12.0/15"
+  reasoning: "Moderate underutilization"
+
+example_3_minor:
+  utilization: "85%"
+  penalty_calculation: "(90 - 85) × 2.0 = 10%"
+  final_score: "15 × (1 - 0.10) = 13.5/15"
+  reasoning: "Minor underutilization, acceptable"
+
   
   # ─────────────────────────────────────────────────────────────────
   # OVER-UTILIZATION (>110%) - Cargo Too Large
@@ -383,3 +376,4 @@ ai_must_not:
 # ═══════════════════════════════════════════════════════════════════
 # END OF P5 INTAKE CAPACITY CALCULATOR v2.0
 # ═══════════════════════════════════════════════════════════════════
+
