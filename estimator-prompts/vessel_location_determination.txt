@@ -1,534 +1,409 @@
 # ═══════════════════════════════════════════════════════════════════
-# SHORT SUMMARY
+# VESSEL LOCATION DETERMINATION - UPDATED v2.0
+# VK Charts AI Scoring System
+# ═══════════════════════════════════════════════════════════════════
+#
+# CHANGES IN v2.0:
+# - Added Istanbul/Canakkale as TRANSIT CHANNELS (not actual ports)
+# - Added Tuzla as DRY DOCK location (+30 days for repairs)
+# - Clarified priority logic for determining opening position
+# - Added special handling rules for edge cases
+#
 # ═══════════════════════════════════════════════════════════════════
 
-DOCUMENT: Vessel Location Determination - Geographic Origin for Proximity Scoring
-PURPOSE: Define how AI determines vessel's actual location before applying proximity scoring
-SCOPE: Pre-processing step for P1 (Proximity) criterion
-INTEGRATION: Critical input for proximity_scoring_matrix.txt - determines vessel_location
-
-WHAT THIS DOCUMENT DEFINES:
-This file establishes the authoritative methodology for determining a vessel's 
-geographic location before calculating proximity scores. Since proximity scoring
-requires knowing where the vessel is, this logic must execute FIRST to establish
-the vessel_location input for the Proximity Scoring Matrix.
-
-PRIORITY SYSTEM (4 levels):
-1. Open Information (HIGHEST) - Vessel's declared open position
-   - open_area, open_port, alternative_open_areas
-2. Destination - Where vessel is heading (if valid geographic)
-   - Must validate: real location vs non-geographic text
-3. Current Area - Where vessel currently is (fallback)
-   - From AIS or last known position
-4. Unknown - Location cannot be determined (skip proximity scoring)
-
-KEY FEATURES:
-- Strict priority hierarchy (always check in order)
-- Geographic validation (filters "to order", "TBN", crew info, etc.)
-- Multiple open areas handling (select closest to loading port)
-- Fuzzy matching for ports/regions (handles typos, variations)
-- Edge case handling (outdated dates, contradictory data, ambiguous regions)
-- Returns normalized geographic entity (port, region, country, sea)
-
-CRITICAL DEPENDENCIES:
-- proximity_scoring_matrix.txt: Uses output as vessel_location input
-- Ports database: For geographic validation
-- Regions/Seas lists: For fuzzy matching
-
-VALIDATION LOGIC:
-Valid Geographic:
-- Port names: "Istanbul", "Constanta", "Odessa"
-- Regions: "Black Sea", "Marmara Sea", "East Med"
-- Countries: "Turkey", "Romania", "Ukraine"
-
-Invalid Non-Geographic:
-- Orders: "to order", "for orders", "awaiting orders"
-- Nominations: "TBN", "TBA", "to be nominated"
-- Crew info: "Syrian crew", "Greek crew onboard"
-- Instructions: "INCO", "awaiting instructions", "owners option"
-
-MULTIPLE OPEN AREAS SELECTION:
-When vessel has multiple alternative open areas (e.g., ["Marmara Sea", "East Med", "Adriatic"]):
-- Calculate proximity score from each area to cargo loading port
-- Select area with HIGHEST proximity score
-- Use selected area for all downstream scoring
-
-EXAMPLE USAGE:
-Input:
-  open_area: null
-  destination: "to order"
-  current_area: "Marmara Sea"
-Output:
-  selected_location: "Marmara Sea"
-  reasoning: "Destination invalid (non-geographic), using current_area (priority 3)"
-
+version: "2.0"
+date: "2026-01-19"
+priority: "CRITICAL - Location determines P1, P1A, P7 scoring"
 
 # ═══════════════════════════════════════════════════════════════════
-# HOW TO USE DOCUMENT
+# OVERVIEW
 # ═══════════════════════════════════════════════════════════════════
 
-## FOR DEVELOPERS (Laravel ↔ LangChain Integration)
+purpose: |
+  Determine vessel's effective opening position for scoring purposes.
+  
+  This affects:
+  - P1 (Proximity): Distance to loading port
+  - P1A (Regional Patterns): Trade pattern viability
+  - P7 (Readiness): When vessel will be ready
+  
+  KEY PRINCIPLE:
+  Use most specific/reliable data available, following priority order.
 
-### Data Flow:
-1. **Laravel** retrieves vessel position data:
-   - vessel_data table: open_date, open_port, open_area, destination, current_area
-   - vessel_attributes table: alternative_open_areas (if exists)
-   - Parse from email positions or AIS data
+# ═══════════════════════════════════════════════════════════════════
+# DATA PRIORITY ORDER
+# ═══════════════════════════════════════════════════════════════════
 
-2. **Laravel** sends to **LangChain Python microservice**:
-   ```json
-   {
-     "vessel_data": {
-       "open_date": "2024-12-10",
-       "open_port": "Istanbul",
-       "open_area": "Marmara Sea",
-       "alternative_open_areas": ["Marmara Sea", "East Med"],
-       "destination": "Black Sea",
-       "current_area": "Turkish Straits"
-     },
-     "cargo": {
-       "loading_port": "Odessa, Ukraine",
-       "loading_region": "Black Sea"
-     }
-   }
-   ```
+priority_order:
+  
+  priority_1_open_area:
+    source: "OpenArea field (manually entered)"
+    reliability: "HIGHEST - owner's stated position"
+    format: "Port name + Date"
+    example: "Constanta, Jan 20"
+    
+    usage: |
+      If open_area is provided, this is DEFINITIVE.
+      Use this location and date for all scoring.
+      Ignore destination and current_area.
+    
+  priority_2_destination:
+    source: "Destination field (from AIS)"
+    reliability: "MEDIUM - vessel heading there, but purpose unclear"
+    format: "Port name"
+    additional: "ETA (Estimated Time of Arrival)"
+    example: "Mersin, ETA Jan 25"
+    
+    usage: |
+      If destination is set (and no open_area):
+      - Vessel is likely going there to load OR discharge
+      - Opening location = destination port
+      - Opening date = ETA + 7 days (operations buffer)
+      
+      EXCEPTIONS:
+      - Istanbul: Treat as TRANSIT, not destination
+      - Canakkale: Treat as TRANSIT, not destination  
+      - Tuzla: Treat as DRY DOCK (+30 days)
+    
+  priority_3_current_area:
+    source: "Current Area field (from AIS)"
+    reliability: "LOW - only shows current position"
+    format: "Geographic region or port name"
+    example: "East Mediterranean" or "Sulina"
+    
+    usage: |
+      If no open_area or valid destination:
+      - Use current_area as opening location
+      - Use position_received as opening date
+      - Assume vessel is at anchor/waiting
+      
+      EXCEPTIONS:
+      - Istanbul: Treat as TRANSIT
+      - Canakkale: Treat as TRANSIT
+      - Tuzla: Treat as DRY DOCK
 
-### Important Notes:
-- Location determination MUST run BEFORE proximity scoring
-- If location = null → skip proximity scoring (P1 = 0)
-- Multiple open areas require proximity calculation for selection
-- Geographic validation is critical (filters non-geographic text)
-- Priority order is strict - never skip steps
+# ═══════════════════════════════════════════════════════════════════
+# SPECIAL LOCATION HANDLING
+# ═══════════════════════════════════════════════════════════════════
 
-### Database Field Names:
-```
-Verify actual field names in production:
-- vessel_data.open_date
-- vessel_data.open_port_id (FK to ports)
-- vessel_data.open_area
-- vessel_data.destination
-- vessel_data.current_area
-- vessel_attributes.alternative_open_areas (if exists)
-```
+special_locations:
+  
+  # ─────────────────────────────────────────────────────────────────
+  # ISTANBUL - TRANSIT CHANNEL (NOT A PORT)
+  # ─────────────────────────────────────────────────────────────────
+  
+  istanbul_handling:
+    
+    principle: |
+      Istanbul is a TRANSIT CHANNEL (Bosphorus Strait), not a destination port.
+      When vessels pass through Istanbul, it appears in their position data,
+      but this is NOT an actual port call - just transit between Black Sea
+      and Marmara/Mediterranean.
+    
+    recognition:
+      port_names:
+        - "Istanbul"
+        - "Bosphorus"
+        - "Bosporus"
+      
+      context_clues:
+        - "Appears in top_ports with high percentage"
+        - "Vessel track shows brief passage"
+        - "No long stays (just hours, not days)"
+    
+    ai_interpretation:
+      
+      if_in_destination:
+        condition: "destination = Istanbul"
+        action: "IGNORE - treat as null destination"
+        reasoning: "Vessel transiting through straits, not calling Istanbul port"
+        fallback: "Use current_area or treat as in-transit"
+        
+        example:
+          vessel_destination: "Istanbul"
+          vessel_current_area: "Black Sea"
+          interpretation: "Vessel exiting Black Sea via Bosphorus, NOT opening in Istanbul"
+          use_for_scoring: "Black Sea (current_area)"
+      
+      if_in_current_area:
+        condition: "current_area = Istanbul"
+        action: "Determine direction of transit"
+        
+        if_heading_to_black_sea:
+          interpretation: "Vessel entering Black Sea"
+          use_for_scoring: "Marmara Sea (origin) or Black Sea (destination)"
+          
+        if_heading_to_mediterranean:
+          interpretation: "Vessel exiting Black Sea"
+          use_for_scoring: "Black Sea (origin) or Marmara/Med (destination)"
+      
+      if_in_top_ports:
+        condition: "Istanbul appears in vessel's top_ports history"
+        action: "DO NOT count as actual port experience"
+        reasoning: |
+          High Istanbul percentage simply means vessel transits frequently
+          between Black Sea and Med. It does NOT indicate familiarity with
+          Istanbul as a loading/discharge port.
+        
+        citations:
+          - "Correction (valmiera): Istanbul is transit channel, not port"
+          - "Correction: Do not treat Istanbul as port call in P4 scoring"
+  
+  # ─────────────────────────────────────────────────────────────────
+  # CANAKKALE - TRANSIT CHANNEL (NOT A PORT)
+  # ─────────────────────────────────────────────────────────────────
+  
+  canakkale_handling:
+    
+    principle: |
+      Canakkale is DARDANELLES STRAIT transit, similar to Istanbul.
+      Same logic applies: transit channel, not destination port.
+    
+    recognition:
+      port_names:
+        - "Canakkale"
+        - "Dardanelles"
+        - "Çanakkale"
+    
+    ai_interpretation:
+      same_as_istanbul: true
+      
+      if_in_destination:
+        action: "IGNORE - treat as null destination"
+        
+      if_in_current_area:
+        action: "Determine direction (Marmara ↔ Aegean)"
+        
+      if_in_top_ports:
+        action: "DO NOT count as port experience"
+  
+  # ─────────────────────────────────────────────────────────────────
+  # TUZLA - DRY DOCK / REPAIRS
+  # ─────────────────────────────────────────────────────────────────
+  
+  tuzla_handling:
+    
+    principle: |
+      Tuzla (Turkey) is a major SHIPYARD and DRY DOCK location.
+      If vessel is in Tuzla or heading to Tuzla, assume repairs.
+      Repair durations are UNCERTAIN, typically 1+ months.
+    
+    recognition:
+      port_names:
+        - "Tuzla"
+        - "Tuzla Shipyard"
+      
+      location:
+        country: "Turkey"
+        region: "Marmara Sea"
+        near: "Istanbul"
+    
+    ai_interpretation:
+      
+      if_currently_in_tuzla:
+        condition: "current_area = Tuzla OR destination = Tuzla (already arrived)"
+        
+        impact_on_p7:
+          assumption: "Vessel undergoing repairs"
+          duration_estimate: "+30 days minimum"
+          uncertainty: "HIGH - repair completion dates very uncertain"
+          
+          scoring:
+            p7_score: 2
+            confidence: 60
+            reasoning: |
+              "Vessel currently in Tuzla (dry dock). Repairs typically take
+              1+ months with uncertain completion. Position highly unreliable
+              for near-term cargo."
+        
+        impact_on_other_criteria:
+          p1_proximity: "Calculate from Tuzla, but add uncertainty note"
+          p1a_regional: "Normal assessment, but flag repair status"
+        
+        warning_to_user: |
+          "⚠️ Vessel is currently in Tuzla shipyard. This typically indicates
+          repairs/dry docking. Completion date uncertain."
+      
+      if_heading_to_tuzla:
+        condition: "destination = Tuzla AND not yet arrived"
+        
+        impact_on_p7:
+          vessel_ready_date: "ETA + 30 days (minimum)"
+          
+          scoring:
+            p7_score: 3
+            confidence: 65
+            reasoning: |
+              "Vessel heading to Tuzla (ETA {date}). Tuzla is a major shipyard,
+              suggesting scheduled repairs. Assume +30 days for dry docking."
+        
+        warning_to_user: |
+          "⚠️ Vessel is heading to Tuzla shipyard (ETA {date}). This likely
+          indicates planned repairs. Opening date highly uncertain."
+  
+  # ─────────────────────────────────────────────────────────────────
+  # SULINA ANCHORAGE - SPECIAL POSITIONING
+  # ─────────────────────────────────────────────────────────────────
+  
+  sulina_handling:
+    
+    principle: |
+      Sulina is a WAITING AREA / ANCHORAGE, not a commercial port.
+      Vessels wait here before either:
+      a) Entering Danube River, OR
+      b) Proceeding to POC ports
+      
+      This is NOT an issue like Istanbul - Sulina IS a valid opening position.
+    
+    recognition:
+      port_names:
+        - "Sulina"
+        - "Sulina Anchorage"
+      
+    ai_interpretation:
+      treat_as: "Valid opening position"
+      
+      impact_on_p1:
+        proximity_to_poc: "Level 3 (very close, ~80nm)"
+        proximity_to_danube: "Level 3 (very close, river entrance)"
+      
+      impact_on_p1a:
+        pattern_to_poc: "Score 14/15 (excellent positioning)"
+        pattern_to_danube: "Score 14/15 (excellent positioning)"
+        reasoning: "Sulina = neutral waiting area, equal viability for both directions"
+        
+        citations:
+          - "Correction (eleanora): Sulina vessels can go to POC or Danube equally"
 
 # ═══════════════════════════════════════════════════════════════════
 # LOCATION DETERMINATION ALGORITHM
 # ═══════════════════════════════════════════════════════════════════
 
-location_determination_algorithm:
+determination_algorithm:
   
-  step_1_check_open_information:
-    priority: 1
-    
-    check_open_area:
-      condition: "open_area IS NOT NULL AND open_area != ''"
-      action: "Use open_area as vessel location"
-      
-      special_case_multiple_open_areas:
-        condition: "alternative_open_areas array has multiple values"
-        action: "Select open area closest to cargo loading port"
-        method: "Calculate distance from each alternative to loading port, choose minimum"
-        
-        example:
-          vessel: "MV EXAMPLE"
-          open_areas:
-            - "Marmara Sea"
-            - "East Med"
-            - "Adriatic"
-          cargo_loading: "Odessa, Black Sea"
-          
-          distance_calculation:
-            - area: "Marmara Sea"
-              distance_to_odessa: "320 nm"
-              proximity_score: 20
-              
-            - area: "East Med"
-              distance_to_odessa: "450 nm"
-              proximity_score: 8
-              
-            - area: "Adriatic"
-              distance_to_odessa: "650 nm"
-              proximity_score: 4
-          
-          selected_area: "Marmara Sea"
-          reason: "Closest to loading port, highest proximity score"
-    
-    check_open_port:
-      condition: "open_port IS NOT NULL AND open_port != ''"
-      action: "Use open_port as vessel location"
-      notes: "More specific than open_area"
-      
-    check_open_date:
-      condition: "open_date in the future or recent past"
-      validation: "Ensure open date is realistic (not too far in past/future)"
-      
+  step_1_check_open_area:
+    if: "open_area field is not null"
+    then:
+      location: "Use open_area port"
+      date: "Use open_area date"
+      confidence: "HIGH"
+      stop: true
+  
   step_2_check_destination:
-    priority: 2
-    condition: "IF open_information is NULL or empty"
-    
-    check_destination_value:
-      condition: "destination IS NOT NULL AND destination != ''"
+    if: "destination field is not null"
+    then:
       
-      validate_geographic:
-        description: "Check if destination is valid geographic location"
+      check_special_cases:
         
-        valid_destinations:
-          - "Specific port name"
-          - "Country name"
-          - "Region name"
-          - "Sea name"
-          - "Anchorage name"
-          
-        invalid_destinations:
-          - "to order"
-          - "TO ORDER"
-          - "for orders"
-          - "Syrian crew"
-          - "Greek crew onboard"
-          - "TBN" (to be nominated)
-          - "TBA" (to be advised)
-          - "INCO" (intent confirmation)
-          - "awaiting instructions"
-          - "owners option"
-          - Any crew information
-          - Any non-geographic text
-          
-        validation_method:
-          step_1: "Check against known ports/countries/regions database"
-          step_2: "Use fuzzy matching for variations"
-          step_3: "If no match in database → consider invalid"
-          step_4: "Detect keywords indicating non-geographic (order, crew, TBN, etc)"
-          
-      action_if_valid:
-        - "Use destination as vessel location"
-        - "Apply to proximity scoring"
+        if_istanbul_or_canakkale:
+          action: "SKIP destination, continue to step 3"
+          reasoning: "Transit channel, not valid destination"
         
-      action_if_invalid:
-        - "Proceed to Step 3 (current_area)"
-        - "Log invalid destination for future analysis"
+        if_tuzla:
+          location: "Tuzla (dry dock)"
+          date: "ETA + 30 days"
+          confidence: "LOW (repair uncertainty)"
+          add_warning: true
+          stop: true
+        
+        if_normal_port:
+          location: "Use destination port"
+          date: "ETA + 7 days (operations)"
+          confidence: "MEDIUM"
+          stop: true
   
   step_3_check_current_area:
-    priority: 3
-    condition: "IF both open_information and valid destination are unavailable"
-    
-    check_current_area:
-      condition: "current_area IS NOT NULL AND current_area != ''"
-      action: "Use current_area as vessel location"
-      notes: "Last resort - where vessel currently is according to AIS or last update"
+    if: "current_area is not null"
+    then:
       
-  step_4_fallback:
-    priority: 4
-    condition: "IF all above steps fail"
-    action: "CANNOT DETERMINE LOCATION"
-    scoring_impact: "Skip proximity scoring or assign default low score"
-    user_notification: "Vessel location unknown - manual review required"
-
-# ═══════════════════════════════════════════════════════════════════
-# EXAMPLES OF LOCATION DETERMINATION
-# ═══════════════════════════════════════════════════════════════════
-
-examples:
-  
-  example_1_open_area_available:
-    vessel_data:
-      open_date: "2024-12-05"
-      open_port: "Istanbul"
-      open_area: "Marmara Sea"
-      destination: "Black Sea"
-      current_area: "Turkish Straits"
-      
-    result:
-      selected_location: "Istanbul, Marmara Sea"
-      reason: "Open information available (priority 1)"
-      specific_port: true
-      proximity_level: "level_7_marmara_sea"
-      
-  example_2_multiple_open_areas:
-    vessel_data:
-      open_date: "2024-12-10"
-      open_area: null
-      alternative_open_areas:
-        - "East Med"
-        - "Marmara Sea"
-        - "West Med"
-      destination: null
-      current_area: "Mediterranean"
-      
-    cargo_loading:
-      port: "Odessa"
-      sea: "Black Sea"
-      
-    calculation:
-      east_med_distance: "450 nm"
-      marmara_distance: "320 nm"
-      west_med_distance: "1200 nm"
-      
-    result:
-      selected_location: "Marmara Sea"
-      reason: "Closest alternative open area to loading port"
-      proximity_level: "level_7_marmara_sea"
-      score: 20
-      
-  example_3_destination_fallback:
-    vessel_data:
-      open_date: null
-      open_port: null
-      open_area: null
-      destination: "Constanta"
-      current_area: "Black Sea"
-      
-    validation:
-      is_geographic: true
-      matched_port: "Constanta, Romania"
-      
-    result:
-      selected_location: "Constanta"
-      reason: "Open info unavailable, using destination (priority 2)"
-      proximity_level: "level_5_nearby_subregion"
-      
-  example_4_invalid_destination:
-    vessel_data:
-      open_date: null
-      open_port: null
-      open_area: null
-      destination: "to order"
-      current_area: "Mediterranean"
-      
-    validation:
-      is_geographic: false
-      reason: "Non-geographic keyword detected"
-      
-    result:
-      selected_location: "Mediterranean"
-      reason: "Invalid destination, using current_area (priority 3)"
-      proximity_level: "depends on specific Med area"
-      
-  example_5_crew_information:
-    vessel_data:
-      open_date: null
-      open_area: null
-      destination: "Syrian crew onboard"
-      current_area: "East Med"
-      
-    validation:
-      is_geographic: false
-      reason: "Crew information is not location"
-      
-    result:
-      selected_location: "East Med"
-      reason: "Invalid destination (crew info), using current_area"
-      proximity_level: "level_9_east_med"
-      
-  example_6_no_location_data:
-    vessel_data:
-      open_date: null
-      open_area: null
-      destination: null
-      current_area: null
-      
-    result:
-      selected_location: "UNKNOWN"
-      reason: "No location data available"
-      action: "Skip proximity scoring or assign default low score (0)"
-      user_notification: "Manual review required"
-
-# ═══════════════════════════════════════════════════════════════════
-# NON-GEOGRAPHIC DESTINATION PATTERNS
-# ═══════════════════════════════════════════════════════════════════
-
-non_geographic_patterns:
-  description: "Patterns to detect invalid destinations"
-  
-  keywords_to_detect:
-    orders:
-      - "to order"
-      - "for orders"
-      - "awaiting orders"
-      - "owners order"
-      - "charterers order"
-      
-    nominations:
-      - "TBN"
-      - "to be nominated"
-      - "TBA"
-      - "to be advised"
-      - "to be declared"
-      
-    crew_information:
-      - "crew"
-      - "Syrian crew"
-      - "Greek crew"
-      - "Ukrainian crew"
-      - "onboard"
-      
-    awaiting_instructions:
-      - "INCO"
-      - "intent confirmation"
-      - "awaiting instructions"
-      - "awaiting details"
-      
-    options:
-      - "owners option"
-      - "charterers option"
-      - "to be decided"
-      
-  regex_patterns:
-    - "(?i)to\\s+order"
-    - "(?i)for\\s+orders?"
-    - "(?i)\\b(tbn|tba)\\b"
-    - "(?i)crew\\b"
-    - "(?i)onboard"
-    - "(?i)awaiting"
-    - "(?i)option"
-    
-  detection_method:
-    step_1: "Convert destination to lowercase"
-    step_2: "Check against keyword list"
-    step_3: "Apply regex patterns"
-    step_4: "If ANY match → invalid destination"
-
-# ═══════════════════════════════════════════════════════════════════
-# GEOGRAPHIC VALIDATION
-# ═══════════════════════════════════════════════════════════════════
-
-geographic_validation:
-  description: "How to validate if destination is geographic location"
-  
-  data_sources:
-    - "Airtable ports database"
-    - "Countries list"
-    - "Regions list"
-    - "Seas list"
-    - "Known anchorages"
-    
-  validation_steps:
-    step_1_exact_match:
-      - "Check destination against ports table"
-      - "Check against countries table"
-      - "Check against regions table"
-      - "Check against seas table"
-      
-    step_2_fuzzy_match:
-      - "Use fuzzy string matching (Levenshtein distance)"
-      - "Account for typos and variations"
-      - "Examples: 'Odesa' → 'Odessa', 'Konstanca' → 'Constanta'"
-      
-    step_3_common_abbreviations:
-      known_abbreviations:
-        - "POC → Pivdenny-Odessa-Chornomorsk"
-        - "CVB → Constanta-Varna-Burgas"
-        - "E Med → East Mediterranean"
-        - "W Med → West Mediterranean"
-        - "BS → Black Sea"
-        - "MS → Marmara Sea"
+      check_special_cases:
         
-    step_4_negative_keywords:
-      - "If contains non-geographic keywords → invalid"
-      - "Even if partially matches geographic location"
-      - "Example: 'Odessa to order' → invalid (contains 'to order')"
-
-# ═══════════════════════════════════════════════════════════════════
-# MULTIPLE OPEN AREAS SELECTION
-# ═══════════════════════════════════════════════════════════════════
-
-multiple_open_areas_logic:
-  description: "How to choose when vessel has multiple alternative open areas"
+        if_istanbul_or_canakkale:
+          action: "Interpret as in-transit, use broader region"
+          location: "Use adjacent sea (Black Sea or Marmara)"
+          date: "position_received"
+          confidence: "LOW"
+          stop: true
+        
+        if_tuzla:
+          location: "Tuzla (dry dock)"
+          date: "position_received + 30 days"
+          confidence: "LOW"
+          add_warning: true
+          stop: true
+        
+        if_normal_location:
+          location: "Use current_area"
+          date: "position_received"
+          confidence: "LOW (no confirmed destination)"
+          stop: true
   
-  selection_criteria:
-    primary: "Proximity to cargo loading port"
-    method: "Calculate distance or proximity score for each option"
-    
-  calculation_method:
-    step_1: "For each alternative open area"
-    step_2: "Calculate proximity score to cargo loading port"
-    step_3: "Select area with HIGHEST proximity score"
-    step_4: "Use selected area for all subsequent scoring"
-    
-  distance_calculation_options:
-    
-    option_a_use_proximity_matrix:
-      description: "Apply proximity scoring matrix to each alternative"
-      pros: "Reuses existing scoring logic"
-      cons: "Need to know vessel size first"
-      
-    option_b_simple_distance:
-      description: "Calculate nautical miles from each area to loading port"
-      pros: "Size-agnostic, simpler"
-      cons: "Less nuanced than scoring matrix"
-      
-    recommended: "option_a_use_proximity_matrix"
-    
-  tie_breaking:
-    condition: "If two alternatives have same proximity score"
-    rule_1: "Prefer more specific location over general region"
-    rule_2: "Prefer area with better backhaul opportunities"
-    rule_3: "If still tied, use first in list (arbitrary)"
-    
-  example_detailed:
-    vessel:
-      name: "MV EXAMPLE"
-      dwt: 8500
-      size_category: "coaster"
-      
-    alternatives:
-      - "Istanbul (Marmara)"
-      - "Piraeus (East Greece)"
-      - "Limassol (Cyprus, East Med)"
-      
-    cargo:
-      loading_port: "Odessa"
-      loading_sea: "Black Sea"
-      
-    scoring_each:
-      istanbul:
-        proximity_level: "level_7_marmara_sea"
-        base_score: 20
-        distance: "320 nm"
-        adjusted_score: 19.04
-        
-      piraeus:
-        proximity_level: "level_8_izmir_nemrut_east_greece"
-        base_score: 12
-        distance: "520 nm"
-        adjusted_score: 10.44
-        
-      limassol:
-        proximity_level: "level_9_east_med"
-        base_score: 8
-        distance: "680 nm"
-        adjusted_score: 5.96
-        
-    selected: "Istanbul (Marmara)"
-    reason: "Highest adjusted proximity score (19.04)"
+  step_4_no_data:
+    if: "All fields are null"
+    then:
+      action: "ERROR - insufficient data"
+      recommendation: "Request owner clarification"
 
 # ═══════════════════════════════════════════════════════════════════
-# EDGE CASES & SPECIAL HANDLING
+# P4 (LAST PORTS) SPECIAL HANDLING
 # ═══════════════════════════════════════════════════════════════════
 
-edge_cases:
+p4_top_ports_filtering:
   
-  case_1_ambiguous_destination:
-    example: "Med"
-    problem: "Could be East Med, West Med, Central Med"
-    solution: "Use current_area for more specificity, or ask user"
+  principle: |
+    When analyzing vessel's top_ports historical data, EXCLUDE
+    transit channels from port experience calculation.
+  
+  exclude_from_p4:
+    - "Istanbul"
+    - "Canakkale"
+    - "Bosphorus"
+    - "Dardanelles"
+  
+  rationale: |
+    These locations appear frequently in AIS data due to transit,
+    but they do NOT represent actual port calling experience.
     
-  case_2_very_old_open_date:
-    example: "open_date: 2024-06-01" (current date: 2024-12-01)
-    problem: "Open date 6 months old, likely outdated"
-    solution: "Prefer current_area over open_area if open_date > 30 days old"
+    Including them inflates P4 scores incorrectly.
+  
+  example:
+    raw_top_ports:
+      - "Istanbul: 25.7%"
+      - "Sulina: 12.2%"
+      - "Izmail: 8.5%"
+      - "Constanta: 6.3%"
     
-  case_3_contradictory_data:
-    example:
-      open_area: "Black Sea"
-      destination: "Singapore"
-      current_area: "Marmara Sea"
-    problem: "Data doesn't make sense together"
-    solution: "Trust priority order, but flag for manual review"
+    filtered_top_ports:
+      - "Sulina: 12.2%"
+      - "Izmail: 8.5%"
+      - "Constanta: 6.3%"
+      - "(Istanbul removed as transit)"
     
-  case_4_multiple_ports_in_destination:
-    example: "Constanta/Varna/Burgas"
-    solution: "Parse as region 'CVB', use center point or all options"
+    p4_calculation:
+      use: "Filtered list only"
+      reasoning: "Istanbul removed - transit channel, not port experience"
     
-  case_5_range_in_open_area:
-    example: "open_area: East Med - West Med"
-    solution: "Treat as two alternatives, select closest"
+    citations:
+      - "Correction (valmeira, eleanora): Istanbul is transit, not port call"
+
+# ═══════════════════════════════════════════════════════════════════
+# CRITICAL AI INSTRUCTIONS
+# ═══════════════════════════════════════════════════════════════════
+
+ai_must:
+  - "ALWAYS follow priority order: open_area > destination > current_area"
+  - "ALWAYS treat Istanbul/Canakkale as transit (not valid destinations)"
+  - "ALWAYS treat Tuzla as dry dock (+30 days)"
+  - "ALWAYS exclude Istanbul/Canakkale from P4 top_ports analysis"
+  - "ALWAYS add +7 days to destination ETA for operations"
+  - "ALWAYS add warning if vessel in/heading to Tuzla"
+
+ai_must_not:
+  - "Never use Istanbul/Canakkale as opening position"
+  - "Never count Istanbul/Canakkale in P4 port experience"
+  - "Never assume vessel ready at destination ETA without operations buffer"
+  - "Never ignore Tuzla dry dock implications"
+
+# ═══════════════════════════════════════════════════════════════════
+# END OF VESSEL LOCATION DETERMINATION v2.0
+# ═══════════════════════════════════════════════════════════════════
