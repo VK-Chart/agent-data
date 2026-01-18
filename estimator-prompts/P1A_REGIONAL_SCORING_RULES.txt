@@ -1,0 +1,464 @@
+# ═══════════════════════════════════════════════════════════════════
+# P1A: REGIONAL TRADE PATTERNS - EXPLICIT SCORING RULES
+# VK Charts AI Scoring System
+# ═══════════════════════════════════════════════════════════════════
+#
+# CRITICAL: This file provides EXPLICIT scoring rules for P1A criterion
+# AI must use these rules instead of making assumptions about trade patterns
+#
+# Maximum Score: 15 points
+# Confidence Range: 60-90%
+#
+# ═══════════════════════════════════════════════════════════════════
+
+version: "2.0"
+date: "2026-01-19"
+priority: "CRITICAL - Regional patterns are complex and require explicit rules"
+
+# ═══════════════════════════════════════════════════════════════════
+# OVERVIEW
+# ═══════════════════════════════════════════════════════════════════
+
+purpose: |
+  Regional trade patterns reflect:
+  - Economic viability of vessel positioning
+  - Availability of backhaul cargoes
+  - Geopolitical restrictions (sanctions, war zones)
+  - Cost structures (canal fees, ballast costs)
+  - Historical trade flows and market practices
+  
+  AI MUST use explicit scoring rules from this file, not general assumptions.
+
+# ═══════════════════════════════════════════════════════════════════
+# SCORING METHODOLOGY
+# ═══════════════════════════════════════════════════════════════════
+
+scoring_approach: |
+  1. Identify vessel's opening region/port
+  2. Identify cargo loading region
+  3. Match pattern to scoring table below
+  4. Apply vessel size adjustments if needed
+  5. Consider special cases (Danube, Russian ports, etc.)
+
+# ═══════════════════════════════════════════════════════════════════
+# EXPLICIT SCORING TABLE - PRIMARY PATTERNS
+# ═══════════════════════════════════════════════════════════════════
+
+primary_trade_patterns:
+
+  # ─────────────────────────────────────────────────────────────────
+  # BLACK SEA PATTERNS (Coasters & Small Handy)
+  # ─────────────────────────────────────────────────────────────────
+  
+  black_sea_to_marmara:
+    vessel_opens: "Black Sea (POC, Danube, Constanta area)"
+    cargo_loads: "Black Sea"
+    cargo_discharges: "Marmara Sea (Turkey)"
+    vessel_sizes: ["Small Coaster", "Coaster", "Small Handy"]
+    score: 15
+    confidence: 90
+    reasoning: |
+      This is THE primary trade pattern for Black Sea coasters.
+      POC grain/minerals to Turkish/Marmara ports is the backbone trade.
+    examples:
+      - "Chornomorsk → Yarimca"
+      - "Odessa → Istanbul (Marmara)"
+      - "Constanta → Derince"
+      
+  black_sea_to_mediterranean:
+    vessel_opens: "Black Sea"
+    cargo_loads: "Black Sea"
+    cargo_discharges: "Mediterranean (Libya, Egypt, Lebanon, Israel)"
+    vessel_sizes: ["Coaster", "Small Handy"]
+    score: 14
+    confidence: 90
+    reasoning: |
+      Standard export route for Black Sea grain and minerals.
+      Slightly less common than Marmara but still core business.
+    examples:
+      - "Chornomorsk → Alexandria"
+      - "Constanta → Tripoli"
+      
+  black_sea_internal:
+    vessel_opens: "Black Sea"
+    cargo_loads: "Black Sea"
+    cargo_discharges: "Black Sea"
+    vessel_sizes: ["Small Coaster", "Coaster"]
+    score: 13
+    confidence: 85
+    reasoning: |
+      Internal Black Sea trades - less common than export routes.
+      Examples: Bulgaria to Romania, Georgia coastal trades.
+
+  # ─────────────────────────────────────────────────────────────────
+  # BACKHAUL PATTERNS (High Favorability)
+  # ─────────────────────────────────────────────────────────────────
+  
+  aegean_to_black_sea:
+    vessel_opens: "Aegean Sea"
+    cargo_loads: "Black Sea (POC, Danube)"
+    vessel_sizes: ["Small Coaster", "Coaster", "Small Handy"]
+    score: 12
+    confidence: 90
+    reasoning: |
+      STRONG backhaul pattern. Vessels commonly discharge in Aegean
+      (Turkish Aegean ports, Greek ports) and return to Black Sea for loading.
+      This is a well-established trade flow.
+    examples:
+      - "Aliaga → Chornomorsk"
+      - "Piraeus → Constanta"
+    citations:
+      - "Correction: Aegean vessels commonly find backhaul to Black Sea"
+      
+  adriatic_to_black_sea:
+    vessel_opens: "Adriatic Sea"
+    cargo_loads: "Black Sea (POC, Danube)"
+    vessel_sizes: ["Small Coaster", "Coaster", "Small Handy"]
+    score: 12
+    confidence: 90
+    reasoning: |
+      STRONG backhaul pattern due to LACK of Adriatic backhaul cargoes.
+      After discharging in Adriatic ports (Italy, Croatia, Albania),
+      vessels commonly ballast to Black Sea as there are limited 
+      outbound cargoes from Adriatic region.
+    examples:
+      - "Rijeka → Chornomorsk"
+      - "Bar → Constanta"
+    citations:
+      - "Correction: Adriatic vessels often ballast to Black Sea due to lack of backhaul"
+      
+  east_med_to_black_sea:
+    vessel_opens: "East Mediterranean"
+    cargo_loads: "Black Sea (POC, Danube)"
+    vessel_sizes: ["Coaster", "Small Handy"]
+    score: 11
+    confidence: 85
+    reasoning: |
+      Common backhaul pattern. After discharging in East Med ports
+      (Egypt, Libya, Lebanon, Israel), many vessels return to Black Sea.
+      Strong backhaul market exists.
+    examples:
+      - "Alexandria → Chornomorsk"
+      - "Mersin → Constanta"
+    citations:
+      - "Correction: East Med vessels commonly return to Black Sea for backhaul"
+
+  # ─────────────────────────────────────────────────────────────────
+  # DANUBE-SPECIFIC PATTERNS (Complex Economics)
+  # ─────────────────────────────────────────────────────────────────
+  
+  danube_port_to_poc:
+    vessel_opens: "Danube River ports (Braila, Reni, Izmail, Giurgiulesti)"
+    vessel_opens_NOT: "Sulina Anchorage"
+    cargo_loads: "POC (Chornomorsk, Pivdennyi, Odessa)"
+    vessel_sizes: ["Small Coaster", "Coaster"]
+    score: 8
+    confidence: 90
+    reasoning: |
+      SECONDARY option. If vessel is already IN Danube port, it has
+      paid high costs to enter (Sulina Bar transit fees, pilotage).
+      Owners will PREFER to find cargo FROM Danube ports first to
+      recoup these entry costs. Shifting to POC is possible but not ideal.
+    key_principle: "Already paid Danube entry costs → seeks Danube cargo first"
+    examples:
+      - "Vessel at Braila → Chornomorsk loading"
+      - "Vessel at Izmail → Chornomorsk loading"
+    citations:
+      - "Correction 1 (akdeniz): Danube vessels prefer Danube cargo to offset Sulina costs"
+      
+  sulina_anchorage_to_poc:
+    vessel_opens: "Sulina Anchorage"
+    cargo_loads: "POC (Chornomorsk, Pivdennyi, Odessa)"
+    vessel_sizes: ["Small Coaster", "Coaster"]
+    score: 14
+    confidence: 90
+    reasoning: |
+      HIGH favorability. Sulina is a WAITING AREA / ANCHORAGE where
+      vessels wait for either:
+      a) Entry into Danube River, OR
+      b) Direct call to POC ports
+      
+      From Sulina, POC and Danube are EQUAL choices - vessel has not
+      yet committed to either direction. Distance to POC is minimal (~80nm).
+    key_principle: "Sulina = neutral waiting area, POC and Danube equally viable"
+    examples:
+      - "Vessel at Sulina anchorage → Chornomorsk"
+    citations:
+      - "Correction 3 (eleanora): Sulina vessels can proceed to POC or Danube equally"
+      
+  heading_to_danube_to_poc:
+    vessel_opens: "In transit, destination = Danube port"
+    cargo_loads: "POC (Chornomorsk, Pivdennyi, Odessa)"
+    vessel_sizes: ["Small Coaster", "Coaster"]
+    score: 7
+    confidence: 85
+    reasoning: |
+      LOW favorability. If vessel is HEADING TO (destination set to)
+      a Danube port, it indicates owners have already chosen to enter
+      Danube. Redirecting to POC is possible but requires changing plans.
+    key_principle: "Vessel already committed to Danube direction"
+    examples:
+      - "Vessel heading to Izmail → Chornomorsk loading"
+    warning: |
+      AI should also ask owner to clarify if vessel is really opening
+      in Danube or if it's loading there and will open elsewhere.
+
+  # ─────────────────────────────────────────────────────────────────
+  # GEOPOLITICAL RESTRICTIONS
+  # ─────────────────────────────────────────────────────────────────
+  
+  russian_black_sea_to_ukraine:
+    vessel_opens: "Russian Black Sea (Novorossiysk, Kavkaz, Kerch, Taman)"
+    cargo_loads: "Ukraine (POC)"
+    vessel_sizes: ["ALL"]
+    score: 2
+    confidence: 90
+    reasoning: |
+      MINIMAL viability due to geopolitical situation (Russia-Ukraine war,
+      sanctions). Vessels opening in Russian Black Sea ports will seek
+      Russian cargoes. Extremely unlikely to position to Ukrainian ports.
+    key_principle: "Geopolitical barriers prevent Russian → Ukraine trades"
+    examples:
+      - "Novorossiysk → Chornomorsk (highly unlikely)"
+    citations:
+      - "Correction: Russian Black Sea vessels will seek Russian cargo, not Ukraine"
+      
+  ukraine_to_russian_black_sea:
+    vessel_opens: "Ukraine (POC)"
+    cargo_loads: "Russian Black Sea"
+    vessel_sizes: ["ALL"]
+    score: 2
+    confidence: 90
+    reasoning: |
+      Same geopolitical barriers apply in reverse direction.
+      Sanctions and war situation prevent normal trade flows.
+
+  # ─────────────────────────────────────────────────────────────────
+  # MEDIUM-DISTANCE PATTERNS
+  # ─────────────────────────────────────────────────────────────────
+  
+  west_med_to_black_sea:
+    vessel_opens: "West Mediterranean (Spain, France, Algeria, Morocco)"
+    cargo_loads: "Black Sea"
+    vessel_sizes: ["Coaster", "Small Handy"]
+    score: 8
+    confidence: 75
+    reasoning: |
+      Longer ballast leg (~2000nm) but viable for right freight rates.
+      More common for Small Handy size, less for pure coasters.
+    examples:
+      - "Barcelona → Chornomorsk"
+      
+  atlantic_to_black_sea:
+    vessel_opens: "Atlantic (Portugal, UK, Morocco Atlantic coast)"
+    cargo_loads: "Black Sea"
+    vessel_sizes: ["Small Handy", "Handy"]
+    score: 6
+    confidence: 70
+    reasoning: |
+      Long ballast (~3000nm). Requires strong freight incentive.
+      Only viable for larger vessels or exceptional market conditions.
+      
+  west_africa_to_black_sea:
+    vessel_opens: "West Africa (Senegal, Ivory Coast, Ghana, Nigeria)"
+    cargo_loads: "Black Sea"
+    vessel_sizes: ["Coaster"]
+    score: 0
+    confidence: 90
+    reasoning: |
+      Commercially non-viable for coasters. Distance ~4200nm creates
+      prohibitive ballast costs. Would only occur for larger vessels
+      or very exceptional circumstances.
+    examples:
+      - "Dakar → Chornomorsk (not viable for 7k coaster)"
+    citations:
+      - "Correction 7 (ak beauty): West Africa ballast non-viable for coaster"
+
+# ═══════════════════════════════════════════════════════════════════
+# VESSEL SIZE ADJUSTMENTS
+# ═══════════════════════════════════════════════════════════════════
+
+vessel_size_adjustments:
+  
+  principle: |
+    Larger vessels can absorb longer ballast legs due to:
+    - Higher earning potential per voyage
+    - Lower ballast cost as % of revenue
+    - More strategic positioning behavior
+  
+  adjustment_multipliers:
+    description: |
+      For patterns with distance-based scoring penalties,
+      apply these multipliers based on vessel size:
+    
+    small_coaster_3_6k:
+      range: "3000-6000 DWT"
+      multiplier: 0.8
+      effect: "MORE sensitive to distance - reduce score by 20%"
+      
+    coaster_6_8k:
+      range: "6000-8000 DWT"
+      multiplier: 1.0
+      effect: "BASELINE - no adjustment"
+      
+    small_handy_8_17k:
+      range: "8000-17000 DWT"
+      multiplier: 1.15
+      effect: "LESS sensitive - increase score by 15%"
+      
+    handy_17_24k:
+      range: "17000-24000 DWT"
+      multiplier: 1.3
+      effect: "Much less sensitive - increase score by 30%"
+      
+    large_handy_plus:
+      range: "24000+ DWT"
+      multiplier: 1.5
+      effect: "Least sensitive - increase score by 50%"
+  
+  application_example:
+    pattern: "Adriatic to Black Sea"
+    base_score: 12
+    
+    for_small_coaster:
+      calculation: "12 × 0.8 = 9.6"
+      final_score: 10
+      
+    for_coaster:
+      calculation: "12 × 1.0 = 12"
+      final_score: 12
+      
+    for_small_handy:
+      calculation: "12 × 1.15 = 13.8"
+      final_score: 14
+      
+    for_handy:
+      calculation: "12 × 1.3 = 15.6"
+      final_score: 15
+      
+  patterns_requiring_adjustment:
+    - "adriatic_to_black_sea"
+    - "east_med_to_black_sea"
+    - "aegean_to_black_sea"
+    - "west_med_to_black_sea"
+    - "atlantic_to_black_sea"
+    
+  patterns_NOT_requiring_adjustment:
+    - "black_sea_to_marmara" (already optimal)
+    - "sulina_anchorage_to_poc" (very short distance)
+    - "russian_black_sea_to_ukraine" (geopolitical, not economic)
+
+# ═══════════════════════════════════════════════════════════════════
+# SPECIAL CONSIDERATIONS
+# ═══════════════════════════════════════════════════════════════════
+
+special_rules:
+  
+  mediterranean_internal_trades:
+    description: |
+      For Med → Med trades (e.g., Egypt → Turkey, Libya → Italy):
+    score_range: "11-13"
+    reasoning: "Regional trade, economically viable but not as strong as Black Sea export routes"
+    
+  marmara_internal_trades:
+    description: |
+      Turkish Marmara → Turkish Marmara or Aegean
+    score_range: "12-13"
+    reasoning: "Turkish domestic trades, common for coasters"
+    
+  positioning_after_discharge:
+    description: |
+      If vessel has a known discharge port with ETA, and cargo loading
+      is in a different region, consider the DISCHARGE port as the
+      effective opening position for P1A scoring.
+    example: |
+      Vessel: "Current area: Aegean, Destination: Mersin (ETA Jan 25)"
+      Cargo: Loads from Chornomorsk (Feb 5)
+      
+      Apply: "east_med_to_black_sea" pattern (score: 11)
+      NOT: "aegean_to_black_sea" (vessel will be in East Med when ready)
+
+# ═══════════════════════════════════════════════════════════════════
+# AI REASONING TEMPLATES
+# ═══════════════════════════════════════════════════════════════════
+
+reasoning_templates:
+  
+  template_strong_pattern:
+    score_range: "12-15"
+    format: |
+      "[Opening Region] to [Loading Region] is a [strong/primary] trade pattern 
+      for [vessel size] vessels. [Specific reasoning: backhaul availability / 
+      core trade route / etc.]"
+    example: |
+      "Aegean to Black Sea is a strong backhaul pattern for Coaster vessels. 
+      Many vessels discharge in Turkish Aegean ports and return to Black Sea 
+      for grain loading."
+      
+  template_secondary_pattern:
+    score_range: "7-11"
+    format: |
+      "[Opening Region] to [Loading Region] is a [viable/secondary] option for 
+      [vessel size]. [Specific challenges: distance / economics / alternatives]"
+    example: |
+      "Danube port to POC is a secondary option. Vessel has already paid Sulina 
+      transit costs and will prioritize finding cargo from Danube ports first."
+      
+  template_weak_pattern:
+    score_range: "0-6"
+    format: |
+      "[Opening Region] to [Loading Region] is [unfavorable/unlikely] due to 
+      [specific reason: distance / geopolitics / economics]"
+    example: |
+      "Russian Black Sea to Ukraine is highly unlikely due to geopolitical 
+      situation (sanctions, war). Vessel will seek Russian cargoes instead."
+
+# ═══════════════════════════════════════════════════════════════════
+# CRITICAL AI INSTRUCTIONS
+# ═══════════════════════════════════════════════════════════════════
+
+ai_must:
+  - "ALWAYS check this file for explicit pattern matches before scoring P1A"
+  - "NEVER assume a pattern is good/bad without checking explicit rules"
+  - "Apply vessel size adjustments for distance-based patterns"
+  - "Consider special cases (Danube, Russian ports, discharge positioning)"
+  - "Cite specific pattern name in reasoning (e.g., 'aegean_to_black_sea pattern')"
+  - "If pattern not found in this file, use conservative middle score (8-10) and note uncertainty"
+
+ai_must_not:
+  - "Never assume 'close distance = automatically good regional pattern'"
+  - "Never ignore Danube economics (Sulina costs matter!)"
+  - "Never ignore geopolitical restrictions (Russia-Ukraine)"
+  - "Never use vague reasoning like 'regional trade is good' - be specific"
+
+# ═══════════════════════════════════════════════════════════════════
+# CONFIDENCE LEVELS
+# ═══════════════════════════════════════════════════════════════════
+
+confidence_guidelines:
+  
+  high_confidence_90:
+    when: "Pattern explicitly defined in this file with clear examples"
+    patterns:
+      - "black_sea_to_marmara"
+      - "sulina_anchorage_to_poc"
+      - "russian_black_sea_to_ukraine"
+      - "aegean_to_black_sea"
+      - "adriatic_to_black_sea"
+      
+  medium_confidence_85:
+    when: "Pattern defined but with some variability in market conditions"
+    patterns:
+      - "danube_port_to_poc"
+      - "east_med_to_black_sea"
+      - "heading_to_danube_to_poc"
+      
+  lower_confidence_70_75:
+    when: "Longer distance patterns, market-dependent, or edge cases"
+    patterns:
+      - "west_med_to_black_sea"
+      - "atlantic_to_black_sea"
+
+# ═══════════════════════════════════════════════════════════════════
+# END OF P1A REGIONAL SCORING RULES
+# ═══════════════════════════════════════════════════════════════════
