@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'estimator-prompts/**' # Only runs when files in the prompts folder change
+      - 'generalist-prompts/fast-offer/**' # Only runs when files in the prompts folder change
   workflow_dispatch: # Allows manual triggering
 
 permissions:
@@ -21,6 +22,7 @@ jobs:
           mkdir -p output
           # Clear the file if it exists
           echo "" > output/final_prompt.txt
+          echo "" > output/fast_offer_prompt.txt
           
           # Loop through all files in the prompts directory
           # We sort them alphabetically to ensure a consistent structure
@@ -28,6 +30,12 @@ jobs:
             echo "--- START OF $file ---" >> output/final_prompt.txt
             cat "$file" >> output/final_prompt.txt
             echo -e "\n" >> output/final_prompt.txt
+          done
+
+          for file in $(ls generalist-prompts/fast-offer/* | sort); do
+            echo "--- START OF $file ---" >> output/fast_offer_prompt.txt
+            cat "$file" >> output/fast_offer_prompt.txt
+            echo -e "\n" >> output/fast_offer_prompt.txt
           done
           
           echo "Merging complete."
@@ -37,6 +45,13 @@ jobs:
         with:
           name: compressed-prompt
           path: output/final_prompt.txt
+          
+      - name: Upload Fast Offer Prompt
+        uses: actions/upload-artifact@v4
+        with:
+          name: compressed-fast-offer-prompt
+          path: output/fast_offer_prompt.txt
+
 
       # Optional: Push the merged file back to a 'build' branch 
       # so your Agents/Laravel can fetch it via URL
