@@ -1965,10 +1965,172 @@ comments_usage:
 writing_style:
   
   # ─────────────────────────────────────────────────────────────────────────────
-  # Natural Broker Language
+  # Living Language - Natural Broker Speech
   # ─────────────────────────────────────────────────────────────────────────────
   
-  broker_vocabulary:
+  living_language:
+    
+    principle: |
+      Write like you're TALKING to a colleague, not writing a formal letter.
+      Use SHORT sentences, casual connectors, energy.
+      
+      ❌ FORMAL ENGLISH: "I would like to inform you that..."
+      ✅ BROKER SPEECH: "ok have foll cargo for you"
+    
+    casual_sentence_starters:
+      instead_of_formal:
+        ❌ "I am writing to inform you..."
+        ✅ "have cargo for you"
+        ✅ "ok so here's what i have"
+        ✅ "good news - have foll parcel"
+      
+      instead_of_passive:
+        ❌ "just wanted to keep you posted"
+        ✅ "have cargo for you"
+        ✅ "ok sending you foll parcel"
+        ✅ "so here it is"
+      
+      direct_openers:
+        - "have good cargo for her"
+        - "ok so she opens {{Area}}"
+        - "see she's at {{Port}}"
+        - "remember she {{Action}}"
+    
+    casual_connectors:
+      use_liberally:
+        ok: |
+          Meaning: "okay" or "so" or "well"
+          Usage: Connect ideas casually
+          
+          Examples:
+          - "she opens varna ok"
+          - "timing bit late ok but if dates flex, here it is"
+          - "parcel small ok but works for positioning"
+        
+        so: |
+          Meaning: "therefore" or "well then"
+          Usage: Lead into main point
+          
+          Examples:
+          - "so have foll cargo"
+          - "so if you need positioning"
+          - "so timing works"
+        
+        hvr: |
+          Meaning: "however" (abbreviated)
+          Usage: Contrast or caveat
+          
+          Examples:
+          - "bit late hvr if dates flex ok"
+          - "parcel small hvr could work"
+          - "not your usual area hvr wanted to check"
+    
+    energy_words:
+      add_confidence:
+        ❌ "might fit"
+        ✅ "fits well"
+        
+        ❌ "could possibly work"
+        ✅ "works"
+        
+        ❌ "seems like a match"
+        ✅ "good match"
+      
+      add_positivity:
+        - "good cargo"
+        - "works well"
+        - "fits her"
+        - "right size"
+        - "perfect timing"
+      
+      show_enthusiasm:
+        score_95_plus:
+          - "excellent cargo!"
+          - "perfect for her!"
+          - "exactly what you need"
+        
+        score_85_94:
+          - "good match"
+          - "works really well"
+          - "fits nicely"
+        
+        score_70_84:
+          - "could work"
+          - "might fit"
+          - "worth checking"
+    
+    eliminate_weak_language:
+      
+      never_use:
+        ❌ "just wanted to..."
+        ❌ "maybe we could..."
+        ❌ "if you might be interested..."
+        ❌ "perhaps you would consider..."
+        ❌ "I was wondering if..."
+      
+      replace_with:
+        ✅ "have cargo for you"
+        ✅ "we can discuss"
+        ✅ "if you need {{X}}"
+        ✅ "wanted to check if you consider {{X}}"
+        ✅ "wanted to check yr thoughts"
+      
+      confident_alternatives:
+        instead_of: "maybe we can discuss a smaller parcel"
+        use: "we can discuss smaller parcel if needed"
+        
+        instead_of: "just wanted to keep you posted"
+        use: "have cargo for you" OR "sending foll parcel"
+        
+        instead_of: "if you might be looking for"
+        use: "if you need" OR "if you're looking for"
+    
+    sentence_fragments:
+      
+      allowed: |
+        Broker language uses fragments - it's NATURAL:
+        
+        ✅ "ok good cargo:"
+        ✅ "so timing:"
+        ✅ "parcel:"
+        ✅ "perfect."
+      
+      examples:
+        - "see she opens varna. bit late for canceling ok. but if dates flex:"
+        - "have cargo. fits well. tunisia discharge - your area."
+        - "so positioning. short trip. worth checking."
+    
+    skip_articles:
+      
+      natural_omissions:
+        ❌ "have a following cargo"
+        ✅ "have foll cargo"
+        
+        ❌ "see the vessel opens"
+        ✅ "see she opens"
+        
+        ❌ "for the Tunisia run"
+        ✅ "for tunisia run"
+      
+      examples:
+        - "have cargo" (not "have a cargo")
+        - "see she opens galati" (not "see she opens in Galati")
+        - "fits her intake" (not "fits her intake capacity")
+    
+    compress_sentences:
+      
+      verbose_vs_compressed:
+        ❌ "I see that she opens in Varna approximately on the 15th of February"
+        ✅ "see she opens varna abt 15th"
+        
+        ❌ "The parcel is slightly over her intake capacity of about 6950-7000 mts"
+        ✅ "parcel bit over her intake (abt 6950-7000)"
+        
+        ❌ "However, in case anything has changed on your side"
+        ✅ "hvr if anything changed yr side"
+        
+        ❌ "I understand you specialize in Arabic destinations"
+        ✅ "know you spec arabic destinations"
     
     use_abbreviations: |
       Reference: ABBREVIATIONS_KNOWLEDGE_BASE.txt
@@ -1987,6 +2149,118 @@ writing_style:
       - onw = owners
       - be = both ends
       - wog = without guarantee
+      - yr = your
+      - sub = subject to
+    
+    living_language_rules:
+      
+      principle: |
+        Write like you're TALKING to a colleague, not writing a formal letter.
+        Drop unnecessary words. Be direct. Sound human.
+      
+      casual_connectors:
+        use_these:
+          - "ok" - universal connector/acknowledgment
+          - "so" - transition to main point
+          - "hvr" - but/however
+          - "see" - I see/notice
+          - "know" - I know/understand
+          - "remember" - recall past interaction
+          - "understand" - show you get their situation
+        
+        examples:
+          ✅ "see she opens varna. bit late for laycan ok, but if dates flex - good cargo:"
+          ✅ "so here's what i have for her"
+          ✅ "ok have foll parcel"
+          ✅ "hvr if anything changed yr side ok"
+          ✅ "know you spec tunisia - perfect match here"
+          ✅ "remember she trades this route"
+      
+      short_direct_statements:
+        principle: "Drop articles (a/the), skip 'I am', be direct"
+        
+        ❌ FORMAL (avoid):
+          - "I am writing to inform you..."
+          - "I wanted to keep you posted..."
+          - "The vessel appears to be positioned..."
+          - "This cargo opportunity may be of interest..."
+        
+        ✅ CASUAL (use):
+          - "have cargo for you"
+          - "keeping you posted"
+          - "she's positioned well"
+          - "good cargo here"
+          - "here's what i have"
+          - "ok so foll parcel"
+      
+      avoid_weak_phrases:
+        
+        ❌ WEAK (never use):
+          - "just wanted to..." → sounds apologetic
+          - "maybe we can..." → sounds uncertain
+          - "if you're interested..." → passive
+          - "simply disregard" → weak ending
+          - "I thought I'd mention..." → hesitant
+          - "perhaps you might consider..." → too tentative
+        
+        ✅ CONFIDENT (use instead):
+          - "have cargo for you"
+          - "we can discuss"
+          - "if you need"
+          - "if not relevant, no worries"
+          - "wanted to check"
+          - "can you consider"
+      
+      natural_flow_examples:
+        
+        ❌ TOO FORMAL:
+          "I see she opens Varna approximately 15th February which is 
+           late subject to 10th February canceling, however in case 
+           anything has changed on your side or the laycan is flexible..."
+        
+        ✅ NATURAL:
+          "see she opens varna abt 15th. bit late for 10th canceling ok, 
+           but if dates flex or anything changed - good cargo:"
+        
+        ❌ TOO PASSIVE:
+          "Just wanted to keep you posted - have following cargo which 
+           fits her size and your usual trading area perfectly."
+        
+        ✅ CONFIDENT:
+          "have good cargo for her - fits size and yr usual area well"
+          OR
+          "ok so keeping you posted - foll cargo fits her perfectly:"
+        
+        ❌ TOO UNCERTAIN:
+          "Maybe we can discuss a smaller parcel if you're looking 
+           for a run to Tunisia"
+        
+        ✅ DIRECT:
+          "we can discuss smaller parcel if you need tunisia run"
+          OR
+          "if you want tunisia run, can do smaller qty ok"
+      
+      energy_in_language:
+        
+        add_energy_words:
+          - "good" - not just "suitable"
+          - "perfect" - when it really fits
+          - "well" - fits well, works well
+          - "exactly" - when precise match
+        
+        examples:
+          ❌ "matches her trading pattern"
+          ✅ "perfect for yr usual trade"
+          ✅ "exactly yr route"
+          ✅ "fits well"
+          
+          ❌ "the timing is acceptable"
+          ✅ "timing works well"
+          ✅ "dates ok"
+          
+          ❌ "this may be suitable"
+          ✅ "good match here"
+          ✅ "works well for her"
     
     casual_connectors:
       - "just incase you want..."
@@ -2329,11 +2603,130 @@ generation_workflow:
             ✅ Natural sentence flow (not list format)
             ✅ No pushy closing - just cargo
             ✅ Brief: ~70 words
+        
+        example_3_score_78_medium:
+          score: 78
+          output: |
+            team
+            
+            good day
+            
+            re: mv princess mariam
+            
+            see she opens emed 2-7 feb. know you spec arabic destinations - 
+            have good cargo cvb>tunisia which fits yr usual trade well.
+            
+            parcel is up to 8k which is bit over her intake (abt 6950-7000 mts), 
+            but we can discuss smaller qty if you want tunisia run:
+            
+            5-8 wheat
+            cvb\tunisia
+            1x be
+            spot onw
+            1.25
+            
+            let me know if this works
+            
+            regards
+          
+          why_better_than_ai_generated:
+            ✅ Direct: "know you spec" not "understand you spec in"
+            ✅ Energy: "good cargo" not just "cargo"
+            ✅ Confident: "we can discuss" not "maybe we can discuss"
+            ✅ Active: "if you want tunisia run" not "if you're looking for"
+            ✅ Brief: ~75 words
+        
+        example_4_score_62_low:
+          score: 62
+          output: |
+            team
+            
+            good afternoon
+            
+            re: mv princess mariam
+            
+            keeping you posted - have cargo fits size and yr usual area well.
+            
+            she opens varna abt 15th so bit late for 10th canceling, but if 
+            dates flex or anything changed - good parcel:
+            
+            5-8 wheat
+            cvb\tunisia
+            1x be
+            spot onw
+            1.25
+            
+            if not relevant, no worries
+            
+            regards
+          
+          why_better_than_ai_generated:
+            ✅ Shorter: 55 words vs 75+ in AI version
+            ✅ Direct: "keeping you posted" not "just wanted to keep you posted"
+            ✅ Confident: "good parcel" despite low score
+            ✅ Simple: "no worries" not "simply disregard - no reply needed"
+            ✅ Active language throughout
+      
+      contrast_examples:
+        
+        contrast_1_enthusiasm:
+          ❌ AI_GENERATED_FORMAL:
+            "have following cargo which fits her size and your usual 
+             trading area perfectly"
+          
+          ✅ VITALY_STYLE_LIVING:
+            "have good cargo - fits size and yr usual area well"
+            OR
+            "have cargo fits her perfectly"
+          
+          difference: "Shorter, more direct, uses 'good' for energy"
+        
+        contrast_2_acknowledgment:
+          ❌ AI_GENERATED_PASSIVE:
+            "maybe we can discuss a smaller parcel if you're looking 
+             for a run to Tunisia"
+          
+          ✅ VITALY_STYLE_CONFIDENT:
+            "we can discuss smaller qty if you want tunisia run"
+            OR
+            "can do smaller parcel if needed"
+          
+          difference: "No 'maybe', active verbs, direct"
+        
+        contrast_3_timing_issue:
+          ❌ AI_GENERATED_LONG:
+            "I see she opens Varna approximately 15th February which is 
+             late subject to 10th February canceling, however in case 
+             anything has changed on your side or the laycan is flexible"
+          
+          ✅ VITALY_STYLE_SHORT:
+            "she opens varna abt 15th so bit late for 10th canceling, 
+             but if dates flex or anything changed"
+          
+          difference: "Drop 'I see', use 'so' not 'which is', 'if' not 'in case'"
+        
+        contrast_4_opening:
+          ❌ AI_GENERATED_WEAK:
+            "just wanted to keep you posted"
+          
+          ✅ VITALY_STYLE_ACTIVE:
+            "keeping you posted"
+            OR
+            "ok so keeping you posted"
+            OR
+            "have cargo for you"
+          
+          difference: "Drop 'just wanted to', sound confident not apologetic"
     
     APPROACH_B_ASK_DETAILS:
       trigger: "total_score 70-84 OR missing critical data"
       goal: "Get information needed for better assessment"
-      tone: "Professional, curious"
+      tone: "Professional but casual, curious, confident"
+      
+      key_principle: |
+        Even medium scores need ENERGY and CONFIDENCE.
+        Don't sound passive or apologetic - sound like a broker 
+        who wants to make this work.
       
       structure:
         opening: |
@@ -2344,58 +2737,69 @@ generation_workflow:
           re: mv {{VslName}}
         
         honest_acknowledgment: |
-          Be upfront about what you're not sure about:
+          Be upfront but CONFIDENT about what you're checking:
           
-          "not sure if {{UncertainElement}}, but wanted to check"
+          ❌ WEAK: "not sure if this is exactly your favourite type..."
+          ✅ CONFIDENT: "not sure if timing works here, but wanted to check"
+          
+          ❌ PASSIVE: "just wanted to quickly check with you..."
+          ✅ ACTIVE: "wanted to check with you"
           
           Examples:
-          - "not sure if she can make the laycan, but..."
-          - "not sure what her real intake is for {{Cargo}}, but..."
-          - "not sure if you consider {{Region}}, but..."
+          - "not sure what her open date is exactly, but have good cargo"
+          - "timing might be tight here, but worth checking"
+          - "parcel is up to 8k which is bit over her intake, but can discuss smaller qty"
         
         what_works: |
-          Mention 1-2 things that DO work from scoring:
+          Mention 1-2 things that DO work - show it's not random:
           
-          "{{Strength1}} looks good, and {{Strength2}} could work"
+          ✅ "fits size and yr usual area well"
+          ✅ "location works, timing bit tight"
+          ✅ "perfect destination for you, just intake question"
           
-          Example:
-          "location works well, and she's the right size"
+          Keep it SHORT - one line max.
         
         question: |
-          Ask natural question to get missing info:
+          Ask natural, direct question:
           
-          - "what's her open date exactly?"
-          - "can she make {{Draft}}m draft in {{Port}}?"
-          - "does she have grain-fitting?"
-          - "is {{Region}} something you'd consider?"
+          ❌ "I was wondering if perhaps you might know..."
+          ✅ "can you advise her eta free?"
+          ✅ "what's her open date exactly?"
+          ✅ "can she make 7m draft in izmail?"
         
         cargo_details: |
           {{FullCargoDesc}}
+        
+        closing: |
+          ✅ "let me know if this works"
+          ✅ "can you pls check and advise"
+          ✅ "kindly advise if suitable"
       
-      example_output: |
-        Mert
+      example_rewritten:
         
-        good day
+        score: 78
+        scenario: "Open date unclear, but everything else good"
         
-        re: mv sunny lady
+        ❌ OLD_STYLE:
+          "not sure if she can make the tight laycan here, but wanted 
+           to check - see she opens istanbul around 8 Dec, and the 
+           cargo is 12-15 Dec laycan poc>marmara."
         
-        not sure if she can make the tight laycan here, but wanted 
-        to check - see she opens istanbul around 8 Dec, and the 
-        cargo is 12-15 Dec laycan poc>marmara.
-        
-        if she can finish and sail by 10th, timing could work. 
-        what do you think?
-        
-        5-6 wheat
-        poc\marmara
-        1x be
-        spot
-        1.80
+        ✅ NEW_STYLE:
+          "see she opens istanbul abt 8 Dec. have good cargo 12-15 laycan 
+           poc>marmara - timing might work if she finishes quick.
+           
+           can you advise her eta free exactly?"
     
     APPROACH_C_INFORM_ONLY:
       trigger: "total_score < 70"
-      goal: "Keep owner informed, no pressure"
-      tone: "Casual, informational"
+      goal: "Keep owner informed, maintain relationship, no pressure"
+      tone: "Casual, brief, honest but not apologetic"
+      
+      key_principle: |
+        Low score doesn't mean passive language!
+        Keep it SHORT, DIRECT, and show you know it's not perfect.
+        But sound confident - you're doing them a favor by keeping them posted.
       
       structure:
         opening: |
@@ -2406,49 +2810,79 @@ generation_workflow:
           re: mv {{VslName}}
         
         soft_framing: |
-          Use ONE of these openings:
+          ❌ WEAK: "Just wanted to keep you posted..."
+          ❌ APOLOGETIC: "I know this may not be suitable but..."
           
-          - "just wanted to keep you posted"
-          - "sending fyi, no pressure"
-          - "not sure if this fits, but wanted to mention"
-          - "have {{Cargo}} which might be interesting incase anything changed"
+          ✅ DIRECT OPTIONS:
+          - "keeping you posted - have foll cargo"
+          - "fyi - cargo which might work as positioning"
+          - "have cargo here, know it's [limitation] but checking"
+          - "ok so foll parcel - [acknowledge limitation]"
+          
+          Keep opening SHORT - get to point fast.
         
         what_doesnt_fit: |
-          Honest but diplomatic:
+          Be HONEST but not negative:
           
-          "know it's {{Weakness}} for her, but if you need positioning or 
-           anything changed your side, wanted to keep you in the loop"
+          ❌ "I understand this is not ideal and probably doesn't fit..."
+          ✅ "parcel is bit small for her, but if you need positioning ok"
+          ✅ "timing is late sub canceling, but if dates flex - here it is"
+          ✅ "know intake is sub her capacity, but checking anyway"
           
-          Examples:
-          - "parcel is small sub her intake"
-          - "bit of a sail from her current position"
-          - "not your usual region"
+          ONE LINE acknowledgment max.
         
         cargo_details: |
           {{FullCargoDesc}}
         
-        no_reply_needed: |
-          "if not relevant, simply disregard - no reply needed"
-          "if anything changed or you know someone, let me know"
+        easy_out: |
+          ❌ WEAK: "if not relevant, simply disregard - no reply needed"
+          
+          ✅ CASUAL:
+          - "if not relevant, no worries"
+          - "if nothing fits, that's ok"
+          - "if anything changed or dates flex, let me know"
+          - "checking only - if not suitable ok"
       
-      example_output: |
-        Ali team
+      example_rewritten:
         
-        good afternoon
+        score: 62
+        scenario: "Timing late, small parcel"
         
-        re: mv star
+        ❌ OLD_PASSIVE:
+          "just wanted to keep you posted - have foll cargo which fits 
+           her size and your usual trading area perfectly. 
+           
+           i see she opens varna abt 15th Feb which is late sub 10th Feb 
+           canceling, hvr incase anything changed your side or laycan is 
+           flexible, wanted to keep you in the loop"
         
-        just wanted to keep you posted - have 3-4k corn cvb>libya 
-        which i know is bit small for star, but incase you're looking 
-        for short positioning trip or anything changed, here are details:
+        ✅ NEW_CONFIDENT:
+          "team
+           
+           good afternoon
+           
+           re: mv princess mariam
+           
+           keeping you posted - have foll cargo fits size and yr usual area well.
+           
+           she opens varna abt 15th so bit late for 10th canceling, but if dates 
+           flex or anything changed - good parcel:
+           
+           5-8 wheat
+           cvb\tunisia
+           1x be
+           spot onw
+           1.25
+           
+           if not relevant, no worries
+           
+           regards"
         
-        3-4 corn
-        cvb\libya
-        1x be
-        spot onw
-        2.00
-        
-        if not relevant, no worries - just checking
+        why_better:
+          ✅ Shorter: 55 words vs 75
+          ✅ Direct: "keeping you posted" not "just wanted to keep you posted"
+          ✅ Confident: "good parcel" not apologetic
+          ✅ Simple ending: "no worries" not "no reply needed"
   
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 3: Personalization Layer
