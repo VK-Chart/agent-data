@@ -275,8 +275,8 @@ comments_usage:
       example: "prefers WhatsApp communication, responds fast"
       
       how_to_use: |
-        Adapt channel selection (email vs messenger)
-        Adapt tone (formal vs casual)
+        Track for future Phase 2 (messenger offers)
+        For now - just note in metadata
   
   vessel_comments:
     
@@ -367,33 +367,77 @@ writing_style:
   
   emotional_elements:
     
-    enthusiasm_when_appropriate:
-      score_85_plus: |
-        Use positive, warm tone:
-        - "great match"
-        - "perfect fit"
-        - "really like this one for her"
-        - "your beautiful lady" (for known vessels)
+    enthusiasm_by_score:
+      score_95_plus:
+        tone: "Very enthusiastic, warm, confident"
+        allowed_elements:
+          - "emoticons: :) ;))"
+          - "'hot parcel', 'perfect!', 'exactly!'"
+          - "'yr good lady', 'yr beautiful lady'"
+          - "'all perfect for...'"
+        examples:
+          - "have a cargo with all perfect for yr good lady :)"
+          - "this is exactly what you're looking for!"
+          - "hot parcel for her ;))"
+        
+        reasoning: |
+          Score 95+ = EXCELLENT match. Show genuine excitement!
+          Owner should feel you're personally excited about this match.
       
-      score_70_84: |
-        Professional but warm:
-        - "good fit"
-        - "looks workable"
-        - "could make sense"
+      score_85_94:
+        tone: "Confident, professional, warm"
+        allowed_elements:
+          - "positive language: 'good match', 'works well'"
+          - "'your beautiful lady' (if known vessel)"
+          - "light casual: 'great monday time'"
+        avoid:
+          - "excessive emoticons (one :) max)"
+          - "'hot parcel' (save for 95+)"
+        examples:
+          - "have a good match for her"
+          - "works really well for your beautiful lady"
+      
+      score_70_84:
+        tone: "Professional, balanced"
+        allowed_elements:
+          - "'could work', 'might fit'"
+          - "honest acknowledgment of limitations"
+        avoid:
+          - "emoticons"
+          - "excessive enthusiasm"
+        examples:
+          - "could make sense for positioning"
+          - "not sure if this fits perfectly, but..."
+      
+      score_below_70:
+        tone: "Casual, informational, no pressure"
+        style: "Just keeping them informed"
+        examples:
+          - "just wanted to keep you posted"
+          - "if anything changed your side, let me know"
     
     honesty_when_needed:
       score_below_70: |
-        Honest and casual:
-        - "not sure if this works for you, but..."
-        - "wanted to keep you posted just incase"
+        Be upfront about limitations:
         - "know it's not ideal, but if you need positioning..."
+        - "parcel is bit small for her, but wanted to check"
+        - "not your usual region, but incase anything changed"
     
     informal_touches:
       appropriate_use: |
-        Use sparingly and naturally:
-        - Emoticons: ";))" only when score is high and relationship good
-        - Casual punctuation: "ok" instead of "okay"
-        - Friendly sign-offs: "hope your week started well"
+        Use emoticons ONLY when:
+        - Score is 95+
+        - OR relationship is very good (frequent contact)
+        - AND it fits the cultural context
+        
+        Examples:
+        - ":)" - simple smile for good news
+        - ";))" - playful wink for exceptional match
+        
+        NEVER use:
+        - "😊🎉" - too informal for business
+        - Multiple emoticons in one message
+        - Emoticons when score <95 (unless very familiar owner)
     
     greetings:
       reference: "HOLIDAYS_CALENDAR.yaml for cultural greetings"
@@ -419,10 +463,9 @@ writing_style:
       Every word must earn its place.
     
     target_lengths:
-      strong_match: "50-80 words"
-      medium_match: "60-100 words" 
-      weak_match: "30-50 words"
-      messenger: "30-60 words MAX"
+      strong_match_email: "50-80 words"
+      medium_match_email: "60-100 words" 
+      weak_match_email: "30-50 words"
     
     brevity_techniques:
       - Use abbreviations
@@ -468,8 +511,18 @@ generation_workflow:
     
     APPROACH_A_STRONG_OFFER:
       trigger: "total_score >= 85"
-      goal: "Generate interest and get freight idea"
-      tone: "Confident, enthusiastic"
+      goal: "Generate interest and show you understand their business"
+      
+      tone_by_score:
+        score_95_plus:
+          tone: "Very confident, enthusiastic, warm"
+          allowed: "emoticons :) ;)), 'perfect!', 'exactly!', 'hot parcel'"
+          style: "Show excitement - this is a great match!"
+        
+        score_85_94:
+          tone: "Confident, professional, warm"
+          allowed: "positive language, 'good match', 'works well'"
+          style: "Professional confidence without overdoing it"
       
       structure:
         opening: |
@@ -479,73 +532,157 @@ generation_workflow:
           
           re: mv {{VslName}}
         
-        hook: |
-          Choose ONE of:
+        hook_options: |
+          Choose based on what's most compelling from scoring:
           
-          Option 1 - Show you know the vessel:
-          "remember she opens {{OpenArea}}"
-          "see your beautiful lady is at {{CurrentPort}}"
+          Option 1 - Show vessel familiarity (if high relationship):
+          "yr good lady", "yr beautiful lady", "remember she..."
           
-          Option 2 - Show understanding of owner's plans:
-          "understand you will try to find cargo ex {{Region}}"
-          "know you're looking for {{CargoType}} runs"
+          Option 2 - Lead with value proposition (score 95+):
+          "have a cargo with all perfect for yr [vessel nickname]"
+          "have exactly what you're looking for"
           
-          Option 3 - Direct and confident:
-          "have a very good match for her"
-          "she looks perfect for the below parcel"
+          Option 3 - Show understanding of owner's business:
+          "understand you [owner pattern from comments]"
+          "know you spec [specialization]"
         
-        argumentation: |
-          Lead with STRONGEST argument from scoring:
+        argumentation_style: |
+          TWO APPROACHES - choose based on score and complexity:
           
-          If P1 high + P7 high:
-          → "she's well positioned and timing works perfectly"
+          APPROACH 1: STRUCTURED LIST (for score 95+ with multiple strengths)
+          Use DASH-PREFIXED list (NOT bullet points •):
           
-          If P5 perfect + P3 high:
-          → "perfect intake for {{Quantity}} and right cargo type for you"
+          "have a cargo with all perfect for yr good lady :)
+          -very small ballast ex sulina to cvb
+          -spot dates ok
+          -yr preferable destination
+          -intake of yr vsl (as i remember 6500-6600 mts) is ok"
           
-          If P1A high + P2 high:
-          → "natural backhaul to {{Region}} which you work regularly"
+          ✅ Use dashes "-" not bullets "•"
+          ✅ Keep each line SHORT (3-8 words)
+          ✅ Lead with STRONGEST arguments first
+          ✅ Show you REMEMBER vessel details "(as i remember...)"
+          ✅ Use "yr" not "your" to keep it brief
           
-          PICK 1-2 STRONGEST POINTS ONLY. Don't list everything.
+          APPROACH 2: NATURAL SENTENCES (for score 85-94 or simpler case)
+          
+          "remember she opens galati. understand you will try to find 
+           a cargo ex danube area hvr just incase you want to go tunisia 
+           or ballast cvb ok i have foll good cargo:"
+          
+          ✅ Natural flow, conversational
+          ✅ Show understanding of owner's plans
+          ✅ Use "hvr" (however), "foll" (following)
         
-        economic_bonus: |
-          If relevant technical/economic advantage exists:
+        which_strengths_to_mention: |
+          Extract from P1-P7 scoring and prioritize by impact:
+          
+          ALWAYS mention if high score:
+          - P1 (proximity): "very small ballast", "well positioned", "opens right there"
+          - P7 (timing): "spot dates ok", "timing perfect", "can make laycan"
+          - P2 (owner pref): "yr preferable destination", "yr usual region"
+          - P5 (intake): "intake of yr vsl is ok", "perfect size for her"
+          
+          OPTIONALLY mention:
+          - P1A (regional): "natural run for this size"
+          - P3 (cargo type): if specialization match
+          - P4 (last ports): "she knows these ports"
+          
+          RULE: Pick TOP 3-4 strengths only. Don't list all 7 criteria.
+        
+        economic_arguments: |
+          Only mention if TRULY compelling:
           
           Examples:
-          - "in cvb you can load more than danube ports due to draft"
-          - "wheat has low stowage so good utilization for her"
-          - "grain-fitted which is perfect for this"
+          - "(as i remember 6500-6600 mts)" ← shows you know vessel
+          - "in cvb can load more vs danube due to draft"
+          - "low stowage cargo so good utilization"
+          - "she's geared which works perfectly"
           
-          Only mention if TRULY relevant to THIS cargo.
+          Include ONLY if it adds real value, not just to fill space.
         
         cargo_details: |
           {{FullCargoDesc}}
         
-        closing: |
-          Keep it SHORT or skip entirely:
-          - "let me know your thoughts"
-          - [No closing - just cargo + signature]
-          - "looking forward to your idea"
+        closing_by_score: |
+          score 95+:
+            - "let me kindly know yr interest for this hot parcel"
+            - "pls advise yr interest"
+            - [no closing - just cargo + signature]
+          
+          score 85-94:
+            - "let me know if this works for you"
+            - "kindly advise if suitable"
+            - "looking forward to your thoughts"
+          
+          NEVER ask for freight in initial offer!
       
-      example_output: |
-        Cristina
+      gold_standard_examples:
         
-        great monday time!
-        hope the week started pretty good ;))
+        example_1_score_100:
+          score: 100
+          output: |
+            team
+            
+            good day
+            
+            re: mv triumph iv
+            
+            have a cargo with all perfect for yr good lady :)
+            -very small ballast ex sulina to cvb
+            -spot dates ok
+            -yr preferable destination
+            -intake of yr vsl (as i remember 6500-6600 mts) is ok
+            
+            5-8 wheat
+            cvb\tunisia
+            1x be
+            spot onw
+            1.25
+            
+            let me kindly know yr interest for this hot parcel
+            
+            regards
+          
+          why_perfect:
+            ✅ Enthusiastic for score 100: ":)", "hot parcel", "all perfect"
+            ✅ Dash-list format - clean and structured
+            ✅ Shows vessel knowledge: "(as i remember 6500-6600 mts)"
+            ✅ Personalization: "yr good lady", "yr preferable destination"
+            ✅ All 4 key strengths mentioned (P1, P7, P2, P5)
+            ✅ Appropriate closing: "let me kindly know yr interest"
+            ✅ Brief: ~65 words
         
-        re: mv sea navigator
-        
-        remember she opens galati. understand you will try to find 
-        a cargo ex danube area hvr just incase you want to go tunisia 
-        or ballast cvb ok i have foll good cargo:
-        
-        5-8 wheat
-        cvb\tunisia
-        1x be
-        spot onw
-        1.25
-        
-        regards
+        example_2_score_88:
+          score: 88
+          output: |
+            Cristina
+            
+            great monday time!
+            hope the week started pretty good ;))
+            
+            re: your beautiful lady mv sea navigator
+            
+            remember she opens galati. understand you will try to find 
+            a cargo ex danube area hvr just incase you want to go tunisia 
+            or ballast cvb ok i have foll good cargo:
+            
+            5-8 wheat
+            cvb\tunisia
+            1x be
+            spot onw
+            1.25
+            
+            regards
+          
+          why_perfect:
+            ✅ Warm greeting for high score: "great monday time!", ";))"
+            ✅ Shows familiarity: "your beautiful lady"
+            ✅ Shows understanding: "understand you will try to find ex danube"
+            ✅ Casual connector: "hvr just incase"
+            ✅ Natural sentence flow (not list format)
+            ✅ No pushy closing - just cargo
+            ✅ Brief: ~70 words
     
     APPROACH_B_ASK_DETAILS:
       trigger: "total_score 70-84 OR missing critical data"
@@ -740,19 +877,31 @@ absolute_rules:
       correct_approach:
         - "let me know if this works for you"
         - "can you consider and advise"
+        - "let me kindly know yr interest"
         - [Just end with cargo details, no ask for freight]
     
     ❌_NEVER_use_bullet_points:
-      rule: "Bullet points make it look like mass circular"
+      rule: "Bullet points (•) make it look like mass circular"
       
-      wrong: |
-        "She looks great for this cargo:
-         - location works well
-         - intake is perfect
-         - timing fits laycan"
+      allowed_alternative: |
+        Dash-prefixed lists ARE allowed for high scores (95+):
+        
+        ✅ CORRECT (dash list):
+        "have a cargo with all perfect for yr good lady :)
+        -very small ballast
+        -spot dates ok
+        -yr preferable destination"
+        
+        ❌ WRONG (bullet points):
+        "Perfect match:
+         • Short ballast
+         • Good timing
+         • Your region"
       
-      correct: |
-        "she's well positioned, intake is perfect, and timing fits laycan"
+      rules_for_dash_lists:
+        when: "Only for score 95+ with multiple clear strengths (3-4 points)"
+        format: "Start with dash '-', keep each line 3-8 words"
+        style: "Casual, brief, broker language"
     
     ❌_NEVER_quote_scores:
       rule: "Don't mention percentages, scores, or technical scoring terms"
@@ -978,19 +1127,11 @@ output_schema:
       strengths_used: "array - which P-criteria were highlighted"
       weaknesses_acknowledged: "array - which limitations were mentioned"
       comments_used: "boolean - were comments referenced"
-  
-  messenger_output:
-    structure:
-      platform: "WHATSAPP | TEAMS"
-      recipient: "string - phone or username"
-      body: "string - plain text only"
-      language: "person.language or English"
-    
-    additional_rules:
-      - "Even shorter than email (30-60 words MAX)"
-      - "More casual tone"
-      - "Can use person's native language for greeting/text"
-      - "Vessel name and cargo details ALWAYS in English"
+      
+  note_phase_2:
+    messenger_offers: |
+      Messenger (WhatsApp/Teams) offers will be implemented in Phase 2.
+      These will be sent separately to high-score matches (95+) as follow-ups.
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # END OF IMPROVED OFFER GENERATION PROMPT v3.0
