@@ -848,23 +848,123 @@ writing_style:
         
         critical: |
           ❌ NEVER use same greeting twice in a row to same person!
+          ❌ NEVER use same greeting every Monday/Friday to everyone!
           
           System MUST track last greeting used per contact email.
+          System MUST rotate through ALL variants for each day.
         
         tracking_example:
           last_greetings:
-            "john@company.com": "good day"
-            "maria@company.com": "great monday time!"
-            "ali@company.com": "merhaba"
+            "john@company.com": 
+              last: "great monday time!"
+              date: "2026-02-02"
+            "maria@company.com": 
+              last: "good day"
+              date: "2026-02-02"
+            "ali@company.com": 
+              last: "merhaba"
+              date: "2026-02-01"
         
         rotation_logic: |
-          IF last_greeting == "good day":
-            → Use "good afternoon" OR "hope all is well"
+          IF same_person AND same_day_of_week:
+            → Use DIFFERENT variant than last time
+            → Example: Last Monday was "great monday time!"
+                       This Monday use "good monday! ready for a busy week?"
           
-          IF last_greeting == "great monday time!":
-            → Use "good day" OR cultural greeting
+          IF same_person AND different_day:
+            → Can use any appropriate greeting for that day
           
-          Always rotate through at least 3-4 different greetings.
+          IF same_day BUT different_person:
+            → Rotate through variants to avoid everyone getting same greeting
+          
+          GOAL: Maximum variety across all contacts and time periods
+        
+        variant_selection_strategy: |
+          For each day, have 4+ variants and cycle through them:
+          
+          Monday contact 1: variant A
+          Monday contact 2: variant B  
+          Monday contact 3: variant C
+          Monday contact 4: variant D
+          Monday contact 5: variant A (back to start)
+          
+          This ensures diversity even on same day.
+      
+      day_of_week_variants:
+        
+        monday:
+          variant_1:
+            greeting: "great monday time!"
+            follow_up: "hope the week started pretty good ;))"
+            tone: "energetic, warm"
+          
+          variant_2:
+            greeting: "good monday!"
+            follow_up: "ready for a busy week?"
+            tone: "casual, friendly"
+          
+          variant_3:
+            greeting: "good day"
+            follow_up: "hope your week is starting well"
+            tone: "professional, warm"
+          
+          variant_4:
+            greeting: "good morning"
+            follow_up: "hope all is well"
+            tone: "standard, polite"
+          
+          variant_5:
+            greeting: "good start to the week!"
+            follow_up: "hope everything's good"
+            tone: "positive, light"
+          
+          usage: "Rotate through all 5 variants for Monday contacts"
+        
+        tuesday_to_thursday:
+          variant_1:
+            greeting: "good day"
+            follow_up: "hope all is well"
+            tone: "standard"
+          
+          variant_2:
+            greeting: "good afternoon"
+            follow_up: "hope your week is going well"
+            tone: "warm"
+          
+          variant_3:
+            greeting: "good morning"
+            follow_up: "hope everything's good"
+            tone: "polite"
+          
+          variant_4:
+            greeting: "good day"
+            follow_up: null  # no follow-up
+            tone: "simple, professional"
+          
+          usage: "Rotate through all 4 variants"
+        
+        friday:
+          variant_1:
+            greeting: "good friday!"
+            follow_up: "almost weekend time ;))"
+            tone: "casual, fun"
+          
+          variant_2:
+            greeting: "good afternoon"
+            follow_up: "hope your week went well"
+            tone: "reflective"
+          
+          variant_3:
+            greeting: "good day"
+            follow_up: "hope all is well"
+            tone: "standard"
+          
+          variant_4:
+            greeting: "good friday!"
+            follow_up: "hope the week was good"
+            tone: "positive"
+          
+          usage: "Rotate through all 4 variants"
       
       time_of_day:
         
@@ -1071,6 +1171,92 @@ writing_style:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 generation_workflow:
+  
+  # ─────────────────────────────────────────────────────────────────────────────
+  # CRITICAL: VESSEL SELECTION RULE
+  # ─────────────────────────────────────────────────────────────────────────────
+  
+  vessel_selection:
+    
+    critical_rule: |
+      🚨 WRITE OFFER FOR TOP 1 VESSEL ONLY (HIGHEST SCORE)
+      
+      ❌ NEVER write offer listing multiple vessels
+      ❌ NEVER say "re: mv vessel1 / vessel2 / vessel3"
+      ✅ ALWAYS pick the vessel with highest score
+      ✅ Write offer ONLY for that one vessel
+    
+    selection_logic:
+      step_1: "Receive list of vessels with scores for same cargo"
+      step_2: "Sort vessels by total_score DESC"
+      step_3: "Select vessel[0] (highest score)"
+      step_4: "Write offer ONLY for this vessel"
+      step_5: "Completely ignore all other vessels"
+    
+    examples:
+      
+      ❌_WRONG_multiple_vessels:
+        input: |
+          Vessels for cargo:
+          - antari: score 65
+          - ajos: score 58
+          - vera su: score 56
+          - fri st: score 45
+        
+        wrong_output: |
+          re: mv antari / ajos / vera su / fri st
+          
+          keeping you posted - have cargo for greece discharge. 
+          know vessels not ideal here hvr wanted to check:
+          
+          -antari: best technical fit...
+          -ajos / vera su: nearby ok hvr...
+          -fri st: way out in north sea.
+        
+        problems:
+          - "Lists 4 vessels"
+          - "Compares them in offer"
+          - "Confusing for owner"
+          - "Looks like mass circular"
+      
+      ✅_CORRECT_top_1_only:
+        input: |
+          Vessels for cargo:
+          - antari: score 65
+          - ajos: score 58
+          - vera su: score 56
+          - fri st: score 45
+        
+        correct_output: |
+          re: mv antari
+          
+          keeping you posted - have cargo for greece discharge.
+          
+          know she's way out livorno ok (bit of ballast), but white 
+          flag works well for greece PSC and intake fits perfectly:
+          
+          3 10% corn 51 wog
+          izmail\ec greece or crete
+          1x be
+          15-25 feb
+          3.75add+1.25
+          
+          if not relevant, no worries
+        
+        why_correct:
+          - "Only antari (highest score 65)"
+          - "Focused message"
+          - "Personal to this vessel"
+          - "Professional, not circular"
+    
+    rationale: |
+      Why only top 1 vessel:
+      
+      1. PERSONALIZATION: Each owner wants to feel special
+      2. FOCUS: Clear message about ONE vessel
+      3. NOT CIRCULAR: Listing multiple vessels = mass mailing
+      4. EFFICIENCY: Owner makes decision on best option
+      5. FOLLOW-UP: Can offer other vessels later if this doesn't work
   
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 1: Analyze Situation
@@ -1731,6 +1917,26 @@ generation_workflow:
 
 absolute_rules:
   
+  critical_rule_top_1_vessel:
+    🚨_CRITICAL: |
+      WRITE OFFER FOR TOP 1 VESSEL ONLY (HIGHEST SCORE)
+      
+      If you receive multiple vessels for same cargo:
+      1. Sort by score DESC
+      2. Pick vessel[0] (highest)
+      3. Write offer ONLY for that vessel
+      4. Ignore all others completely
+    
+    rationale: |
+      - Each owner wants personalized attention
+      - Listing multiple vessels = mass circular
+      - Focused message is more effective
+      - Can follow up with other vessels later
+    
+    example:
+      ❌ "re: mv vessel1 / vessel2 / vessel3"
+      ✅ "re: mv vessel1" (highest score only)
+  
   forbidden_actions:
     ❌_NEVER_mention_freight:
       rule: "NEVER include freight rate or ask for freight idea in offer"
@@ -1801,6 +2007,19 @@ absolute_rules:
         "if not suitable, no worries"
   
   required_actions:
+    ✅_ALWAYS_top_1_vessel:
+      rule: "Write offer for TOP 1 vessel only (highest score)"
+      never: "List multiple vessels in one offer"
+      
+    ✅_ALWAYS_rotate_greetings:
+      rule: "Use different greeting variants, never same one repeatedly"
+      tracking: "Track last greeting per contact AND per day"
+      goal: "Maximum variety - avoid template feeling"
+      
+    ✅_ALWAYS_one_vessel_in_subject:
+      rule: "Subject line: ONE vessel only, never multiple"
+      format: "re: mv {{VesselName}} / {{ShortCargoDesc}}"
+      
     ✅_ALWAYS_be_brief:
       rule: "Shorter is better - every word must earn its place"
       
@@ -1981,19 +2200,69 @@ gold_standard_examples:
 output_schema:
   
   email_output:
+    
+    subject_line:
+      
+      format: "re: mv {{VesselName}} / {{CargoShortDescription}}"
+      
+      rules:
+        ✅_correct:
+          - "Use vessel name in lowercase after 'mv'"
+          - "Keep cargo description SHORT (max 5-6 words)"
+          - "Use abbreviations for ports"
+          - "ONE vessel only - never list multiple"
+        
+        ❌_forbidden:
+          - "NEVER list multiple vessels: 'mv vessel1 / vessel2 / vessel3'"
+          - "NEVER make subject too long (>60 chars)"
+          - "NEVER use full port names"
+      
+      examples:
+        
+        ✅_good_subjects:
+          - "re: mv antari / 3k corn izmail>greece"
+          - "re: mv triumph iv / 5-8k wheat cvb-tunisia"
+          - "re: mv sea navigator / wheat galati-tunisia"
+          - "re: mv princess mariam / 5k wheat cvb>tunisia"
+          - "re: mv sunny lady / corn izmail-marmara"
+        
+        ❌_bad_subjects:
+          - "re: mv antari / ajos / vera su / fri st" ← multiple vessels!
+          - "re: mv triumph iv / 5000-8000mt wheat Constanta\Tunisia" ← too detailed
+          - "re: multiple vessels for corn cargo" ← vague
+      
+      cargo_short_description_rules:
+        
+        pattern: "{{Quantity}} {{Cargo}} {{LoadPort}}>{{DischargePort}}"
+        
+        abbreviate:
+          quantity: "3k not 3000mt, 5-8k not 5000-8000mt"
+          ports: "cvb not Constanta, poc not Black Sea ports"
+          cargo: "corn not maize, wheat not soft wheat"
+        
+        examples:
+          - "3k corn izmail>greece"
+          - "5-8k wheat cvb-tunisia"
+          - "6k wheat galati>marmara"
+          - "4k corn poc-libya"
+    
     structure:
-      subject: "string - following subject line patterns"
+      subject: "string - ONE vessel only, short cargo desc"
       to: "array of email addresses"
       cc: "array - exclude 'no mailing' and 'operations only' contacts"
       body: "string - plain text version"
       body_html: "string - HTML with signature from signature_for_emails.html"
     
     metadata:
-      score: "number - total compatibility score"
+      vessel_selected: "string - name of TOP 1 vessel chosen"
+      vessel_score: "number - score of selected vessel"
+      other_vessels_considered: "number - how many other vessels were in the list"
       approach: "APPROACH_A | APPROACH_B | APPROACH_C"
       strengths_used: "array - which P-criteria were highlighted"
       weaknesses_acknowledged: "array - which limitations were mentioned"
       comments_used: "boolean - were comments referenced"
+      greeting_used: "string - which greeting was selected"
+      greeting_variant: "string - which variant (monday_variant_1, etc)"
       
   note_phase_2:
     messenger_offers: |
