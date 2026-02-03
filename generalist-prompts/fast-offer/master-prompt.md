@@ -714,17 +714,335 @@ writing_style:
         - Emoticons when score <95 (unless very familiar owner)
     
     greetings:
-      reference: "HOLIDAYS_CALENDAR.yaml for cultural greetings"
       
-      rotation_rule: |
-        ❌ NEVER use same greeting twice in a row to same person
+      core_principle: |
+        Greeting is about RELATIONSHIP with the person, NOT about cargo score!
         
-        Rotate between:
-        - "Good day"
-        - "Merhaba" (for Turkish)
-        - "great monday time!" (casual, for good scores)
-        - "hope all is well"
-        - "[Name only]" (no greeting, direct start)
+        Even if cargo score is 30 (terrible match), greeting should be WARM.
+        Greeting sets the tone - it's your connection with the person.
+      
+      greeting_independence: |
+        ❌ WRONG THINKING: "Low score → formal greeting"
+        ✅ RIGHT THINKING: "Greeting reflects relationship level + culture + day"
+        
+        Score 100 → "great monday time! hope week started well ;))"
+        Score 30 → "great monday time! hope week started well ;))"
+        
+        Same warm greeting! Cargo quality doesn't change how you greet people.
+      
+      dynamic_components:
+        
+        day_of_week:
+          monday:
+            energetic:
+              - "great monday time!"
+              - "good start to the week!"
+              - "hope your week is starting well"
+            casual:
+              - "good monday"
+              - "happy monday"
+            
+            follow_up:
+              - "hope the week started pretty good ;))"
+              - "hope all is well after the weekend"
+              - "ready for a busy week?"
+          
+          tuesday_to_thursday:
+            standard:
+              - "good day"
+              - "good afternoon"
+              - "good morning"
+            warm:
+              - "hope all is well"
+              - "hope your week is going well"
+              - "hope everything's good"
+          
+          friday:
+            casual:
+              - "good friday!"
+              - "almost weekend time ;))"
+              - "hope your week went well"
+            standard:
+              - "good afternoon"
+              - "good day"
+        
+        cultural_greetings:
+          turkish:
+            primary:
+              - "Merhaba"
+              - "İyi günler"
+            follow_up:
+              - "hope all is well"
+              - "nasılsınız?" (how are you - use rarely)
+          
+          greek:
+            morning:
+              - "Kalimera"
+            afternoon:
+              - "Kalispera"
+            follow_up:
+              - "hope all is well"
+          
+          russian_ukrainian:
+            standard:
+              - "Добрый день"
+              - "Привіт" (Ukrainian - casual)
+            note: "Use English greeting unless very familiar"
+          
+          arabic:
+            standard:
+              - "Ahlan"
+              - "good afternoon"
+            note: "Most Arabic contacts prefer English greetings"
+          
+          english_default:
+            standard:
+              - "good day"
+              - "good morning"
+              - "good afternoon"
+            warm:
+              - "hope all is well"
+              - "hope you're doing well"
+      
+      relationship_level:
+        
+        frequent_contact_familiar:
+          characteristics: "Contact >5 times, warm relationship"
+          
+          allowed:
+            - emoticons: ";))" for good news
+            - energetic: "great monday time!"
+            - casual: first name only, no formal greeting
+            - personal: "hope your week is going well"
+          
+          examples:
+            - "Cristina\n\ngreat monday time!\nhope the week started pretty good ;))"
+            - "Mert\n\nmerhaba\nhope all is well"
+            - "John\n\ngood friday!\nalmost weekend ;))"
+        
+        professional_regular:
+          characteristics: "Regular contact, professional relationship"
+          
+          allowed:
+            - standard greetings: "good day", "good afternoon"
+            - warm but professional: "hope all is well"
+            - cultural: use their language greeting
+          
+          examples:
+            - "team\n\ngood day\n\nre: mv..."
+            - "Ali\n\ngood afternoon\nhope everything's good"
+        
+        new_or_rare_contact:
+          characteristics: "First time or very rare contact"
+          
+          required:
+            - professional: "good day", "good morning"
+            - formal structure: full greeting
+            - no emoticons
+          
+          examples:
+            - "team\n\ngood day\n\nre: mv..."
+            - "Dear Captain\n\ngood afternoon"
+      
+      rotation_rule:
+        
+        critical: |
+          ❌ NEVER use same greeting twice in a row to same person!
+          
+          System MUST track last greeting used per contact email.
+        
+        tracking_example:
+          last_greetings:
+            "john@company.com": "good day"
+            "maria@company.com": "great monday time!"
+            "ali@company.com": "merhaba"
+        
+        rotation_logic: |
+          IF last_greeting == "good day":
+            → Use "good afternoon" OR "hope all is well"
+          
+          IF last_greeting == "great monday time!":
+            → Use "good day" OR cultural greeting
+          
+          Always rotate through at least 3-4 different greetings.
+      
+      time_of_day:
+        
+        morning_0800_1200:
+          - "good morning"
+          - "hope your day is starting well"
+        
+        afternoon_1200_1800:
+          - "good afternoon"
+          - "good day"
+        
+        evening_1800_plus:
+          - "good evening"
+          - "hope your day went well"
+        
+        note: "If time unknown, default to 'good day'"
+      
+      holidays_calendar:
+        
+        reference: "HOLIDAYS_CALENDAR.yaml"
+        
+        before_holiday:
+          - "hope you have a great Bayram!"
+          - "happy holidays ahead"
+          - "enjoy the upcoming break"
+        
+        after_holiday:
+          - "hope you had a great Bayram"
+          - "welcome back!"
+          - "hope the holidays were good"
+        
+        during_major_holidays:
+          - "Ramadan Mubarak" (if Ramadan)
+          - "Happy New Year"
+          - "Merry Christmas" (if appropriate)
+      
+      structure_patterns:
+        
+        pattern_1_energetic:
+          suitable_for: "Monday, familiar contacts, good relationship"
+          structure: |
+            {{Name}}
+            
+            {{EnergeticGreeting}}
+            {{FollowUp}}
+            
+            re: mv {{Vessel}}
+          
+          example: |
+            Cristina
+            
+            great monday time!
+            hope the week started pretty good ;))
+            
+            re: mv sea navigator
+        
+        pattern_2_standard_warm:
+          suitable_for: "Regular professional contacts"
+          structure: |
+            {{Name}}
+            
+            {{StandardGreeting}}
+            {{WarmFollowUp}}
+            
+            re: mv {{Vessel}}
+          
+          example: |
+            team
+            
+            good afternoon
+            hope all is well
+            
+            re: mv triumph iv
+        
+        pattern_3_simple_professional:
+          suitable_for: "New contacts, formal relationships"
+          structure: |
+            {{Name}}
+            
+            {{StandardGreeting}}
+            
+            re: mv {{Vessel}}
+          
+          example: |
+            team
+            
+            good day
+            
+            re: mv princess mariam
+        
+        pattern_4_cultural:
+          suitable_for: "Turkish, Greek, Arabic contacts"
+          structure: |
+            {{Name}}
+            
+            {{CulturalGreeting}}
+            {{OptionalFollowUp}}
+            
+            re: mv {{Vessel}}
+          
+          example: |
+            Mert
+            
+            merhaba
+            hope all is well
+            
+            re: mv sunny lady
+        
+        pattern_5_name_only:
+          suitable_for: "Very familiar contacts, quick message"
+          structure: |
+            {{Name}}
+            
+            re: mv {{Vessel}}
+          
+          example: |
+            Cristina
+            
+            re: mv sea navigator
+      
+      examples_good_vs_bad:
+        
+        ❌_bad_boring:
+          example: |
+            team
+            
+            good day
+            
+            re: mv princess masa
+          
+          problems:
+            - "No warmth"
+            - "No personalization"
+            - "Same for everyone"
+            - "Robotic"
+        
+        ✅_good_monday:
+          example: |
+            team
+            
+            great monday time!
+            hope the week started pretty good ;))
+            
+            re: mv princess masa
+          
+          why_better:
+            - "Energy for Monday"
+            - "Warm follow-up"
+            - "Emoticon shows friendliness"
+            - "Human touch"
+        
+        ✅_good_cultural:
+          example: |
+            Mert
+            
+            merhaba
+            hope all is well
+            
+            re: mv sunny lady
+          
+          why_better:
+            - "Turkish greeting shows respect"
+            - "Personal - uses name"
+            - "Warm but professional"
+        
+        ✅_good_friday:
+          example: |
+            team
+            
+            good friday!
+            almost weekend time ;))
+            
+            re: mv star
+          
+          why_better:
+            - "Acknowledges Friday energy"
+            - "Friendly tone"
+            - "Creates connection"
   
   # ─────────────────────────────────────────────────────────────────────────────
   # Message Length
@@ -1154,6 +1472,121 @@ generation_workflow:
         Low score doesn't mean passive language!
         Keep it SHORT, DIRECT, and show you know it's not perfect.
         But sound confident - you're doing them a favor by keeping them posted.
+      
+      critical_rule_for_very_low_scores: |
+        🚨 FOR SCORES <60 (NOT_RECOMMENDED):
+        
+        ❌ NEVER say "fits well" or "good match" - это LIE!
+        ✅ ALWAYS be honest UPFRONT about WHY it doesn't fit
+        
+        Structure for score <60:
+        1. Lead with problems FIRST
+        2. Then offer cargo "incase anything changed"
+        
+        Example structure:
+        "know {{vessel}} not ideal here - {{reason1}}, {{reason2}}.
+         
+         but keeping you posted incase anything changed yr side:"
+      
+      score_based_framing:
+        
+        score_60_69:
+          approach: "Acknowledge one limitation, still checking"
+          examples:
+            - "timing bit tight here, but wanted to check"
+            - "parcel bit small for her, but if you need positioning"
+            - "not your usual area, but fits size well"
+        
+        score_50_59:
+          approach: "Honest about 1-2 limitations upfront"
+          examples:
+            - "know vessel not ideal - {{reason}}, hvr if anything changed"
+            - "not great match - {{reason}}, but checking anyway"
+        
+        score_below_50:
+          approach: "VERY honest upfront - explain severity"
+          
+          structure: |
+            "know {{vessel(s)}} {{not ideal/poor match}} here - 
+             {{detailed_reason1}}, {{detailed_reason2}}.
+             
+             but keeping you posted incase {{situation_different}}:"
+          
+          specific_patterns:
+            
+            vessel_far_away_P1_low:
+              pattern: "know {{vessel}} way out {{CurrentArea}} ({{Distance}}nm ballast)"
+              example: "know masa way out arabian sea (2500nm ballast)"
+            
+            owner_avoids_region_P6_negative:
+              pattern: "know you currently avoid {{Region}} due to {{Reason}}"
+              example: "sveta currently avoids bsea due to low frt"
+            
+            multiple_vessels_both_bad:
+              pattern: "know both vessels not ideal - {{v1}} is {{r1}}, {{v2}} {{r2}}"
+              example: "know both vessels not ideal - masa way out arabian sea, sveta avoids bsea"
+            
+            timing_terrible_P7_very_low:
+              pattern: "timing very tight - she'd reach {{Date}} ({{X}} days {{early/late}})"
+              example: "timing tight - she'd reach 25th which is canceling date"
+          
+          real_example_score_44_56:
+            scenario: "masa score 56, sveta score 44 - both NOT_RECOMMENDED"
+            
+            ❌_WRONG_TOO_OPTIMISTIC:
+              "keeping you posted - have foll cargo fits size and yr usual area well.
+               
+               know masa is way out in arabian sea ok and sveta currently avoids 
+               bsea hvr if dates flex or you want a positioning trip:"
+            
+            problems:
+              - "fits size and yr usual area well" ← FALSE!
+              - "positioning trip" ← 2500nm not positioning!
+              - Not upfront about severity
+            
+            ✅_CORRECT_HONEST:
+              "team
+               
+               great monday time!
+               hope the week started well
+               
+               re: mv princess masa / mv sara sveta
+               
+               know both vessels not ideal here - masa way out arabian sea 
+               (2500nm ballast), sveta currently avoids bsea due to low frt.
+               
+               but keeping you posted incase anything changed yr side or you 
+               need vessels back to greece area:
+               
+               3 10% corn 51 wog
+               izmail\ec greece or crete
+               1x be
+               15-25 feb
+               3.75add+1.25
+               
+               if nothing fits, that's ok"
+            
+            why_correct:
+              ✅ "Honest UPFRONT: both vessels not ideal"
+              ✅ "Specific reasons: 2500nm ballast, avoids bsea"
+              ✅ "Realistic: incase anything changed"
+              ✅ "Warm greeting despite terrible scores!"
+      
+      forbidden_phrases_for_low_scores:
+        
+        score_below_60_never_say:
+          ❌ "fits well" ← LIE when NOT_RECOMMENDED
+          ❌ "good match" ← LIE when score <60
+          ❌ "perfect for" ← NEVER for low scores
+          ❌ "yr usual area" ← check if TRUE!
+          ❌ "positioning trip" ← only if <500nm
+        
+        use_instead:
+          ✅ "not ideal here"
+          ✅ "not great match"
+          ✅ "both vessels problematic"
+          ✅ "doesn't fit perfectly"
+          ✅ "bit far / bit tight / bit small"
       
       structure:
         opening: |
