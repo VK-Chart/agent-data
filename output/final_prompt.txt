@@ -406,27 +406,27 @@ MASTER_SCORING_SYSTEM
 SHORT SUMMARY
 
 This is the SINGLE SOURCE OF TRUTH for the VK Charts vessel-cargo scoring system.
-It defines all 7 scoring criteria (P1-P7), their weights, ranges, calculation sources, and how they combine into a final compatibility score (0-100 points).
+It defines all 9 scoring criteria (P1-P7 + P1A + P2A), their weights, ranges, calculation sources, and how they combine into a final compatibility score (0-100%).
 
 The system evaluates:
 • P1 (20pts): Geographic proximity (distance-based)
 • P1A (15pts): Regional trade patterns (market logic)
 • P2 (15pts): Regional preferences (manual owner settings)
-• P2A (20pts): PSC port accessibility (vessel PSC status vs port strictness)
+• P2A (20pts): PSC port accessibility (vessel PSC status vs port strictness + port history bonus)
 • P3 (15pts): Cargo type compatibility
 • P4 (10pts): Last ports familiarity
 • P5 (15pts): Intake capacity match
-• P6 (modifier, -50 to +25): Current voyage preferences (OpenArea comments)
+• P6 (15pts): Current voyage preferences (OpenArea comments)
 • P7 (10pts): Timing and readiness (ETA vs laycan)
 
-BASE_SCORE = P1 + P1A + P2 + P2A + P3 + P4 + P5 + P7 (max 115)
-MODIFIED_SCORE = BASE_SCORE + P6
-FINAL_SCORE = CLAMP(MODIFIED_SCORE, 0, 100)
+BASE_SCORE = P1 + P1A + P2 + P2A + P3 + P4 + P5 + P6 + P7
+MAX_SCORE = 20 + 15 + 15 + 20 + 15 + 10 + 15 + 15 + 10 = 135
+FINAL_SCORE_PERCENT = ROUND((BASE_SCORE / MAX_SCORE) × 100, 1)
 
-Blocking conditions: technical impossibility, insufficient capacity, geopolitical restrictions, or P6 ≤ -40.
+Blocking conditions: technical impossibility, insufficient capacity, geopolitical restrictions.
 
 **Quick Reference - Scoring Ranges:**
-P1: [0, 20] | P1A: [0, 15] | P2: [0, 15] | P2A: [0, 20] | P3: [0, 15] | P4: [0, 10] | P5: [0, 15] | P6: [-50, +25] | P7: [0, 10]
+P1: [0, 20] | P1A: [0, 15] | P2: [0, 15] | P2A: [0, 20] | P3: [0, 15] | P4: [0, 10] | P5: [0, 15] | P6: [0, 15] | P7: [0, 10]
 
 # ═══════════════════════════════════════════════════════════════════
 # SCORING CRITERIA STRUCTURE
@@ -704,15 +704,15 @@ scoring_criteria:
   # ─────────────────────────────────────────────────────────────────
   P6_OPEN_AREA_COMMENTS:
     name: "Current Voyage Preferences"
-    type: "MODIFIER"
-    range: [-50, +25]
-    
+    weight: 15
+    range: [0, 15]
+
     description: |
       Owner's specific requirements for CURRENT voyage from OpenArea
-      comments. Acts as modifier on top of base score.
-      
+      comments. Evaluates alignment with cargo parameters.
+
     calculation_source: "OPEN_AREA_COMMENTS_SCORING.txt"
-    
+
     key_signals:
       cargo_related:
         - "no grains / only grains"
@@ -726,16 +726,26 @@ scoring_criteria:
         - "short trip only"
         - "repositioning to X"
         - "waiting for rates"
-    
-    impact_levels:
-      full_conflict: "-40 to -50 → BLOCK OFFER"
-      partial_conflict: "-15 to -25"
-      neutral: "0"
-      partial_match: "+10 to +15"
-      perfect_match: "+20 to +25"
-    
-    blocking_rule: |
-      If P6 score ≤ -40: Do not send offer, regardless of other scores
+
+    scoring_levels:
+      no_comments:
+        score: 7.5
+        interpretation: "Neutral - no preferences stated"
+      full_conflict:
+        score: 0
+        interpretation: "Direct refusal matches cargo (e.g., 'no grains' + grain cargo)"
+      soft_conflict:
+        score: "3-5"
+        interpretation: "Preference not met but not explicit refusal"
+      neutral:
+        score: 7.5
+        interpretation: "Comments not relevant to this cargo"
+      positive_match:
+        score: "10-12"
+        interpretation: "Cargo meets stated preference"
+      perfect_match:
+        score: 15
+        interpretation: "Multiple preferences met simultaneously"
 
   # ─────────────────────────────────────────────────────────────────
   P7_READINESS_ETA:
@@ -770,29 +780,22 @@ scoring_criteria:
 # ═══════════════════════════════════════════════════════════════════
 
 scoring_formula:
-  
+
   base_score_calculation: |
-    BASE_SCORE = P1 + P1A + P2 + P3 + P4 + P5 + P7
-    (Maximum: 100 points)
-  
-  modifier_application: |
-    MODIFIED_SCORE = BASE_SCORE + P6
-    (P6 can push score above 100 or below 0)
-  
-  final_score: |
-    FINAL_SCORE = CLAMP(MODIFIED_SCORE, 0, 100)
-    (Bounded between 0 and 100)
-  
+    BASE_SCORE = P1 + P1A + P2 + P2A + P3 + P4 + P5 + P6 + P7
+    MAX_SCORE = 20 + 15 + 15 + 20 + 15 + 10 + 15 + 15 + 10 = 135
+
+  final_score_percentage: |
+    FINAL_SCORE_PERCENT = ROUND((BASE_SCORE / MAX_SCORE) × 100, 1)
+    Example: If BASE_SCORE = 91, then FINAL_SCORE_PERCENT = 67.4%
+
   blocking_conditions:
     - condition: "P3 = CANNOT_CARRY_TECHNICALLY"
       action: "BLOCK → No score, no offer"
-      
+
     - condition: "P5_ratio < 0.90"
       action: "BLOCK → Insufficient capacity"
-      
-    - condition: "P6 ≤ -40"
-      action: "BLOCK → Owner explicitly avoids"
-      
+
     - condition: "Geopolitical restriction"
       action: "BLOCK → Sanctions/war"
 
@@ -884,7 +887,7 @@ normalization:
 reasoning_templates:
   
   structure: |
-    1. Overall Score: {final_score}/100
+    1. Overall Score: {final_score_percent}% ({base_score}/135)
     2. Strengths: {top_scoring_criteria}
     3. Weaknesses: {low_scoring_criteria}
     4. Key Factors: {decisive_factors}
