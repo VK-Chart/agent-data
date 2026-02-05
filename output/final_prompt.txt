@@ -926,12 +926,12 @@ reasoning_templates:
 
 --- START OF estimator-prompts/OPEN_AREA_COMMENTS_SCORING.txt ---
 # ═══════════════════════════════════════════════════════════════════
-# SHORT SUMMARY
+# SHORT SUMMARY - UPDATED v3.0
 # ═══════════════════════════════════════════════════════════════════
 
 DOCUMENT: OpenArea Comments Scoring - P6 Criterion (Voyage-Specific Owner Comments)
 PURPOSE: Evaluate how current voyage-specific owner comments align with cargo parameters
-SCORE RANGE: [-50, +25] - Penalty-based modifier (no hard blocks)
+SCORE RANGE: [0, 15] - Standard criterion (aligned with other criteria)
 INTEGRATION: Part of VK Charts AI Scoring System (criterion P6)
 
 WHAT IS P6 (OpenArea Comments Scoring):
@@ -945,8 +945,7 @@ KEY FEATURES:
 - Interprets CURRENT voyage-specific comments (not historical preferences)
 - Three signal categories: Cargo-Type, Geography, Trade Pattern/Strategy
 - AI-centric interpretation (extracts signals from unstructured text)
-- Penalty-focused: Strong conflicts = -40 to -50, perfect match = +20 to +25
-- NO HARD BLOCKS (soft rules philosophy - always show cargo with reasoning)
+- Standard criterion with range [0, 15] like other criteria
 - High priority criterion (reflects real-time owner intentions)
 - Directly influences offer text personalization
 
@@ -962,22 +961,24 @@ COMMENT CATEGORIES (3 types):
 2. Geography Related: "not going to Black Sea", "only East Med", "no Egypt"
 3. Trade Pattern/Strategy: "looking for short trip", "seeking repositioning", "avoid long ballast"
 
-SCORING LOGIC:
-- Full Conflict (strong negative): -40 to -50 points
-  Example: "no grains" + cargo is grain → -45 points
-- Soft Conflict (moderate negative): -10 to -25 points
-  Example: "prefer close cargo" + cargo 800nm away → -15 points
-- Neutral: 0 points (no relevant comments)
-- Positive Match: +10 to +15 points
-  Example: "prefer high SF cargo" + cargo SF = 1.45 → +12 points
-- Perfect Match: +20 to +25 points
-  Example: "looking for short trip to Egypt with high SF" + exact match → +25 points
+SCORING LOGIC (v3.0 - Standard Criterion):
+- No Comments: 7.5/15 (neutral default)
+- Full Conflict: 0/15 (direct refusal matches cargo)
+  Example: "no grains" + cargo is grain → 0/15
+- Soft Conflict: 3-5/15 (preference not met)
+  Example: "prefer close cargo" + cargo 800nm away → 4/15
+- Neutral: 7.5/15 (comments not relevant to cargo)
+  Example: "no steel" + cargo is grain → 7.5/15
+- Positive Match: 10-12/15 (meets stated preference)
+  Example: "prefer high SF cargo" + cargo SF = 1.45 → 11/15
+- Perfect Match: 15/15 (multiple preferences met)
+  Example: "looking for short trip to Egypt with high SF" + exact match → 15/15
 
 EXAMPLE USAGE:
 - Comment: "no grains, prefer nearby cargo only, seeking short trip"
 - Cargo: Wheat 5000t, 800nm ballast, 5-day voyage
-- Result: -45 (grain conflict) -15 (far) -10 (long trip) = -70 → clamped to -50
-- Reasoning: "Strong mismatch with current preferences, but cargo shown for consideration"
+- Result: Full conflict on grains → 0/15
+- Reasoning: "Direct conflict with 'no grains' preference"
 
 PRIORITY IN SYSTEM:
 High priority - placed above LPOC and Proximity because it reflects CURRENT daily
@@ -987,8 +988,8 @@ changing intentions, not historical patterns.
 ### Important Notes:
 - OpenArea comments are CURRENT and VOYAGE-SPECIFIC
 - P6 complements (not replaces) P2/P3 (historical preferences)
-- Score range is ASYMMETRIC: more penalty (-50) than bonus (+25)
-- NO HARD BLOCKS - even with -50, cargo is shown with reasoning
+- Score range: [0, 15] - aligned with other criteria (v3.0)
+- If no comments: default neutral score 7.5/15
 - Comments integration with COMMENTS_PROCESSING_GUIDE.txt for parsing
 
 ---
@@ -1001,8 +1002,9 @@ changing intentions, not historical patterns.
 ```
 Input: open_area_comments (string, may be empty)
 
-If empty: 
-  P6_score = 0 (neutral)
+If empty:
+  P6_score = 7.5 (neutral default)
+  max_score = 15
   reasoning = "No current voyage-specific comments available"
   RETURN
 
@@ -1277,7 +1279,7 @@ Test with real OpenArea comments:
 - P7 changes daily/weekly (not stable like P2/P3)
 - Use COMMENTS_PROCESSING_GUIDE.txt for parsing
 - Diplomatic conflict acknowledgment required
-- Even -50 score doesn't block cargo display
+- Score of 0 indicates full conflict but cargo still shown
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1289,10 +1291,10 @@ Test with real OpenArea comments:
 #
 # ═══════════════════════════════════════════════════════════════════
 
-version: "1.2"
-last_updated: "2024-12-01"
+version: "3.0"
+last_updated: "2026-02-05"
 criterion_code: "P6"
-score_range: [-50, 25]
+score_range: [0, 15]
 priority: "HIGH - Reflects current real-time owner intentions"
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1406,95 +1408,104 @@ comment_categories:
 # ═══════════════════════════════════════════════════════════════════
 
 scoring_logic:
-  
-  principle: "AI-centric interpretation with soft rules (no hard blocks)"
-  
+
+  principle: "AI-centric interpretation - standard criterion [0, 15]"
+
   conflict_levels:
-    
+
+    no_comments:
+      description: "No OpenArea comments available"
+      score: 7.5
+      max_score: 15
+      reasoning: "Neutral - no current voyage preferences stated"
+
     full_conflict:
-      description: "Прямой запрет + груз соответствует запрету"
-      score_range: [-50, -40]
-      
+      description: "Direct refusal + cargo matches refused type"
+      score: 0
+      max_score: 15
+
       examples:
         - comment: "no grains"
           cargo: "Wheat"
-          score: -45
+          score: 0
           reasoning: "Direct refusal of grain cargoes, cargo is wheat"
-          
+
         - comment: "not going to Black Sea"
           cargo_loading: "Odessa, Ukraine (Black Sea)"
-          score: -40
+          score: 0
           reasoning: "Owner explicitly refuses Black Sea routes"
-          
+
         - comment: "prefer only high SF cargo"
           cargo_sf: 0.68
-          score: -45
+          score: 0
           reasoning: "Low SF cargo conflicts with 'only high SF' preference"
-          
-      important_note: "Even at -50, cargo is STILL SHOWN to user with reasoning"
-      
+
     soft_conflict:
-      description: "Предпочтение не выполнено, но не явный запрет"
-      score_range: [-25, -10]
-      
+      description: "Preference not met but not explicit refusal"
+      score_range: [3, 5]
+      max_score: 15
+
       examples:
         - comment: "prefer closer cargo"
           ballast_distance: 800
-          score: -15
+          score: 4
           reasoning: "Cargo far from current position, owner prefers nearby"
-          
+
         - comment: "prefer short trip"
           voyage_days: 7
-          score: -12
+          score: 5
           reasoning: "7-day voyage doesn't match 'short trip' preference"
-          
+
         - comment: "avoid Turkey"
           cargo_loading: "Iskenderun, Turkey"
-          score: -20
+          score: 3
           reasoning: "Soft avoidance of Turkey, cargo loads there"
-          
+
     neutral:
-      description: "Сигнал не релевантен к грузу"
-      score_range: [0, 0]
-      
+      description: "Comment exists but not relevant to cargo"
+      score: 7.5
+      max_score: 15
+
       examples:
         - comment: "no steel coils"
           cargo: "Wheat"
-          score: 0
+          score: 7.5
           reasoning: "Comment about steel not relevant to grain cargo"
-          
+
     positive_match:
-      description: "Груз соответствует заявленным предпочтениям"
-      score_range: [10, 15]
-      
+      description: "Cargo meets stated preference"
+      score_range: [10, 12]
+      max_score: 15
+
       examples:
         - comment: "prefer high SF cargo"
           cargo_sf: 1.45
-          score: 12
+          score: 11
           reasoning: "Cargo SF 1.45 matches high SF preference"
-          
+
         - comment: "seeking Egypt/Libya backhaul"
           cargo_discharge: "Alexandria, Egypt"
-          score: 15
+          score: 12
           reasoning: "Egypt discharge matches backhaul preference"
-          
+
         - comment: "looking for nearby cargo"
           ballast_distance: 150
           score: 10
           reasoning: "150nm ballast matches 'nearby' preference"
-          
+
     perfect_match:
-      description: "Несколько предпочтений выполнены одновременно"
-      score_range: [20, 25]
-      
+      description: "Multiple preferences met simultaneously"
+      score: 15
+      max_score: 15
+
       examples:
         - comment: "short trip to Egypt with high SF"
-          cargo: 
+          cargo:
             type: "Bagged fertilizers"
             sf: 1.50
             discharge: "Alexandria, Egypt"
             voyage_days: 3
-          score: 25
+          score: 15
           reasoning: "Perfect alignment: high SF, Egypt destination, short trip (3 days)"
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1513,16 +1524,20 @@ calculation_method:
       description: "For each signal, determine conflict level and impact"
       output: "List of {signal, conflict_level, impact_score}"
       
-    step_3_sum_impacts:
-      description: "Sum all impact scores"
-      formula: "raw_score = sum(all_impacts)"
-      
-    step_4_clamp_to_range:
-      description: "Ensure score within [-50, +25]"
+    step_3_determine_final_score:
+      description: "Select score based on most significant signal"
+      logic: |
+        IF any FULL_CONFLICT: P6_score = 0
+        ELSE IF any SOFT_CONFLICT: P6_score = 3-5 (based on severity)
+        ELSE IF any POSITIVE_MATCH: P6_score = 10-12
+        ELSE IF PERFECT_MATCH: P6_score = 15
+        ELSE: P6_score = 7.5 (neutral)
+
+    step_4_set_max_score:
+      description: "Always max_score = 15 when comments exist"
       formula: |
-        IF raw_score < -50: p7_score = -50
-        ELSE IF raw_score > 25: p7_score = 25
-        ELSE: p7_score = raw_score
+        IF no_comments: max_score = 15, score = 7.5
+        ELSE: max_score = 15, score = calculated
         
     step_5_generate_reasoning:
       description: "Create human-readable explanation"
