@@ -2636,6 +2636,101 @@ scoring_matrix_v2:
       reasoning: "ABSOLUTE BLOCK - cannot enter MOU region"
 
 # ═══════════════════════════════════════════════════════════════════
+# PORT HISTORY BONUS (NEW v2.1)
+# ═══════════════════════════════════════════════════════════════════
+
+port_history_bonus:
+
+  version: "2.1"
+  date: "2026-02-05"
+
+  principle: |
+    If a vessel has successfully called ports with high PSC requirements
+    within the last 12 months, this PROVES it can pass strict inspections.
+    This historical evidence provides confidence bonus for less strict ports.
+
+  rationale: |
+    A vessel that called Italy (Very Strict) 6 months ago and wasn't
+    detained demonstrates it meets high standards. This vessel should
+    get bonus points when evaluated for Ukraine (Moderate Tolerant).
+
+  scoring_rules:
+
+    tier_1_very_strict_history:
+      condition: "Vessel called Very Strict port in last 12 months"
+      ports_that_qualify: ["Italy", "France", "Greece", "Germany", "Netherlands", "UK", "USA", "Japan", "Singapore"]
+      bonus: "+3 points"
+      applies_to: "All Moderate and Lax ports"
+      max_p2a_after_bonus: 20
+
+    tier_2_moderate_strict_history:
+      condition: "Vessel called Moderate Strict port in last 12 months"
+      ports_that_qualify: ["Turkey (all ports)"]
+      bonus: "+2 points"
+      applies_to: "Moderate Tolerant and Lax ports only"
+      max_p2a_after_bonus: 20
+
+  stacking_rules:
+    principle: "Bonuses do NOT stack - use highest applicable"
+    example: "Vessel called Italy AND Turkey → use +3 (Italy), not +5"
+
+  calculation_examples:
+
+    example_1:
+      vessel: "Paris MOU Grey (MEDIUM status)"
+      history: "Called Ravenna, Italy 4 months ago (no detention)"
+      current_route: "Chornomorsk → Crete"
+
+      base_calculation:
+        chornomorsk_ukraine: 16  # MEDIUM vessel, Moderate Tolerant
+        crete_greece: 10         # MEDIUM vessel, Very Strict
+        minimum: 10
+
+      history_bonus_check:
+        italy_call: true
+        within_12_months: true
+        bonus_applicable: "+3 for Ukraine (Moderate)"
+        bonus_applicable_greece: "No - Greece is Very Strict (same tier)"
+
+      final_calculation:
+        chornomorsk_with_bonus: "16 + 3 = 19 (capped at 20)"
+        crete_no_bonus: 10
+        final_p2a: 10  # minimum of (19, 10)
+
+    example_2:
+      vessel: "Paris MOU Black (POOR status)"
+      history: "Called Yarimca, Turkey 2 months ago (no detention)"
+      current_route: "Odessa → Alexandria"
+
+      base_calculation:
+        odessa_ukraine: 12   # POOR vessel, Moderate Tolerant
+        alexandria_egypt: 10  # POOR vessel, Moderate Standard
+        minimum: 10
+
+      history_bonus_check:
+        turkey_call: true
+        within_12_months: true
+        bonus_applicable: "+2 for Ukraine (Moderate Tolerant)"
+        bonus_applicable_egypt: "No - Egypt is Moderate Standard (same tier)"
+
+      final_calculation:
+        odessa_with_bonus: "12 + 2 = 14"
+        alexandria_no_bonus: 10
+        final_p2a: 10  # minimum of (14, 10)
+
+  data_source:
+    field: "vessel.last_ports or vessel.port_call_history"
+    lookback_period: "12 months"
+    required_data: "Port name, country, call date"
+
+  ai_instructions:
+    - "Check vessel port history for last 12 months"
+    - "Identify calls to Very Strict or Moderate Strict ports"
+    - "Apply highest applicable bonus (do not stack)"
+    - "Bonus only applies to LESS strict ports than history"
+    - "Include history bonus in reasoning"
+
+# ═══════════════════════════════════════════════════════════════════
 # AI SCORING LOGIC
 # ═══════════════════════════════════════════════════════════════════
 
@@ -2762,14 +2857,18 @@ ai_must:
   - "ALWAYS calculate MINIMUM score when route has 2 ports"
   - "ALWAYS cite specific PSC classification in reasoning"
   - "NEVER assume POOR vessels cannot call Ukraine - they usually can!"
+  - "ALWAYS check port history for bonus eligibility (v2.1)"
+  - "ALWAYS apply port history bonus for less strict ports"
 
 ai_must_not:
   - "Never treat all MODERATE severity ports the same"
   - "Never give POOR vessel in Ukraine a score below 10"
   - "Never ignore Turkey's stricter enforcement vs Ukraine"
+  - "Never stack port history bonuses (use highest only)"
+  - "Never apply port history bonus to same-tier or stricter ports"
 
 # ═══════════════════════════════════════════════════════════════════
-# END OF P2A PSC PORT ACCESSIBILITY SCORING v2.0
+# END OF P2A PSC PORT ACCESSIBILITY SCORING v2.1
 # ═══════════════════════════════════════════════════════════════════
 
 
