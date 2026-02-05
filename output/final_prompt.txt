@@ -216,12 +216,13 @@ p2_owner_preferences_scoring_v2:
       
     negative_no:
       keywords: ["no", "cannot", "avoid", "never"]
-      score_value: -7.5
-      interpretation: "NEGATIVE preference - actively avoid"
+      score_value: 0
+      interpretation: "NEGATIVE preference - no points for this region"
+      note: "Score is 0, NOT negative. P2 cannot go below 0."
       examples:
-        - "no Egypt" for Egyptian discharge → -7.5/7.5
-        - "cannot work Libya" → -7.5/7.5
-        - "avoid Turkey" → -7.5/7.5
+        - "no Egypt" for Egyptian discharge → 0/7.5
+        - "cannot work Libya" → 0/7.5
+        - "avoid Turkey" → 0/7.5
   
   # ─────────────────────────────────────────────────────────────────
   # LOAD vs DISCHARGE SEPARATION
@@ -327,26 +328,38 @@ p2_owner_preferences_scoring_v2:
     example_4_negative:
       comment: "ukraine ok, no turkey"
       cargo: "Chornomorsk → Yarimca"
-      
+
       calculation:
-        ukraine_load: 5.0
-        turkey_discharge: -7.5
-        total: -2.5
-        adjusted_total: 0
-      
-      reasoning: "Negative for Turkey discharge, minimum P2 score is 0"
-      note: "P2 score cannot go below 0"
-    
+        ukraine_load: 5.0    # "ukraine ok" = 5.0 points
+        turkey_discharge: 0  # "no turkey" = 0 points, NOT negative
+        total: 5.0
+
+      reasoning: "Ukraine acceptable (5.0), Turkey explicitly avoided (0)"
+      note: "P2 score is sum of [0, 7.5] + [0, 7.5], never negative"
+
     example_5_no_comments:
       comment: ""
       cargo: "Chornomorsk → Yarimca"
-      
+
       calculation:
         ukraine_load: 0
         turkey_discharge: 0
         total: 0
-      
+
       reasoning: "No preferences stated, neutral score"
+
+    example_6_spec_greece_no_ukraine:
+      comment: "spec: greece, no ukraine"
+      cargo: "Izmail → Crete"
+
+      calculation:
+        ukraine_load: 0       # "no ukraine" = 0 points
+        greece_discharge: 7.5 # "spec: greece" = max points
+
+        total: 7.5
+
+      reasoning: "Owner specializes in Greece discharge but avoids Ukraine loading"
+      note: "This is correct - 'no ukraine' gives 0, not negative"
 
 # ═══════════════════════════════════════════════════════════════════
 # INTEGRATION WITH OTHER CRITERIA
@@ -393,7 +406,8 @@ ai_must_not:
   - "Never ignore 'try' keyword (it means SECONDARY, not PRIMARY)"
   - "Never apply same regional comment to both load and discharge without logic"
   - "Never exceed 15 points for P2 (7.5 + 7.5 max)"
-  - "Never allow P2 to go below 0 (floor at zero)"
+  - "Never use NEGATIVE scores - 'no X' means 0 points, not -7.5"
+  - "P2 range is always [0, 15] - sum of two [0, 7.5] components"
 
 # ═══════════════════════════════════════════════════════════════════
 # END OF COMMENTS PROCESSING GUIDE v2.0
