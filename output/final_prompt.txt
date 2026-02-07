@@ -3875,143 +3875,127 @@ ai_must_not:
 --- START OF estimator-prompts/vessel_location_determination.txt ---
 ================================================================================
 VESSEL LOCATION DETERMINATION
-Version: 4.0
+Version: 5.0 FINAL
 Last updated: 2026-02-07
 ================================================================================
 
 PURPOSE:
-  Determine the vessel's current position, heading, and operational status
-  to support P1 (proximity), P7 (readiness/ETA), and offer generation.
-  Includes draught analysis for ballast/laden detection.
+  Determine the vessel's current position, heading, and operational status.
+  Provides draught analysis (ballast/laden) for P7 scoring.
+
+================================================================================
+CRITICAL — FIELD MAPPING FOR DRAUGHT ANALYSIS
+================================================================================
 
   ╔══════════════════════════════════════════════════════════════════╗
-  ║  This file provides draught analysis logic that P7 MUST use     ║
-  ║  before scoring readiness. See READINESSETA_TO_LOADING_PORT_    ║
-  ║  SCORING.txt for how results feed into P7 scoring.             ║
+  ║  Use field "draft" for max_draft (summer loadline).            ║
+  ║  Do NOT use "max-draught" (max recorded, includes tropical).   ║
+  ║  Do NOT use "min-draught" (ballast reference).                 ║
   ╚══════════════════════════════════════════════════════════════════╝
 
-================================================================================
-POSITION SOURCES (priority order)
-================================================================================
-
-  1. OpenArea data (vessel listing):
-     - open_area: "Montoir, Feb 17"
-     - Contains: location name, date, sometimes heading
-     
-  2. VesselFinder / MarineTraffic data:
-     - current-position: lat/lon
-     - destination: next port
-     - eta: estimated arrival
-     - navigation-status: "under way", "at anchor", "moored"
-     - current-draught: current draught reading (meters)
-     
-  3. Vessel JSON fields:
-     - vessel_area: general area description
-     - last_ports: recent port calls with dates
-
-================================================================================
-DETERMINING VESSEL READY DATE
-================================================================================
-
-  OPTION A — Open area with date only (no destination):
-    Example: "open Montoir Feb 17"
-    vessel_ready = Feb 17 (use as-is)
-    No buffer needed — vessel is stated as open.
-
-  OPTION B — Destination with ETA:
-    Example: "heading Ravenna ETA Feb 13"
-    
-    Step 1: Perform DRAUGHT ANALYSIS (see below)
-    Step 2: Apply operations buffer based on result
-    
-    BALLAST → vessel_ready = ETA (no buffer)
-    LADEN   → vessel_ready = ETA + 7 days
-    OVER_DRAFT → vessel_ready = ETA + 7 days (treat as laden)
-      
-  OPTION C — Current position only (no destination/ETA):
-    Estimate sailing time from current position to load port.
-    Use 10-12 knots average. Add 1 day port entry buffer.
-    confidence = "low"
+  FIELD DEFINITIONS:
+    "draft"          = Design summer loadline draft (vessel specs) ← USE THIS
+    "max-draught"    = Max recorded AIS draught (may exceed summer line)
+    "min-draught"    = Min recorded AIS draught (ballast state)
+    "current-draught"= Current AIS draught reading ← USE THIS
 
 ================================================================================
 DRAUGHT ANALYSIS — BALLAST/LADEN DETECTION
 ================================================================================
 
   FORMULA:
-    draught_ratio = current_draught / max_draft
-    
-    current_draught = field "current-draught" (from AIS/VesselFinder)
-    max_draft = field "draft" (summer draft from vessel specs)
+    draught_ratio = current-draught / draft
     
   THRESHOLDS:
-  
-    ratio < 0.65 → STATUS: BALLAST
-    ────────────────────────────────────────
-      Vessel is empty or nearly empty.
-      operations_buffer = 0 days
-      vessel_ready = ETA
-      Ask owner: "Is she proceeding for loading or available?"
-
-    ratio >= 0.65 → STATUS: LADEN
-    ────────────────────────────────────────
-      Vessel is carrying cargo, heading to discharge.
-      operations_buffer = +7 days (discharge + preparation)
-      vessel_ready = ETA + 7 days
-
-    current_draught > max_draft → STATUS: OVER_DRAFT
-    ────────────────────────────────────────
-      Data anomaly (outdated AIS, tropical marks, error).
-      Treat as LADEN (conservative).
-      operations_buffer = +7 days
-      Note data anomaly, confidence = "medium"
-
+    ratio < 0.65 → BALLAST
+    ratio >= 0.65 → LADEN
+    current-draught > draft → OVER_DRAFT → treat as LADEN
+    
   MISSING DATA:
-    If current_draught unavailable → default to LADEN (conservative)
-    If max_draft unavailable → cannot calculate, use context clues
-    Always note missing data in reasoning.
+    If current-draught unavailable → default to LADEN (conservative)
+    
+  Note: OVER_DRAFT (ratio > 1.0) happens when vessel is loaded beyond
+  summer marks (tropical zone, river allowance) or AIS data is outdated.
+  Always treat as LADEN.
 
 ================================================================================
-IMPACT ON OTHER CRITERIA
+VESSEL STATUS DETECTION
 ================================================================================
 
-  P7 (Readiness/ETA):
-    BALLAST → vessel_ready = ETA → closer to layday = better P7
-    LADEN → vessel_ready = ETA + 7 → later ready date = worse P7
-    P7 MUST use this analysis. See READINESSETA_TO_LOADING_PORT_SCORING.txt
+  UNDERWAY:
+    speed > 2 knots AND navigation-status contains "Under Way"
+    
+  AT ANCHOR / MOORED:
+    navigation-status = "At anchor" or "Moored"
+    OR speed < 2 knots AND position near port
+    
+  AT DESTINATION:
+    Vessel is at anchor/moored AND destination matches current area
+    OR ETA is in the past
+    
+    This is a critical distinction for P7: vessel has ARRIVED and is
+    either waiting to berth, discharging, or waiting for orders.
 
-  P1 (Proximity):
-    Use DESTINATION port for distance when vessel is underway
-    (not current mid-sea position)
+================================================================================
+DETERMINING VESSEL READY DATE (for P7)
+================================================================================
 
-  Offer Opening:
-    BALLAST → include question about availability/status
-    LADEN → standard approach, mention post-discharge timing
+  CASE A — Open area with date (open_area field not null):
+    vessel_ready = stated date
+    No buffer. Location = stated port.
+
+  CASE B — Underway, ETA in future:
+    BALLAST → vessel_ready = ETA
+    LADEN → vessel_ready = ETA + 7 days
+
+  CASE C — At destination / ETA in past:
+    This is the most common real-world scenario for vessels already
+    arrived at their port.
+    
+    BALLAST at destination:
+      vessel_ready = TODAY
+      
+    LADEN at destination:
+      days_since_arrival = TODAY - MAX(ETA, position_received - 3d)
+      remaining_ops = MAX(0, 7 - days_since_arrival)
+      vessel_ready = TODAY + remaining_ops
+      
+      Logic: discharge + prep ≈ 7 days. Subtract time already there.
+      MINIMUM: vessel_ready = TODAY
+
+  CASE D — No destination / no ETA:
+    Estimate from current position.
+    confidence = "low"
 
 ================================================================================
 EXAMPLES
 ================================================================================
 
-  Example 1: OVER_DRAFT (laden)
-    current_draught = 8.8m, max_draft = 8.6m
-    ratio = 1.023 → OVER_DRAFT → treat as LADEN
-    vessel_ready = ETA + 7 days
-    Note: "Draught 8.8m exceeds max 8.6m — anomaly, treating as laden."
+  Example 1: PETREL S — Laden at anchor, ETA past
+    current-draught: 8.3, draft: 8.48
+    ratio = 8.3/8.48 = 0.978 → LADEN
+    navigation-status: "At anchor"
+    destination: "Lisboa Anch., Portugal" (already there)
+    ETA: Feb 1 (past), today: Feb 7
+    days_since_arrival = 6
+    remaining_ops = MAX(0, 7-6) = 1
+    vessel_ready = Feb 8
 
-  Example 2: BALLAST
-    current_draught = 2.1m, max_draft = 5.2m  
+  Example 2: Ballast underway
+    current-draught: 2.1, draft: 5.2
     ratio = 0.404 → BALLAST
-    vessel_ready = ETA (no buffer)
-    Ask: "Confirm if heading for loading or open."
+    destination: Mersin, ETA Feb 10
+    vessel_ready = Feb 10 (no buffer)
 
-  Example 3: LADEN
-    current_draught = 7.5m, max_draft = 9.8m
-    ratio = 0.765 → LADEN
-    vessel_ready = ETA + 7 days
+  Example 3: OVER_DRAFT
+    current-draught: 8.8, draft: 8.6
+    ratio = 1.023 → OVER_DRAFT → LADEN
+    ETA Feb 13 (future)
+    vessel_ready = Feb 13 + 7 = Feb 20
 
   Example 4: No draught data
-    current_draught = not available
-    Default: LADEN (+7 days buffer)
-    Note: "No draught data — defaulting to laden."
+    current-draught: null
+    Default LADEN, +7 days from ETA
     confidence = "medium"
 
 ================================================================================
