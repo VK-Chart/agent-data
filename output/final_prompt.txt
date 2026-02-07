@@ -3774,6 +3774,15 @@ CRITICAL — FIELD MAPPING FOR DRAUGHT ANALYSIS
     "min-draught"    = Min recorded AIS draught (ballast state)
     "current-draught"= Current AIS draught reading ← USE THIS
 
+  MISSING / ZERO DRAFT:
+    If "draft" = 0.0 or null → draught ratio IMPOSSIBLE.
+    Default: LADEN (+7 days buffer), confidence = "low".
+
+  STALE AIS DATA:
+    If "position-received" is older than 7 days:
+    → Mark confidence = "low", note stale data in reasoning.
+    → Vessel may have moved, discharged, or changed status.
+
 ================================================================================
 DRAUGHT ANALYSIS — BALLAST/LADEN DETECTION
 ================================================================================
