@@ -2040,7 +2040,7 @@ AI INSTRUCTIONS
 --- START OF estimator-prompts/READINESSETA_TO_LOADING_PORT_SCORING.txt ---
 ================================================================================
 READINESS / ETA TO LOADING PORT SCORING — P7
-Version: 4.0
+Version: 5.0 FINAL
 Last updated: 2026-02-07
 ================================================================================
 
@@ -2056,181 +2056,220 @@ STEP 1 — MANDATORY DRAUGHT ANALYSIS
 ================================================================================
 
   ╔══════════════════════════════════════════════════════════════════╗
-  ║  CRITICAL: AI MUST perform draught analysis BEFORE calculating  ║
-  ║  vessel_ready date. Without this step, P7 score may be wrong.  ║
-  ║  See vessel_location_determination.txt for full details.       ║
+  ║  AI MUST perform draught analysis BEFORE calculating            ║
+  ║  vessel_ready date. See vessel_location_determination.txt       ║
   ╚══════════════════════════════════════════════════════════════════╝
 
-  DRAUGHT RATIO FORMULA:
-    draught_ratio = current_draught / max_draft
-    
-    Fields: current-draught (from AIS/VesselFinder), draft (vessel specs)
+  FIELD USAGE:
+    current_draught = field "current-draught" (from AIS)
+    max_draft = field "draft" (summer loadline from vessel specs)
+    ❌ Do NOT use "max-draught" field (max recorded, includes tropical)
+    ❌ Do NOT use "min-draught" field (ballast reference only)
 
-  THRESHOLDS:
-    ratio < 0.65  → BALLAST (vessel empty, heading to load)
-    ratio >= 0.65 → LADEN (vessel carrying cargo, heading to discharge)
-    current > max → OVER_DRAFT (data anomaly, treat as LADEN)
+  DRAUGHT RATIO:
+    ratio = current_draught / max_draft (using field "draft")
     
-  If current_draught is NOT available:
-    Default to LADEN (conservative) and note in reasoning.
+    ratio < 0.65  → BALLAST
+    ratio >= 0.65 → LADEN
+    current > max → OVER_DRAFT → treat as LADEN
 
 ================================================================================
 STEP 2 — DETERMINE VESSEL READY DATE
 ================================================================================
 
-  A) Vessel is OPEN with a date:
-     Example: "open Montoir Feb 17"
-     vessel_ready = Feb 17 (use as-is)
-     No buffer needed — vessel stated as open.
-     
-  B) Vessel has destination + ETA:
-     Perform draught analysis first, then:
-     
-     If BALLAST (ratio < 0.65):
-       vessel_ready = ETA
-       Note: "Vessel in ballast — no operations buffer. Confirm with 
-              owner if heading for loading or available for redirection."
-              
-     If LADEN (ratio >= 0.65):
-       vessel_ready = ETA + 7 days
-       Note: "Vessel laden — adding 7 days buffer (discharge + preparation)."
-              
-     If OVER_DRAFT (current > max):
-       vessel_ready = ETA + 7 days
-       Note: "Draught exceeds max (data anomaly) — treating as laden, +7d."
+  ┌─────────────────────────────────────────────────────────┐
+  │  CASE A: Vessel has open_area with date                 │
+  └─────────────────────────────────────────────────────────┘
+    Example: open_area = "Montoir, Feb 17"
+    vessel_ready = Feb 17
+    No buffer needed — vessel stated as open.
+    Then calculate sailing time from open location to load port.
+    vessel_at_loadport = vessel_ready + sailing_days
+    
+  ┌─────────────────────────────────────────────────────────┐
+  │  CASE B: Vessel underway with destination + future ETA  │
+  └─────────────────────────────────────────────────────────┘
+    ETA is in the FUTURE (after today).
+    
+    BALLAST → vessel arrives at ETA. Available immediately.
+      vessel_ready = ETA
+      Then + sailing from destination to load port (if different)
+      
+    LADEN → vessel arrives, needs to discharge.
+      vessel_ready = ETA + 7 days (operations buffer)
+      Then + sailing from destination to load port (if different)
+      
+  ┌─────────────────────────────────────────────────────────┐
+  │  CASE C: Vessel at destination / ETA in the PAST        │
+  │  (IMPORTANT — common real-world scenario)               │
+  └─────────────────────────────────────────────────────────┘
+    Triggered when ANY of:
+      - navigation-status = "At anchor" or "Moored"
+      - ETA is in the past (before today)
+      - Vessel speed < 2 knots AND at destination area
+      
+    The vessel has ALREADY ARRIVED at its destination.
+    
+    BALLAST at destination:
+      Vessel is empty, waiting for cargo/orders.
+      vessel_ready = TODAY (available now)
+      Then + sailing from current location to load port
+      
+    LADEN at destination:
+      Vessel is waiting to discharge or currently discharging.
+      
+      FORMULA:
+        days_since_arrival = TODAY - MAX(ETA, position_received - 3 days)
+        remaining_ops = MAX(0, 7 - days_since_arrival)
+        vessel_ready = TODAY + remaining_ops
+        
+      Logic: Standard discharge takes ~7 days. If vessel arrived 
+      6 days ago, only ~1 day remaining. If arrived today, 7 days.
+      
+      MINIMUM: vessel_ready = TODAY (never in the past)
+      
+      Then + sailing from current location to load port
 
-  C) Vessel has no destination/ETA:
-     Estimate sailing time from current position to loading port.
-     Use average speed 10-12 knots. Add 1 day port entry buffer.
-     confidence = "low"
+    EXAMPLE (PETREL S):
+      ETA = Feb 1, today = Feb 7, nav = "At anchor", laden (ratio 0.97)
+      days_since_arrival = Feb 7 - Feb 1 = 6 days
+      remaining_ops = MAX(0, 7 - 6) = 1 day
+      vessel_ready = Feb 7 + 1 = Feb 8
+      sailing Lisboa → POC: ~3000nm / 10.2 knots / 24 = ~12.3 days
+      vessel_at_loadport = Feb 8 + 12 = Feb 20
+      
+  ┌─────────────────────────────────────────────────────────┐
+  │  CASE D: No destination / no ETA                        │
+  └─────────────────────────────────────────────────────────┘
+    Estimate sailing time from current position to load port.
+    Use average-speed or default 10-12 knots.
+    Add 1 day buffer.
+    confidence = "low"
 
 ================================================================================
-STEP 3 — CALCULATE GAP
+STEP 3 — CALCULATE SAILING TIME TO LOAD PORT
 ================================================================================
 
-  gap = vessel_ready - cargo_layday (start of laycan)
+  After determining vessel_ready, calculate sailing to load port:
+  
+  sailing_days = distance_nm / (speed_knots × 24)
+  
+  Speed source (priority):
+    1. field "average-speed" (if available and > 0)
+    2. Default 10.5 knots for bulk carriers / general cargo
+    
+  vessel_at_loadport = vessel_ready + sailing_days
+  
+  Note: If vessel is ALREADY near load port area, sailing_days ≈ 0.
+
+================================================================================
+STEP 4 — CALCULATE GAP
+================================================================================
+
+  gap = vessel_at_loadport - cargo_layday (start of laycan)
   
   Positive gap = vessel is late (arrives AFTER layday)
   Negative gap = vessel is early (arrives BEFORE layday)
   Zero = perfect timing
 
 ================================================================================
-STEP 4 — SCORING MATRIX
+STEP 5 — SCORING MATRIX
 ================================================================================
 
-  gap <= -7 days (very early):
-    score = 4/10
-    Vessel idle too long. Owner may lose interest.
-    offer_hint: "Vessel ready much earlier — suggest flexibility on dates."
-
-  gap = -6 to -3 days (early):
-    score = 7/10
-    Slight wait but manageable.
-    offer_hint: "Ready a few days early — timing works."
-
-  gap = -2 to +1 days (ideal window):
-    score = 10/10
-    Perfect timing.
-    offer_hint: "Timing aligns perfectly — highlight in opening."
-
-  gap = +2 to +3 days (slightly late):
-    score = 7/10
-    Acceptable if flexible.
-    offer_hint: "Timing slightly tight — mention laycan flexibility."
-
-  gap = +4 to +5 days (late):
-    score = 4/10
-    Risky, may miss canceling.
-    offer_hint: "Timing tight — offer only if laycan may extend."
-
-  gap = +6 to +7 days (very late):
-    score = 2/10
-    Likely misses canceling.
-    offer_hint: "Likely misses canceling — only if extension confirmed."
-
-  gap > +7 days (past canceling):
-    score = 0/10, decision = BLOCK
-    offer_hint: "Cannot meet laycan — do not offer."
-
-================================================================================
-SPECIAL CASES
-================================================================================
-
-  BALLAST QUESTION:
-    When vessel is in ballast heading somewhere:
-    - Score using ETA (without +7 days)
-    - Add question to offer: confirm if fixed or open
-    - offer_hint includes: "Vessel appears in ballast — confirm with 
-      owner if proceeding for loading or available for redirection."
-
-  NO ETA AVAILABLE:
-    - Estimate sailing time from current position
-    - Use 10-12 knots average speed + 1 day buffer
-    - Score with low confidence
-    
-  VESSEL AT ANCHOR (no destination):
-    - If at/near load port area → vessel_ready = today/tomorrow
-    - If elsewhere → estimate sailing time
-    - Check if waiting for cargo, berth, or instructions
+  gap <= -7 days (very early):     score = 4/10
+  gap = -6 to -3 days (early):    score = 7/10
+  gap = -2 to +1 days (ideal):    score = 10/10
+  gap = +2 to +3 days (slightly late): score = 7/10
+  gap = +4 to +5 days (late):     score = 4/10
+  gap = +6 to +7 days (very late): score = 2/10
+  gap > +7 days (past canceling):  score = 0/10, decision = BLOCK
 
 ================================================================================
 EXAMPLES
 ================================================================================
 
-  Example 1: Laden vessel (draught analysis applied)
-    Vessel heading Ravenna, ETA Feb 13
-    current_draught = 8.8m, max_draft = 8.6m
-    draught_ratio = 8.8/8.6 = 1.023 → OVER_DRAFT → treat as LADEN
-    vessel_ready = Feb 13 + 7 = Feb 20
-    Cargo layday = Feb 5, canceling = Feb 10
-    gap = Feb 20 - Feb 5 = +15 days → score = 0/10, BLOCK
-    reasoning: "Draught 8.8m > max 8.6m (over_draft, treat as laden). 
-               After +7d operations buffer: ready Feb 20. Misses laycan by 15 days."
+  Example 1: Laden at anchor, ETA in past (PETREL S scenario)
+  ─────────────────────────────────────────
+    Vessel: At anchor Lisboa. ETA Feb 1 (past). Today Feb 7.
+    current-draught: 8.3, draft: 8.48 → ratio 0.978 → LADEN
+    days_since_arrival = 6. remaining_ops = MAX(0, 7-6) = 1
+    vessel_ready = Feb 8
+    Sailing Lisboa → POC: 3000nm / 10.2kn / 24h = 12.3d ≈ 12d
+    vessel_at_loadport = Feb 8 + 12 = Feb 20
+    Cargo layday Feb 5, canceling Feb 10
+    gap = Feb 20 - Feb 5 = +15 days → BLOCK
+    reasoning: "Laden at anchor Lisboa since ~Feb 1 (ratio 0.978).
+               Est. ready Feb 8, +12d sailing = arrives POC ~Feb 20.
+               Misses canceling Feb 10 by 10 days."
 
-  Example 2: Ballast vessel (draught analysis applied)
-    Vessel heading Mersin, ETA Feb 10
-    current_draught = 2.1m, max_draft = 5.2m
-    draught_ratio = 2.1/5.2 = 0.404 → BALLAST
+  Example 2: Ballast underway, future ETA
+  ─────────────────────────────────────────
+    Vessel heading Mersin, ETA Feb 10. ratio 0.40 → BALLAST
     vessel_ready = Feb 10 (no buffer)
-    Cargo layday = Feb 8, canceling = Feb 15
-    gap = Feb 10 - Feb 8 = +2 days → score = 7/10
-    reasoning: "Vessel in ballast (ratio 0.40). No operations buffer.
-               Ready Feb 10, gap +2 days — acceptable timing."
+    Cargo loads Mersin → sailing = 0 days
+    vessel_at_loadport = Feb 10
+    Layday Feb 8 → gap = +2 days → score = 7/10
 
   Example 3: Open vessel
-    Vessel open Constanta Feb 12
-    vessel_ready = Feb 12 (stated opening)
-    Cargo layday = Feb 14, canceling = Feb 20
-    gap = Feb 12 - Feb 14 = -2 days → score = 10/10
-    reasoning: "Open Constanta Feb 12, gap -2 days — ideal timing."
+  ─────────────────────────────────────────
+    open_area = "Constanta, Feb 12"
+    vessel_ready = Feb 12
+    Cargo loads Chornomorsk (~50nm) → 0.2d sailing
+    vessel_at_loadport = Feb 12
+    Layday Feb 14 → gap = -2 days → score = 10/10
 
-  Example 4: No draught data
-    Vessel heading Istanbul, ETA Feb 8. No current_draught available.
-    → Default to LADEN (conservative)
-    vessel_ready = Feb 8 + 7 = Feb 15
-    Cargo layday = Feb 12
-    gap = +3 days → score = 7/10
-    reasoning: "No draught data — defaulting to laden (+7d buffer).
-               Ready Feb 15, gap +3 days. Confirm actual status."
+  Example 4: Laden underway, future ETA
+  ─────────────────────────────────────────
+    Heading Ravenna, ETA Feb 13. ratio 0.85 → LADEN
+    vessel_ready = Feb 13 + 7 = Feb 20
+    Sailing Ravenna → POC: ~800nm / 10.5kn = 3.2d ≈ 3d
+    vessel_at_loadport = Feb 20 + 3 = Feb 23
+    Layday Feb 5 → gap = +18 → BLOCK
+
+  Example 5: No draught data
+  ─────────────────────────────────────────
+    Heading Istanbul, ETA Feb 8. No current-draught.
+    Default LADEN. vessel_ready = Feb 8 + 7 = Feb 15
     confidence = "medium"
+
+================================================================================
+REASONING FORMAT
+================================================================================
+
+  P7 reasoning MUST include:
+    1. Draught analysis: ratio, ballast/laden status
+    2. How vessel_ready was calculated (which CASE)
+    3. Sailing time to load port (distance, speed, days)
+    4. vessel_at_loadport date
+    5. Gap in days
+    6. Laycan reference (layday + canceling dates)
+
+  Good: "Laden at anchor Lisboa since ~Feb 1 (ratio 0.978). 
+         Remaining ops ~1d, ready Feb 8. +12d sailing to POC = 
+         arrives ~Feb 20. Layday Feb 5, canceling Feb 10, gap +15d."
+         
+  Bad:  "Vessel is laden in Lisboa. Ready Feb 11 + 11d sailing = Feb 22."
+        (Where does Feb 11 come from? Unclear.)
 
 ================================================================================
 AI INSTRUCTIONS
 ================================================================================
 
   ai_must:
-    - ALWAYS perform draught analysis before calculating vessel_ready
-    - Show draught_ratio and ballast/laden determination in reasoning
-    - Apply +7 days buffer for LADEN vessels, 0 days for BALLAST
-    - Default to LADEN when draught data is missing
-    - Include draught status in offer_hint when relevant
+    - ALWAYS perform draught analysis first (use "draft" field, not "max-draught")
+    - Determine which CASE applies (A/B/C/D)
+    - For CASE C (at anchor/ETA past): calculate days_since_arrival
+    - Calculate sailing time from ready location to LOAD PORT
+    - Show all calculation steps in reasoning
+    - Use field "average-speed" when available for sailing calculation
     
   ai_must_not:
-    - ❌ Never skip draught analysis when current_draught is available
-    - ❌ Never assume vessel is in ballast without checking ratio
-    - ❌ Never forget +7 days buffer for laden vessels
-    - ❌ Never score P7 without first determining vessel_ready date
-    - ❌ Never ignore OVER_DRAFT condition (treat as laden)
+    - ❌ Never use "max-draught" for draught ratio
+    - ❌ Never skip draught analysis
+    - ❌ Never forget to add sailing time to load port
+    - ❌ Never produce vessel_ready date without showing how it was derived
+    - ❌ Never ignore "At anchor" / "Moored" navigation status
+    - ❌ Never ignore ETA being in the past
 
 ================================================================================
 
