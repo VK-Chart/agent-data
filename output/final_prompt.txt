@@ -1598,400 +1598,157 @@ AI INSTRUCTIONS
 
 
 --- START OF estimator-prompts/READINESSETA_TO_LOADING_PORT_SCORING.txt ---
-# ═══════════════════════════════════════════════════════════════════
-# P7: READINESS/ETA TO LOADING PORT SCORING - UPDATED v2.0
-# VK Charts AI Scoring System
-# ═══════════════════════════════════════════════════════════════════
-#
-# CHANGES IN v2.0:
-# - Added ETA + 7 days operations logic
-# - Added layday vs canceling date scoring thresholds
-# - Added AIS staleness warning (30+ days)
-# - Clarified difference between destination ETA vs actual opening
-# - Added Tuzla dry dock special handling
-#
-# ═══════════════════════════════════════════════════════════════════
+================================================================================
+READINESS / ETA TO LOADING PORT SCORING — P7
+Version: 3.0
+Last updated: 2026-02-07
+================================================================================
 
-version: "2.0"
-date: "2026-01-19"
-priority: "CRITICAL - Timing compatibility affects commercial viability"
+PURPOSE:
+  Score how well the vessel's availability timing matches the cargo laycan.
+  Integrates draught analysis to determine if vessel needs operations buffer.
 
-# ═══════════════════════════════════════════════════════════════════
-# OVERVIEW
-# ═══════════════════════════════════════════════════════════════════
+SCORE RANGE: [0, 10]
+ALWAYS ACTIVE: max_score = 10
 
-purpose: |
-  P7 evaluates whether vessel will be ready at loading port in time
-  for the cargo's laycan (loading window). 
-  
-  SCORE RANGE: 0-10 points
-  
-  KEY PRINCIPLE:
-  - Vessel ready BEFORE layday = idle time cost (unfavorable)
-  - Vessel ready AT layday = perfect timing (optimal)
-  - Vessel ready AFTER canceling = impossible (blocked)
+================================================================================
+STEP 1 — DETERMINE VESSEL READY DATE
+================================================================================
 
-# ═══════════════════════════════════════════════════════════════════
-# DATA SOURCES & PRIORITY
-# ═══════════════════════════════════════════════════════════════════
+  Use vessel_location_determination.txt logic:
+  
+  A) Vessel is OPEN with a date:
+     vessel_ready = stated opening date
+     
+  B) Vessel has destination + ETA:
+     Perform draught analysis:
+     
+     If BALLAST (draught_ratio < 0.65):
+       vessel_ready = ETA to destination
+       Note: "Vessel appears in ballast — using ETA without operations buffer.
+              Recommend confirming availability with owner."
+              
+     If LADEN (draught_ratio >= 0.65):
+       vessel_ready = ETA to destination + 7 days
+       Note: "Vessel appears laden — adding 7 days operations buffer 
+              (discharge + preparation)."
+              
+     If OVER_DRAFT (current > max):
+       vessel_ready = ETA + 7 days (conservative, treat as laden)
+       Note: "Draught data anomaly — treating as laden with +7 days buffer."
 
-data_sources:
-  
-  priority_1_open_area:
-    source: "OpenArea field (manually set)"
-    format: "Port name + Date"
-    example: "Constanta, Jan 20"
-    reliability: "HIGHEST - directly stated by owner"
-    
-    usage: |
-      If open_area is provided, use this as the definitive opening position
-      and date. This is the owner's stated availability.
-  
-  priority_2_destination:
-    source: "Destination field (from AIS)"
-    format: "Port name"
-    additional: "ETA (Estimated Time of Arrival)"
-    reliability: "MEDIUM - vessel is heading there, but purpose unknown"
-    
-    usage: |
-      If destination is set, vessel is likely going there to:
-      a) Discharge current cargo, OR
-      b) Load next cargo, OR
-      c) Bunkers/provisions/repairs
-      
-      CRITICAL: Add +7 days to ETA for operations (loading/discharge)
-      before vessel is actually "open" for next cargo.
-    
-    special_case_tuzla:
-      port: "Tuzla (Turkey)"
-      interpretation: "DRY DOCK / REPAIRS"
-      add_time: "+30 days (minimum)"
-      reasoning: |
-        Tuzla is a major repair/dry dock location. If vessel is currently
-        in Tuzla or heading to Tuzla, assume repairs lasting ~1 month.
-        Repair completion dates are uncertain.
-      
-      scoring_impact:
-        if_current_in_tuzla: "P7 score = 2/10 (high uncertainty)"
-        if_heading_to_tuzla: "P7 score = 3/10 (repairs expected)"
-  
-  priority_3_current_area:
-    source: "Current Area field (from AIS)"
-    format: "Geographic region"
-    example: "East Mediterranean"
-    reliability: "LOW - only shows current position, no destination"
-    
-    usage: |
-      Use only if no open_area or destination available.
-      Assume vessel is at anchor or drifting, date from position_received.
-  
-  ais_staleness_check:
-    threshold: 30
-    threshold_unit: "days"
-    
-    check: |
-      If (current_date - position_received) > 30 days:
-        - AIS may be turned off
-        - Vessel may have issues
-        - Position data UNRELIABLE
-    
-    action:
-      add_warning: true
-      warning_text: |
-        "⚠️ Warning: AIS data is stale (last update: {position_received}).
-        Vessel may have disabled AIS or encountered issues.
-        Position reliability: LOW."
-      
-      reduce_confidence:
-        overall_confidence: -10
-        p7_confidence: -20
+  C) Vessel has no clear ETA:
+     Estimate based on current position + sailing time to cargo load port
+     confidence = "low"
 
-# ═══════════════════════════════════════════════════════════════════
-# OPERATIONS TIME ESTIMATION
-# ═══════════════════════════════════════════════════════════════════
+================================================================================
+STEP 2 — CALCULATE GAP
+================================================================================
 
-operations_time:
+  gap = vessel_ready - cargo_layday (start of laycan)
   
-  principle: |
-    If vessel has a destination with ETA but no explicit "open" date,
-    we must add time for loading/discharge operations before vessel
-    is actually ready for next cargo.
-  
-  standard_operations:
-    duration: 7
-    unit: "days"
-    reasoning: |
-      Standard allowance for loading OR discharge operations.
-      Covers:
-      - Port approach and berthing
-      - Cargo operations (loading or discharge)
-      - Documentation and clearance
-      - Departure
-    
-    note: |
-      Loading and discharge times differ, but for simplicity we use
-      a standard 7-day allowance. This prevents over-complexity.
-  
-  calculation_example:
-    scenario: "Vessel heading to Mersin, ETA Jan 25"
-    cargo_laycan: "Feb 5"
-    
-    calculation:
-      eta_arrival: "Jan 25"
-      operations: "+7 days"
-      vessel_ready: "Feb 1"
-      days_before_layday: "4 days"
-      
-    result:
-      p7_score: "8/10 (good timing)"
+  Positive gap = vessel is late (arrives AFTER layday)
+  Negative gap = vessel is early (arrives BEFORE layday)
+  Zero gap = perfect timing
 
-# ═══════════════════════════════════════════════════════════════════
-# LAYCAN HANDLING
-# ═══════════════════════════════════════════════════════════════════
+================================================================================
+STEP 3 — SCORING MATRIX
+================================================================================
 
-laycan_logic:
-  
-  definitions:
-    layday:
-      definition: "FIRST possible loading date"
-      abbreviation: "L/D or Layday"
-      example: "Feb 5, 2026"
-      
-    canceling_date:
-      definition: "LAST possible arrival date"
-      abbreviation: "CAN or Canceling"
-      example: "Feb 10, 2026"
-      
-    full_laycan:
-      format: "Layday - Canceling"
-      example: "Feb 5-10, 2026"
-      interpretation: "Vessel must arrive between Feb 5 and Feb 10"
-  
-  single_date_handling:
-    scenario: "Cargo shows only one date (e.g., '05 feb 2026')"
-    
-    interpretation_1:
-      if_format: "Single date with no range"
-      treat_as: "BOTH layday AND canceling on same date"
-      example: "05 feb 2026 → Layday: Feb 5, Canceling: Feb 5"
-      tolerance: "+7 days implicit tolerance"
-      
-      scoring:
-        vessel_ready_on_date: "10/10 (perfect)"
-        vessel_ready_1_3_days_early: "9/10"
-        vessel_ready_4_7_days_early: "7/10"
-        vessel_ready_8_plus_days_early: "< 5/10"
-        vessel_ready_1_7_days_late: "5/10"
-        vessel_ready_8_plus_days_late: "2/10"
-  
-  range_handling:
-    scenario: "Cargo shows range (e.g., '05-10 feb 2026')"
-    
-    interpretation:
-      layday: "Feb 5 (first date)"
-      canceling: "Feb 10 (last date)"
-      
-    scoring:
-      vessel_ready_on_layday: "10/10 (perfect timing)"
-      vessel_ready_before_layday: "See early arrival matrix below"
-      vessel_ready_after_layday_before_canceling: "7/10 (acceptable)"
-      vessel_ready_after_canceling: "2/10 (very problematic)"
+  gap ≤ -7 days (very early):
+    score = 4/10
+    Note: Vessel idle too long waiting for laycan, owner may lose interest
+    offer_hint: "Vessel ready much earlier than laycan — suggest flexibility 
+                 on dates or mention filler cargo opportunity."
 
-# ═══════════════════════════════════════════════════════════════════
-# SCORING MATRIX v2.0
-# ═══════════════════════════════════════════════════════════════════
+  gap = -6 to -3 days (early):
+    score = 7/10
+    Note: Slight wait but manageable
+    offer_hint: "Vessel ready a few days early — timing works, mention 
+                 flexibility on laycan if possible."
 
-scoring_matrix_v2:
-  
-  # ─────────────────────────────────────────────────────────────────
-  # PERFECT TIMING
-  # ─────────────────────────────────────────────────────────────────
-  
-  on_time:
-    condition: "Vessel ready 0-3 days before layday"
-    score: 10
-    confidence: 90
-    reasoning: "Perfect timing - vessel arrives just before laycan starts"
-    example: "Layday Feb 5, vessel ready Feb 3"
-  
-  # ─────────────────────────────────────────────────────────────────
-  # EARLY ARRIVAL (Idle Time Costs)
-  # ─────────────────────────────────────────────────────────────────
-  
-  slightly_early:
-    condition: "Vessel ready 4-7 days before layday"
-    score: 8
-    confidence: 85
-    reasoning: "Good timing, minor idle time"
-    example: "Layday Feb 5, vessel ready Jan 30"
-  
-  early:
-    condition: "Vessel ready 8-15 days before layday"
-    score: 5
-    confidence: 85
-    reasoning: "Early - vessel needs filler cargo or waits with idle costs"
-    example: "Layday Feb 5, vessel ready Jan 22"
-    citations:
-      - "Correction (akdeniz, valmiera): Long gap before laycan unfavorable"
-  
-  too_early:
-    condition: "Vessel ready 16-25 days before layday"
-    score: 2
-    confidence: 90
-    reasoning: "Too early - significant idle time, owner will seek other business"
-    example: "Layday Feb 5, vessel ready Jan 12"
-    citations:
-      - "Correction: 23-day gap is highly unfavorable"
-  
-  very_early:
-    condition: "Vessel ready 25+ days before layday"
-    score: 0
-    confidence: 90
-    reasoning: "Far too early - vessel will fix other cargo before this laycan"
-    example: "Layday Feb 5, vessel ready Dec 30"
-    citations:
-      - "Correction (ak khadeja): 36-day gap means vessel will fix other business"
-  
-  # ─────────────────────────────────────────────────────────────────
-  # LATE ARRIVAL
-  # ─────────────────────────────────────────────────────────────────
-  
-  after_layday_before_canceling:
-    condition: "Vessel ready after layday but before canceling"
-    score: 7
-    confidence: 80
-    reasoning: "Acceptable - vessel arrives during laycan window"
-    example: "Layday Feb 5, Canceling Feb 10, vessel ready Feb 7"
-  
-  after_canceling_slight:
-    condition: "Vessel ready 1-3 days after canceling"
-    score: 4
-    confidence: 75
-    reasoning: "Risky - charterer may cancel, requires negotiation"
-    example: "Canceling Feb 10, vessel ready Feb 12"
-  
-  after_canceling_significant:
-    condition: "Vessel ready 4-7 days after canceling"
-    score: 2
-    confidence: 70
-    reasoning: "Very problematic - charterer likely to cancel"
-    example: "Canceling Feb 10, vessel ready Feb 15"
-  
-  impossible:
-    condition: "Vessel ready 8+ days after canceling"
-    score: 0
-    confidence: 90
-    reasoning: "Impossible - vessel cannot make laycan"
-    example: "Canceling Feb 10, vessel ready Feb 20"
+  gap = -2 to +1 days (ideal window):
+    score = 10/10
+    Note: Perfect timing match
+    offer_hint: "Timing aligns perfectly — highlight this in the opening."
 
-# ═══════════════════════════════════════════════════════════════════
-# AI CALCULATION PROCESS
-# ═══════════════════════════════════════════════════════════════════
+  gap = +2 to +3 days (slightly late):
+    score = 7/10
+    Note: Acceptable if charterer is flexible
+    offer_hint: "Timing slightly tight — mention if there's flexibility 
+                 on laycan extension."
 
-ai_calculation_process:
-  
-  step_1_determine_vessel_ready_date:
-    
-    option_a_open_area_provided:
-      if: "open_area field exists"
-      then: "Use open_area date as vessel_ready_date"
-      example: "open_area: 'Constanta, Jan 20' → vessel_ready = Jan 20"
-    
-    option_b_destination_with_eta:
-      if: "destination + ETA provided, no open_area"
-      then: "vessel_ready_date = ETA + 7 days"
-      example: "destination: Mersin, ETA: Jan 25 → vessel_ready = Feb 1"
-      
-      special_case_tuzla:
-        if: "destination = Tuzla"
-        then: "vessel_ready_date = ETA + 30 days (dry dock)"
-        example: "destination: Tuzla, ETA: Jan 20 → vessel_ready = Feb 20"
-    
-    option_c_current_area_only:
-      if: "Only current_area available, no destination"
-      then: "vessel_ready_date = position_received date"
-      caveat: "Assume vessel at anchor, ready immediately"
-      
-    option_d_ais_stale:
-      if: "(current_date - position_received) > 30 days"
-      then:
-        add_warning: true
-        reduce_confidence: true
-        use_conservative_estimate: true
-  
-  step_2_parse_laycan:
-    
-    single_date:
-      format: "05 feb 2026"
-      interpretation:
-        layday: "Feb 5, 2026"
-        canceling: "Feb 5, 2026 (same day)"
-        tolerance: "+7 days implicit"
-    
-    date_range:
-      format: "05-10 feb 2026"
-      interpretation:
-        layday: "Feb 5, 2026"
-        canceling: "Feb 10, 2026"
-  
-  step_3_calculate_gap:
-    formula: "gap_days = layday - vessel_ready_date"
-    
-    examples:
-      example_1:
-        vessel_ready: "Feb 3"
-        layday: "Feb 5"
-        gap: "+2 days (vessel 2 days early)"
-        
-      example_2:
-        vessel_ready: "Jan 20"
-        layday: "Feb 5"
-        gap: "+16 days (vessel 16 days early)"
-        
-      example_3:
-        vessel_ready: "Feb 7"
-        layday: "Feb 5"
-        gap: "-2 days (vessel 2 days late)"
-  
-  step_4_determine_score:
-    use: "scoring_matrix_v2 thresholds"
-    match_gap_to_condition: true
-    output_score: "[0-10]"
-  
-  step_5_generate_reasoning:
-    include:
-      - "How vessel_ready_date was determined"
-      - "Laycan window (layday-canceling)"
-      - "Gap in days (early/late)"
-      - "Commercial impact (idle cost / impossible / perfect)"
-    
-    template: |
-      "Vessel ready [date] ([source]). Laycan starts [layday]. 
-      Gap: [X] days [early/late]. [Impact assessment]."
-    
-    example: |
-      "Vessel ready Feb 1 (destination Mersin ETA Jan 25 + 7 days operations).
-      Laycan starts Feb 5. Gap: 4 days early. Minor idle time, acceptable timing."
+  gap = +4 to +5 days (late):
+    score = 4/10
+    Note: Risky, may miss canceling date
+    offer_hint: "Timing is tight — only offer if laycan may extend or 
+                 vessel can speed up."
 
-# ═══════════════════════════════════════════════════════════════════
-# CRITICAL AI INSTRUCTIONS
-# ═══════════════════════════════════════════════════════════════════
+  gap = +6 to +7 days (very late):
+    score = 2/10
+    Note: Likely misses canceling, but not impossible
+    offer_hint: "Vessel likely misses canceling — only offer if confirmed 
+                 laycan extension possible."
 
-ai_must:
-  - "ALWAYS add +7 days to destination ETA if no explicit open date"
-  - "ALWAYS check AIS staleness (30+ days)"
-  - "ALWAYS treat Tuzla as dry dock (+30 days)"
-  - "ALWAYS calculate gap relative to LAYDAY, not canceling"
-  - "NEVER assume vessel is ready at destination ETA without operations time"
+  gap > +7 days (past canceling):
+    score = 0/10
+    decision = BLOCK
+    offer_hint: "Vessel cannot meet laycan — do not offer unless laycan 
+                 extension is confirmed."
 
-ai_must_not:
-  - "Never ignore the +7 days operations buffer"
-  - "Never treat single date as only layday (it's also canceling)"
-  - "Never give high score for 20+ day early arrival"
+================================================================================
+SPECIAL CASES
+================================================================================
 
-# ═══════════════════════════════════════════════════════════════════
-# END OF P7 READINESS/ETA SCORING v2.0
-# ═══════════════════════════════════════════════════════════════════
+  BALLAST QUESTION:
+    When vessel is determined to be in ballast heading somewhere:
+    - Score using ETA (without +7 days)
+    - Add question to offer: confirm if vessel is fixed or open
+    - If vessel turns out to be fixed → she's not available anyway
+    - If vessel is positioning → she's available sooner
+    
+    offer_hint includes: "Vessel appears in ballast — confirm with owner 
+      if she's proceeding for loading or available for redirection."
+
+  NO ETA AVAILABLE:
+    - Estimate sailing time from current position to load port
+    - Use average speed (10-12 knots for general cargo)
+    - Add 1 day port entry buffer
+    - Score with low confidence
+    
+  VESSEL AT ANCHOR / MOORED (no clear next destination):
+    - If at load port area → vessel_ready = today/tomorrow
+    - If at other port → estimate sailing time
+    - Check if waiting for cargo or waiting for berth
+
+================================================================================
+EXAMPLES
+================================================================================
+
+  Example 1: Laden vessel
+    Vessel heading Ravenna, ETA Feb 13
+    current_draught = 8.8m, max_draft = 8.6m → LADEN (over_draft)
+    vessel_ready = Feb 13 + 7 = Feb 20
+    Cargo layday = Feb 5, canceling = Feb 10
+    gap = Feb 20 - Feb 5 = +15 days → score = 0/10, BLOCK
+    offer_hint: "Vessel cannot meet laycan — opens 10+ days after canceling."
+
+  Example 2: Ballast vessel  
+    Vessel heading Mersin, ETA Feb 10
+    current_draught = 2.1m, max_draft = 5.2m → BALLAST
+    vessel_ready = Feb 10 (no buffer)
+    Cargo layday = Feb 8, canceling = Feb 15
+    gap = Feb 10 - Feb 8 = +2 days → score = 7/10
+    offer_hint: "Timing works if vessel is available. Confirm ballast status."
+
+  Example 3: Open vessel
+    Vessel open Constanta Feb 12
+    vessel_ready = Feb 12
+    Cargo layday = Feb 14, canceling = Feb 20
+    gap = Feb 12 - Feb 14 = -2 days → score = 10/10
+    offer_hint: "Timing aligns perfectly — lead with this."
+
+================================================================================
 
 
 --- START OF estimator-prompts/estimation-template-example.md ---
