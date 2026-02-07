@@ -1,0 +1,182 @@
+================================================================================
+P4 — LAST PORTS / PORT HISTORY SCORING
+Version: 1.0
+Last updated: 2026-02-07
+================================================================================
+
+PURPOSE:
+  Score vessel's familiarity with the cargo's loading and discharge regions
+  based on port call history. Vessels that regularly call at or near the
+  cargo ports are more likely to be interested and operationally prepared.
+
+SCORE RANGE: [0, 10]
+ALWAYS ACTIVE: max_score = 10
+
+================================================================================
+DATA SOURCES
+================================================================================
+
+  Primary: top_ports array from vessel data
+    Format: [{"port": "Poti", "percentage": 8.7}, ...]
+    Shows historical port call distribution by percentage
+    
+  Secondary: Recent port call list (if available)
+    Specific ports visited with dates
+
+================================================================================
+SCORING LOGIC
+================================================================================
+
+  Check vessel's port history against BOTH loading port and discharge port.
+  Use the BETTER match (higher score) as the base, then apply bonuses.
+
+  LEVEL 1 — EXACT PORT MATCH (8-10/10)
+  ─────────────────────────────────────────
+    Vessel has called at the exact loading or discharge port.
+    
+    High frequency (>5% of calls): 10/10
+    Medium frequency (2-5% of calls): 9/10
+    Low frequency (<2% or just once): 8/10
+    
+    offer_hint: "Vessel regularly calls at [port] — mention familiarity."
+
+  LEVEL 2 — SAME SUB-REGION (5-7/10)
+  ─────────────────────────────────────────
+    Vessel hasn't called at exact port but has history in the same 
+    sub-region or country.
+    
+    Sub-region definitions:
+      POC group: Odessa, Chornomorsk, Pivdennyi (all count as same)
+      Danube group: Izmail, Reni, Braila, Galati (all count as same)
+      CVB group: Constanta, Varna, Burgas
+      Turkish BS: Samsun, Trabzon, Zonguldak, Eregli
+      Turkish Med: Mersin, Iskenderun, Antalya
+      Marmara: Istanbul, Derince, Gemlik, Yarimca
+      East Med: Alexandria, Damietta, Beirut, Haifa, Ashdod, Limassol
+      North Africa: Tunis, Bizerte, Sfax, Sousse, Tripoli (Libya)
+      Adriatic: Ravenna, Venice, Trieste, Rijeka, Bar, Durres
+      Aegean: Piraeus, Thessaloniki, Izmir, Aliaga, Nemrut Bay
+      West Med: Barcelona, Valencia, Marseille, Genoa, Algiers
+      
+    High frequency in sub-region (>10% combined): 7/10
+    Medium frequency (5-10% combined): 6/10
+    Low frequency (<5% combined): 5/10
+    
+    offer_hint: "Vessel trades in [sub-region] — familiar with the area."
+
+  LEVEL 3 — SAME BROAD REGION (3-4/10)
+  ─────────────────────────────────────────
+    Vessel has history in the broader region but not the specific 
+    sub-region.
+    
+    Broad regions:
+      Black Sea: all BS sub-regions
+      Mediterranean: all Med sub-regions
+      Atlantic/Continent: UK, NW Europe, Iberian peninsula
+      
+    Example: Cargo loads Ukraine, vessel history shows Turkish Med ports.
+    Both are Eastern Mediterranean / Black Sea adjacent.
+    
+    Regular broad region caller: 4/10
+    Occasional broad region caller: 3/10
+    
+    offer_hint: "Vessel trades in [broad region] — not exact area but 
+                 familiar with regional operations."
+
+  LEVEL 4 — NO RELEVANT HISTORY (5/10 — neutral)
+  ─────────────────────────────────────────
+    Vessel has no port history in the cargo's loading or discharge 
+    regions. This is NEUTRAL — not negative.
+    
+    score = 5/10
+    
+    Rationale: No history doesn't mean vessel can't or won't go there.
+    Many vessels trade globally or change patterns. Neutral score avoids
+    unfair penalty for vessels entering a new trade area.
+    
+    offer_hint: null (no relevant history to mention)
+
+  LEVEL 5 — CONFLICTING PATTERN (1-2/10)
+  ─────────────────────────────────────────
+    Vessel's history strongly suggests it operates in a completely 
+    different trade area with no overlap.
+    
+    Example: 100% of calls in West Africa, cargo is Black Sea.
+    Example: 100% of calls in Far East, cargo is Mediterranean.
+    
+    score = 1-2/10
+    
+    offer_hint: "Vessel primarily trades [other region] — unusual for 
+                 this cargo area. Confirm interest before proceeding."
+
+================================================================================
+SCORING FOR BOTH PORTS
+================================================================================
+
+  When cargo has loading + discharge ports in different regions:
+    - Score each port area separately
+    - Use weighted average: loading port 60%, discharge port 40%
+    - Round to nearest 0.5
+
+  Example:
+    Loading: Chornomorsk (Ukraine) — vessel has Odessa history → 10/10
+    Discharge: Sfax (Tunisia) — no North Africa history → 5/10
+    P4 = (10 × 0.6) + (5 × 0.4) = 6.0 + 2.0 = 8.0/10
+
+================================================================================
+EXAMPLES
+================================================================================
+
+  Example 1: Strong match
+    Vessel top_ports: Haifa 45.6%, Ashdod 15.8%, Mersin 12%
+    Cargo: loads Chornomorsk, discharges Haifa
+    
+    Loading (Chornomorsk): No exact match, no Ukraine/BS history → 5/10
+    Discharge (Haifa): Exact match, 45.6% frequency → 10/10
+    P4 = (5 × 0.6) + (10 × 0.4) = 3.0 + 4.0 = 7.0/10
+    offer_hint: "Vessel regularly calls Haifa — familiar with discharge port."
+
+  Example 2: Regional match
+    Vessel top_ports: Haifa 45%, Ashdod 16%, Mersin 12%
+    Cargo: loads Chornomorsk, discharges Tunis
+    
+    Loading (Chornomorsk): No BS history → 5/10
+    Discharge (Tunis): No exact match, but East Med history (Haifa/Ashdod/
+      Mersin) is adjacent region → 3/10
+    P4 = (5 × 0.6) + (3 × 0.4) = 3.0 + 1.2 = 4.2 → 4/10
+    offer_hint: "Vessel trades East Med — Tunisia is adjacent but new area."
+
+  Example 3: Perfect match
+    Vessel top_ports: Constanta 22%, Chornomorsk 18%, Mersin 15%
+    Cargo: loads Chornomorsk, discharges Mersin
+    
+    Loading: Exact match Chornomorsk 18% → 9/10
+    Discharge: Exact match Mersin 15% → 9/10
+    P4 = (9 × 0.6) + (9 × 0.4) = 5.4 + 3.6 = 9.0/10
+    offer_hint: "Vessel regularly trades both ports — excellent fit."
+
+  Example 4: No data
+    Vessel: no top_ports data available
+    score = 5/10 (neutral)
+    confidence = "low"
+    offer_hint: null
+
+================================================================================
+AI INSTRUCTIONS
+================================================================================
+
+  ai_must:
+    - Check vessel port history against BOTH loading and discharge ports
+    - Use sub-region groupings for nearby port matching
+    - Apply weighted average (60% load, 40% discharge)
+    - Give neutral 5/10 when no relevant history (not 0)
+    - Consider adjacent regions (East Med ↔ Black Sea are related)
+    
+  ai_must_not:
+    - ❌ Never give 0/10 just because exact port not in history
+    - ❌ Never penalize vessel for having diverse port history
+    - ❌ Never ignore discharge port (it contributes 40%)
+    - ❌ Never treat "no data" as negative — it's neutral (5/10)
+    - ❌ Never confuse P4 with P2 (P4 = history, P2 = owner preferences)
+
+================================================================================
