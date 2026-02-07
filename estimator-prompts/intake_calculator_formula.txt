@@ -1,379 +1,328 @@
-# ═══════════════════════════════════════════════════════════════════
-# P5: INTAKE CAPACITY CALCULATOR - UPDATED v2.0
-# VK Charts AI Scoring System
-# ═══════════════════════════════════════════════════════════════════
-#
-# CHANGES IN v2.0:
-# - Added penalties for under-utilization (<90%)
-# - Added penalties for over-utilization (>110%)
-# - Clarified cargo quantity range handling (min-max or ±10%)
-# - Linear penalty formulas for both under and over capacity
-#
-# ═══════════════════════════════════════════════════════════════════
+================================================================================
+INTAKE CALCULATOR FORMULA — P5
+Version: 4.0
+Last updated: 2026-02-07
+================================================================================
 
-version: "2.0"
-date: "2026-01-19"
-priority: "CRITICAL - Intake affects commercial viability"
+PURPOSE:
+  Calculate vessel's cargo intake capacity and score how well the vessel 
+  fits the cargo quantity requirements. Multi-step process covering weight,
+  volume, draft restrictions, vessel utilization, and cubature.
 
-# ═══════════════════════════════════════════════════════════════════
-# OVERVIEW
-# ═══════════════════════════════════════════════════════════════════
+SCORE RANGE: [0, 15]
+ALWAYS ACTIVE: max_score = 15
+MINIMUM SCORE: 2 (except when BLOCK)
 
-purpose: |
-  P5 evaluates whether vessel can physically carry the cargo quantity.
+================================================================================
+STEP 1 — PARSE CARGO QUANTITY (min_qty / max_qty)
+================================================================================
+
+  Convert cargo quantity description into numeric min/max range:
   
-  SCORE RANGE: 0-15 points
-  
-  KEY PRINCIPLE:
-  - Optimal utilization: 90-110% of cargo quantity
-  - Under-utilization: Vessel too large → lost revenue per ton
-  - Over-utilization: Cargo too large → physically impossible or risky
-
-# ═══════════════════════════════════════════════════════════════════
-# CARGO QUANTITY RANGES
-# ═══════════════════════════════════════════════════════════════════
-
-cargo_quantity_formats:
-  
-  explicit_range:
-    format: "6000-6600t"
-    interpretation:
-      min_quantity: 6000
-      max_quantity: 6600
-      optimal_target: 6300
+  Format: "15,000t ±10%"
+    min_qty = 15000 × 0.90 = 13,500
+    max_qty = 15000 × 1.10 = 16,500
     
-    example: "Wheat 6000/6600t Odessa/Mersin"
-  
-  plus_minus_percentage:
-    format: "6000t ±10%"
-    interpretation:
-      base_quantity: 6000
-      percentage: 10
-      min_quantity: "6000 × 0.90 = 5400t"
-      max_quantity: "6000 × 1.10 = 6600t"
+  Format: "6000/6600t" or "6000-6600t"
+    min_qty = 6,000
+    max_qty = 6,600
     
-    example: "Corn 6000t MOLOO Chornomorsk/Yarimca"
-    note: "MOLOO = More Or Less Owner's Option (±10%)"
-  
-  single_quantity:
-    format: "6000t"
-    interpretation:
-      target_quantity: 6000
-      assume_range: "6000 ±5% (5700-6300t)"
+  Format: "6000t MOLOO" (more or less in owner's option)
+    min_qty = 6000 × 0.95 = 5,700
+    max_qty = 6000 × 1.05 = 6,300
     
-    note: "Default tolerance if no range specified"
-  
-  calculation_basis:
-    use_for_utilization: "cargo_max_quantity"
-    reasoning: |
-      Always calculate utilization against MAX possible cargo.
-      This ensures vessel can handle worst-case (largest) parcel.
+  Format: "6000t" (no qualifier)
+    min_qty = 6000 × 0.95 = 5,700
+    max_qty = 6000 × 1.05 = 6,300
+    (Default: assume ±5% flexibility)
+    
+  Format: "15,000mt 10% MOLOO"
+    min_qty = 15000 × 0.90 = 13,500
+    max_qty = 15000 × 1.10 = 16,500
 
-# ═══════════════════════════════════════════════════════════════════
-# INTAKE CALCULATION STEPS
-# ═══════════════════════════════════════════════════════════════════
+  Format: "abt 8,000t" (about)
+    min_qty = 8000 × 0.95 = 7,600
+    max_qty = 8000 × 1.05 = 8,400
 
-intake_calculation:
+================================================================================
+STEP 2 — CALCULATE VESSEL INTAKE
+================================================================================
+
+  A) WEIGHT INTAKE:
+     weight_intake = DWT - ROB
+     ROB (Remaining On Board) = 250 tonnes (default fuel/water/stores)
+     
+     If DWT is not available → BLOCK with note "Missing DWT data"
+     
+  B) VOLUME INTAKE (if stowage factor is known):
+     volume_intake = grain_capacity / SF
+     
+     grain_capacity = from vessel specs (cubic feet or cubic meters)
+     SF = Stowage Factor of the cargo (cubic feet per tonne)
+     
+     Common SF values:
+       Wheat: 46-48 cbft/t
+       Corn/Maize: 47-50 cbft/t
+       Barley: 49-53 cbft/t
+       Soybeans: 48-50 cbft/t
+       Rice: 42-52 cbft/t (varies by type)
+       Cement: 28-30 cbft/t
+       Coal: 42-48 cbft/t
+       Fertilizer (urea): 42-45 cbft/t
+       Sugar: 38-42 cbft/t
+       Steel products: 15-25 cbft/t
+       
+     If grain_capacity is not available → skip volume check
+     If SF is not known → skip volume check
+     
+  C) DRAFT-RESTRICTED INTAKE (if port has draft restriction):
+     draft_restricted_intake = (port_max_draft - vessel_light_draft) / 
+                               (vessel_max_draft - vessel_light_draft) × DWT
+     
+     Simplified estimate when light draft is unknown:
+       draft_ratio = port_max_draft / vessel_max_draft
+       draft_restricted_intake = weight_intake × draft_ratio
+       (This is approximate — actual calculation depends on vessel design)
+       
+     If no draft restriction → draft_restricted_intake = unlimited
+     
+  D) FINAL INTAKE:
+     final_intake = MIN(weight_intake, volume_intake, draft_restricted_intake)
+     
+     Use whichever is the limiting factor.
+
+================================================================================
+STEP 3 — CARGO FIT SCORE (base P5 score)
+================================================================================
+
+  Compare final_intake to cargo min_qty / max_qty:
   
-  step_1_weight_based_intake:
-    formula: "effective_dwt = vessel_dwt - rob - constant"
+  PERFECT FIT: min_qty ≤ final_intake ≤ max_qty
+  ─────────────────────────────────────────
+    P5_base = 15/15
+    offer_hint: "Cargo fits vessel perfectly — mention full utilization."
     
-    components:
-      vessel_dwt:
-        source: "Vessel database field"
-        example: 7853
+  UNDER CARGO: final_intake < min_qty
+  ─────────────────────────────────────────
+    shortfall = 1 - (final_intake / min_qty)
+    penalty = shortfall × 2.0
+    P5_base = MAX(15 × (1 - penalty), 2)
+    
+    Example: intake = 12,000, min_qty = 13,500
+      shortfall = 1 - 12000/13500 = 0.111
+      penalty = 0.111 × 2.0 = 0.222
+      P5_base = 15 × (1 - 0.222) = 11.67
       
-      rob:
-        full_name: "Remaining On Board (fuel, water, stores)"
-        typical_value: 250
-        unit: "tons"
-        note: "Standard assumption for coasters"
+    BLOCK CONDITION: final_intake < min_qty × 0.85
+      → Vessel physically cannot load minimum required cargo
+      → P5 = BLOCK
       
-      constant:
-        value: 0
-        note: "Reserved for future adjustments"
+    offer_hint: "Vessel intake is below cargo minimum — be transparent about 
+                 quantity limitations. Mention MOLOO flexibility if applicable."
     
-    example:
-      vessel_dwt: 7853
-      rob: 250
-      constant: 0
-      effective_dwt: "7853 - 250 - 0 = 7603t"
-  
-  step_2_volume_based_intake:
-    description: "Calculate intake limited by cargo volume (grain capacity)"
+  OVER CARGO: final_intake > max_qty
+  ─────────────────────────────────────────
+    excess = 1 - (max_qty / final_intake)
+    penalty = excess × 2.0
+    P5_base = MAX(15 × (1 - penalty), 2)
     
-    condition: "IF cargo has high stowage factor (volumetric cargo)"
-    
-    formula: "volume_based_intake = grain_capacity / stowage_factor"
-    
-    components:
-      grain_capacity:
-        source: "Vessel database field"
-        unit: "cubic feet"
-        example: 283120
+    Example: intake = 25,000, max_qty = 16,500
+      excess = 1 - 16500/25000 = 0.340
+      penalty = 0.340 × 2.0 = 0.680
+      P5_base = 15 × (1 - 0.680) = 4.8
       
-      stowage_factor:
-        source: "Cargo database or description"
-        unit: "cubic feet per ton"
-        example: 47
-        note: "Higher SF = lighter/bulkier cargo"
+    Note: No BLOCK for over-cargo — vessel can always load less.
+    But heavily penalized because owner won't want to waste capacity.
+    
+    offer_hint: "Vessel significantly larger than needed — emphasize 
+                 attractive freight rate to compensate underutilization."
+
+================================================================================
+STEP 4 — VESSEL UTILIZATION PENALTY (additional modifier)
+================================================================================
+
+  PURPOSE: Penalize when external restrictions (draft, grain capacity) prevent
+  the vessel from using her full capacity. An owner is less interested if 
+  their vessel can only load 70% of what she could normally carry.
+  
+  APPLIES WHEN: Any restriction reduces intake below unrestricted capacity.
+  This includes draft restrictions AND grain capacity limitations.
+  
+  FORMULA:
+    unrestricted_intake = MIN(weight_intake, volume_intake)  # without draft limits
+    restricted_intake = MIN(weight_intake, volume_intake, draft_restricted_intake)
+    
+    restriction_ratio = restricted_intake / unrestricted_intake
+    
+    If restriction_ratio >= 0.85: no additional penalty
+    
+    If restriction_ratio < 0.85:
+      vessel_util_penalty = (0.85 - restriction_ratio) × 1.5
+      P5_score = P5_base × (1 - vessel_util_penalty)
       
-      conversion:
-        if_needed: "Convert grain capacity to cubic meters if SF in m³/t"
+  EXAMPLE:
+    Vessel DWT = 16,000, weight_intake = 15,750
+    Port draft restriction → draft_restricted_intake = 12,000
+    No volume restriction → volume_intake = 16,000
     
-    example:
-      grain_capacity: 283120
-      stowage_factor: 47
-      volume_based_intake: "283120 / 47 = 6023t"
-  
-  step_3_draft_based_intake:
-    description: "Calculate intake limited by port draft restrictions"
+    unrestricted = MIN(15750, 16000) = 15,750
+    restricted = MIN(15750, 16000, 12000) = 12,000
+    restriction_ratio = 12000 / 15750 = 0.762
     
-    condition: "IF port has draft restriction < vessel max draft"
+    0.762 < 0.85 → penalty applies
+    vessel_util_penalty = (0.85 - 0.762) × 1.5 = 0.132
+    P5_score = P5_base × (1 - 0.132) = P5_base × 0.868
     
-    formula: "Use TPC (Tons Per Centimeter) curves or approximation"
+  EXAMPLE with grain capacity limitation:
+    weight_intake = 8,000
+    volume_intake = 6,200 (grain capacity limits)
+    No draft restriction
     
-    note: |
-      Draft restrictions are complex and vessel-specific.
-      For MVP, use weight and volume checks primarily.
-      Draft can be added later with TPC data.
-  
-  step_4_final_intake:
-    formula: "final_intake = MIN(weight_based, volume_based, draft_based)"
+    unrestricted = MIN(8000, 6200) = 6,200 (volume limited)
+    restricted = same = 6,200
+    restriction_ratio = 1.0 → no penalty (grain cap IS the limit, not an external restriction)
     
-    reasoning: |
-      Vessel intake is LIMITED by the most restrictive factor:
-      - Weight limit (DWT)
-      - Volume limit (grain capacity ÷ SF)
-      - Draft limit (port restriction)
-    
-    example:
-      weight_based: 7603
-      volume_based: 6023
-      draft_based: "N/A (no restriction)"
-      final_intake: "MIN(7603, 6023) = 6023t"
+    BUT if there's ALSO a draft restriction reducing it further:
+    draft_restricted = 5,000
+    restricted = MIN(8000, 6200, 5000) = 5,000
+    unrestricted = MIN(8000, 6200) = 6,200
+    restriction_ratio = 5000/6200 = 0.806 → penalty applies
 
-# ═══════════════════════════════════════════════════════════════════
-# UTILIZATION CALCULATION
-# ═══════════════════════════════════════════════════════════════════
+================================================================================
+STEP 5 — CUBATURE MODIFIER (for voluminous cargoes)
+================================================================================
 
-utilization_calculation:
+  PURPOSE: Additional penalty when vessel's hold volume limits intake
+  significantly below weight capacity. Only relevant for light/bulky cargoes.
   
-  formula: "utilization_percent = (cargo_max_quantity / final_intake) × 100"
+  APPLIES WHEN: SF > 47 (cargo is voluminous — grains, feeds, some minerals)
   
-  example:
-    cargo_quantity: "6000t"
-    cargo_max: 6000
-    final_intake: 6023
-    utilization: "(6000 / 6023) × 100 = 99.6%"
-  
-  interpretation:
-    optimal_range: "90-110%"
-    under_utilized: "< 90%"
-    over_utilized: "> 110%"
-
-# ═══════════════════════════════════════════════════════════════════
-# SCORING MATRIX v2.0 - WITH PENALTIES
-# ═══════════════════════════════════════════════════════════════════
-
-scoring_matrix_v2:
-  
-  # ─────────────────────────────────────────────────────────────────
-  # OPTIMAL UTILIZATION (90-110%)
-  # ─────────────────────────────────────────────────────────────────
-  
-  optimal_90_110:
-    condition: "90% ≤ utilization ≤ 110%"
-    base_score: 15
-    penalty: 0
-    final_score: 15
-    confidence: 90
-    reasoning: "Excellent fit - cargo and vessel well-matched"
-    examples:
-      - utilization: "95%"
-        score: 15
-      - utilization: "100%"
-        score: 15
-      - utilization: "105%"
-        score: 15
-  
-  # ─────────────────────────────────────────────────────────────────
-  # UNDER-UTILIZATION (<90%) - Vessel Too Large
-  # ─────────────────────────────────────────────────────────────────
-  
-  under_utilization_formula:
-    condition: "utilization < 90%"
+  FORMULA:
+    cubature_ratio = volume_intake / weight_intake
     
-    penalty_formula: "penalty_percent = (90 - utilization) × 2.0"
-    final_score_formula: "score = 15 × (1 - penalty_percent/100)"
+    If cubature_ratio >= 0.85: no penalty (vessel has enough volume)
     
-    explanation: |
-      For every 1% below 90% utilization, apply 0.5% penalty.
-      This reflects owner's lost revenue from unused capacity.
-    
-    examples:
+    If cubature_ratio < 0.85:
+      cubature_penalty = (0.85 - cubature_ratio) × 1.5
+      P5_score = P5_score × (1 - cubature_penalty)
       
-      example_1_severe:
-  utilization: "73.8%"
-  penalty_calculation: "(90 - 73.8) × 2.0 = 32.4%"
-  final_score: "15 × (1 - 0.324) = 10.14/15"
-  reasoning: "2,125 t underload – severe underutilization"
-
-example_2_moderate:
-  utilization: "80%"
-  penalty_calculation: "(90 - 80) × 2.0 = 20%"
-  final_score: "15 × (1 - 0.20) = 12.0/15"
-  reasoning: "Moderate underutilization"
-
-example_3_minor:
-  utilization: "85%"
-  penalty_calculation: "(90 - 85) × 2.0 = 10%"
-  final_score: "15 × (1 - 0.10) = 13.5/15"
-  reasoning: "Minor underutilization, acceptable"
-
-  
-  # ─────────────────────────────────────────────────────────────────
-  # OVER-UTILIZATION (>110%) - Cargo Too Large
-  # ─────────────────────────────────────────────────────────────────
-  
-  over_utilization_110_120:
-    condition: "110% < utilization ≤ 120%"
-    base_score: 15
-    penalty_formula: "(utilization - 110) × 0.5"
+  EXAMPLE:
+    Vessel: DWT 8,000 → weight_intake = 7,750
+    Grain capacity = 280,000 cbft, Cargo SF = 50
+    volume_intake = 280000 / 50 = 5,600t
     
-    examples:
-      
-      example_1:
-        utilization: "112%"
-        penalty: "(112 - 110) × 0.5 = 1%"
-        final_score: "15 × (1 - 0.01) = 14.9"
-        reasoning: "Tight fit, possible with careful planning"
-      
-      example_2:
-        utilization: "115%"
-        penalty: "(115 - 110) × 0.5 = 2.5%"
-        final_score: "15 × (1 - 0.025) = 14.6"
-        reasoning: "Very tight, requires optimization"
-      
-      example_3:
-        utilization: "119%"
-        penalty: "(119 - 110) × 0.5 = 4.5%"
-        final_score: "15 × (1 - 0.045) = 14.3"
-        reasoning: "Borderline feasible"
+    cubature_ratio = 5600 / 7750 = 0.723
+    0.723 < 0.85 → penalty applies
+    cubature_penalty = (0.85 - 0.723) × 1.5 = 0.191
+    P5_score = P5_score × (1 - 0.191) = P5_score × 0.809
+
+================================================================================
+FINAL P5 SCORE
+================================================================================
+
+  P5 = MAX(P5_score after all modifiers, 2)
   
-  over_utilization_120_130:
-    condition: "120% < utilization ≤ 130%"
-    score_range: [6, 10]
-    reasoning: "Very risky - may require cargo reduction or favorable conditions"
+  Unless BLOCK condition was triggered → then P5 = BLOCK
+  
+  BLOCK CONDITIONS:
+    - final_intake < min_qty × 0.85 (vessel physically too small)
+    - Missing DWT data
+
+================================================================================
+COMPLETE EXAMPLE — ADAMAR + WHEAT
+================================================================================
+
+  Cargo: wheat 15,000t ±10% ex Chornomorsk, SF = 47, port draft 7.5m
+  Vessel: ADAMAR, DWT 16,653, draft 8.6m, grain capacity 694,700 cbft
+  
+  Step 1: min_qty = 13,500, max_qty = 16,500
+  
+  Step 2:
+    weight_intake = 16653 - 250 = 16,403
+    volume_intake = 694700 / 47 = 14,781
+    draft_restricted = 16403 × (7.5/8.6) = 14,305 (approximate)
+    final_intake = MIN(16403, 14781, 14305) = 14,305
     
-    examples:
-      utilization: "125%"
-      score: 8
-      reasoning: "Risky - likely need to reduce cargo or optimize SF"
-  
-  over_utilization_above_130:
-    condition: "utilization > 130%"
-    score_range: [2, 5]
-    reasoning: "Physically very difficult - extreme measures required"
+  Step 3: Cargo Fit
+    13,500 ≤ 14,305 ≤ 16,500 → PERFECT FIT
+    P5_base = 15/15
     
-    examples:
-      utilization: "135%"
-      score: 3
-      reasoning: "Nearly impossible without major cargo reduction"
-  
-  # ─────────────────────────────────────────────────────────────────
-  # MINIMUM SCORE FLOOR
-  # ─────────────────────────────────────────────────────────────────
-  
-  minimum_score:
-    value: 2
-    reasoning: |
-      Even if cargo doesn't fit perfectly, score should never be zero.
-      There's always potential for negotiation (cargo reduction, etc.)
+  Step 4: Vessel Utilization
+    unrestricted = MIN(16403, 14781) = 14,781
+    restricted = 14,305
+    ratio = 14305/14781 = 0.968 → no penalty (≥ 0.85)
+    
+  Step 5: Cubature (SF = 47, not > 47)
+    Skipped — SF not above threshold
+    
+  Final P5 = 15/15
+  offer_hint: "Cargo fits vessel well within draft restriction."
 
-# ═══════════════════════════════════════════════════════════════════
-# SPECIAL CONSIDERATIONS
-# ═══════════════════════════════════════════════════════════════════
+================================================================================
+COMPLETE EXAMPLE — SMALL VESSEL + DRAFT RESTRICTION
+================================================================================
 
-special_cases:
+  Cargo: wheat 8,000t ±5%, SF = 47, port draft 6.0m
+  Vessel: DWT 6,800, draft 7.2m, grain capacity 220,000 cbft
   
-  stowage_factor_missing:
-    condition: "Cargo SF not available"
-    action: "Skip volume_based_intake calculation"
-    use: "weight_based_intake only"
-    note: "Assume weight-limited cargo (low SF like grain)"
+  Step 1: min_qty = 7,600, max_qty = 8,400
   
-  grain_capacity_missing:
-    condition: "Vessel grain capacity not in database"
-    action: "Estimate from DWT or skip volume check"
-    conservative_estimate: "grain_capacity ≈ DWT × 50 cubic feet/ton"
-  
-  draft_restriction:
-    condition: "Port draft < vessel draft"
-    action: "Flag in reasoning, reduce confidence"
-    future_enhancement: "Add draft-based intake calculation"
-  
-  dense_cargo:
-    examples: ["Iron ore", "Steel products", "Kaolin"]
-    characteristic: "Low SF (weight-limited)"
-    impact: "weight_based_intake is limiting factor"
-  
-  light_cargo:
-    examples: ["Wood chips", "Cotton", "Light grain"]
-    characteristic: "High SF (volume-limited)"
-    impact: "volume_based_intake is limiting factor"
+  Step 2:
+    weight_intake = 6800 - 250 = 6,550
+    volume_intake = 220000 / 47 = 4,681
+    draft_restricted = 6550 × (6.0/7.2) = 5,458
+    final_intake = MIN(6550, 4681, 5458) = 4,681
+    
+  Step 3: Cargo Fit
+    4,681 < min_qty × 0.85 = 6,460 → BLOCK
+    Vessel physically cannot load minimum required cargo.
+    
+  Final P5 = BLOCK
+  offer_hint: "Vessel cannot load minimum cargo quantity — grain capacity and 
+               draft restriction limit intake to ~4,700t vs 7,600t minimum."
 
-# ═══════════════════════════════════════════════════════════════════
-# AI REASONING TEMPLATES
-# ═══════════════════════════════════════════════════════════════════
+================================================================================
+EDGE CASES
+================================================================================
 
-reasoning_templates:
-  
-  template_optimal:
-    condition: "90-110% utilization"
-    format: |
-      "Vessel DWT ([dwt]) accommodates [cargo_qty] cargo with [util]% utilization.
-      [limiting_factor if relevant]. Excellent/Good fit."
-    example: |
-      "Vessel DWT (6687) accommodates 6000t cargo with 90% utilization after ROB deduction.
-      Good fit for this parcel size."
-  
-  template_under_utilized:
-    condition: "<90% utilization"
-    format: |
-      "Vessel DWT ([dwt]) significantly exceeds cargo requirement ([cargo_qty]).
-      Utilization: [util]%, indicating vessel is [X]% under-utilized. [Impact]."
-    example: |
-      "Vessel DWT (7782) significantly exceeds cargo requirement (6000t).
-      Utilization: 77%, indicating vessel is 23% under-utilized.
-      Owner loses revenue on unused capacity."
-  
-  template_over_utilized:
-    condition: ">110% utilization"
-    format: |
-      "Cargo [cargo_qty] requires [util]% of vessel capacity ([intake]).
-      [tight/risky/difficult] fit. [Actions needed]."
-    example: |
-      "Cargo 6000t requires 115% of vessel capacity (5200t effective).
-      Tight fit, may require cargo reduction or favorable draft conditions."
+  Missing grain capacity:
+    - Skip volume_intake calculation
+    - Use weight_intake and draft_restricted only
+    - Note: "Grain capacity unknown — intake based on DWT/draft only"
+    - Reduce confidence
 
-# ═══════════════════════════════════════════════════════════════════
-# CRITICAL AI INSTRUCTIONS
-# ═══════════════════════════════════════════════════════════════════
+  Missing SF:
+    - Skip cubature modifier
+    - Note: "Cargo SF unknown — cubature check skipped"
+    
+  Vessel way too big (intake > max_qty × 3):
+    - Apply over-cargo penalty as normal
+    - P5_base will be very low (2-4 range)
+    - offer_hint: "Vessel far too large for this parcel — only offer if 
+                   vessel is desperate for cargo."
+                   
+  Vessel way too small (intake < min_qty × 0.5):
+    - BLOCK
+    - offer_hint: "Vessel far too small — do not offer."
 
-ai_must:
-  - "ALWAYS calculate utilization against cargo MAX quantity"
-  - "ALWAYS apply penalties for <90% or >110% utilization"
-  - "ALWAYS check for volumetric cargoes (high SF)"
-  - "ALWAYS use MIN of weight/volume/draft as final intake"
-  - "NEVER give zero score (minimum is 2)"
+================================================================================
+AI INSTRUCTIONS
+================================================================================
 
-ai_must_not:
-  - "Never ignore under-utilization penalties"
-  - "Never assume vessel can carry >130% without major penalty"
-  - "Never skip volume check if SF is available"
+  ai_must:
+    - Follow all 5 steps in order
+    - Show calculation in reasoning
+    - Identify the limiting factor (weight/volume/draft)
+    - Apply vessel utilization penalty when restrictions reduce capacity
+    - Apply cubature modifier only when SF > 47
+    - Generate appropriate offer_hint
+    
+  ai_must_not:
+    - Never skip Step 1 (cargo quantity parsing)
+    - Never forget ROB deduction (250t)
+    - Never ignore draft restrictions when provided
+    - Never apply cubature penalty when SF ≤ 47
+    - Never give score below 2 (except BLOCK)
+    - Never assume volume_intake when grain capacity is missing
 
-# ═══════════════════════════════════════════════════════════════════
-# END OF P5 INTAKE CAPACITY CALCULATOR v2.0
-# ═══════════════════════════════════════════════════════════════════
-
+================================================================================
