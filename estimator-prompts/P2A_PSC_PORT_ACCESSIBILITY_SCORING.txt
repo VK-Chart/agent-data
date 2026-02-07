@@ -60,13 +60,19 @@ VESSEL STATUS CATEGORIES
     Note: Default category. Most Black Sea/Med coasters fall here.
     
   LOW STATUS — Penalty for strict ports
-    Class: Non-IACS / unknown / expired
-    P&I: No P&I or unknown
+    Class: Non-IACS / unknown / expired / NO CLASS ON RECORD (null)
+    P&I: No P&I or unknown / NO P&I ON RECORD (null)
     Flag: Black list (Paris MOU) or flag of convenience with poor record
     Age: > 25 years
     
     Note: Any ONE critical deficiency (no class, no P&I, blacklisted flag)
     can push vessel to LOW status.
+    
+    IMPORTANT: Distinguish in reasoning:
+      classification-society = null → "No class society on record" (worst case)
+      classification-society = "Turkish Lloyd" → "Non-IACS class"
+      pi_information = null → "No P&I club on record" (worst case)
+      pi_information = "some small club" → "Non-IG P&I"
 
   FLAG LISTS (Paris MOU — simplified):
     White list (good): Most EU flags, Marshall Islands, Bahamas, Singapore,
