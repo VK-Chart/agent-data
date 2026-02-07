@@ -552,7 +552,19 @@ PURPOSE:
   ╔══════════════════════════════════════════════════════════════════╗
   ║  Offer opening is ALWAYS generated — even for BLOCKED vessels.  ║
   ║  BLOCKED vessels use intent "blocked_info" (see below).        ║
+  ║                                                                ║
+  ║  ❌ NEVER use intent "do_not_offer" — always "blocked_info"     ║
+  ║  ❌ NEVER write in AI explanation style — always broker-to-owner ║
   ╚══════════════════════════════════════════════════════════════════╝
+
+  WRONG (AI explanation style):
+    "Vessel is currently in the Arabian Sea and cannot commercially 
+     position for a Black Sea cargo of this size."
+  
+  RIGHT (broker-to-owner style):
+    "Pls find below cargo for yr reference re mv Princess Masa. We 
+     appreciate she's currently trading Middle East area, hvr sending 
+     in case her trading plans change towards BS/Med."
 
 ================================================================================
 ABBREVIATIONS LIBRARY — SHIPPING ENGLISH
