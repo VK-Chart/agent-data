@@ -24,6 +24,7 @@ VESSEL JSON FIELD MAPPING
     Grain capacity → field "grain-capacity" (cubic feet)
     Class          → field "classification-society"
     Flag           → field "flag"
+    Flag MOU status → field "flag-performance" (e.g., "Paris MOU: Grey")
     P&I            → field "pi_information"
     Holds          → field "holds"
     Hatches        → field "hatches"
@@ -311,13 +312,25 @@ AI INSTRUCTIONS
     - Perform P9 relationship check
     - Route draft → P5, age/DWT/class → P8
     
+  ai_must:
+    - Check position_received date — if older than 7 days, set P7 
+      confidence = "low" and note "AIS data is [X] days old" in reasoning
+    - If field "draft" = 0, null, or missing → draught analysis impossible,
+      default to LADEN, confidence = "low"
+    - If classification-society = null → report "No class society on record"
+      (different from "Non-IACS class")
+    - If pi_information = null → report "No P&I on record"
+
   ai_must_not:
     - ❌ Never use "max-draught" for draught ratio (use "draft")
     - ❌ Never skip offer_opening for BLOCKED vessels
+    - ❌ Never use intent "do_not_offer" — use "blocked_info" for BLOCKED
     - ❌ Never report total_score as raw points
     - ❌ Never omit excluded criteria from output
     - ❌ Never put draft in P8
     - ❌ Never let P9 affect numerical score
     - ❌ Never BLOCK vessel for age alone
+    - ❌ Never write offer_opening in AI explanation style — always write
+         as broker-to-owner message (shipping English, abbreviations)
 
 ================================================================================
