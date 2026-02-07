@@ -1,507 +1,395 @@
-MASTER_SCORING_SYSTEM
+================================================================================
+MASTER SCORING SYSTEM
+Version: 4.0
+Last updated: 2026-02-07
+================================================================================
 
-SHORT SUMMARY
+PURPOSE:
+  Central scoring framework for vessel-cargo matching. Defines all criteria,
+  dynamic score calculation, priority order, P9 relationship check, and 
+  offer opening generation logic.
 
-This is the SINGLE SOURCE OF TRUTH for the VK Charts vessel-cargo scoring system.
-It defines all 9 scoring criteria (P1-P7 + P1A + P2A), their weights, ranges, calculation sources, and how they combine into a final compatibility score (0-100%).
+================================================================================
+ALL CRITERIA — OVERVIEW
+================================================================================
 
-The system evaluates:
-• P1 (20pts): Geographic proximity (distance-based)
-• P1A (15pts): Regional trade patterns (market logic)
-• P2 (15pts): Regional preferences (manual owner settings)
-• P2A (20pts): PSC port accessibility (vessel PSC status vs port strictness + port history bonus)
-• P3 (15pts): Cargo type compatibility
-• P4 (10pts): Last ports familiarity
-• P5 (15pts): Intake capacity match
-• P6 (15pts): Current voyage preferences (OpenArea comments)
-• P7 (10pts): Timing and readiness (ETA vs laycan)
+  Code  Name                    Max    Type       Reference File
+  ────  ────────────────────    ───    ────       ──────────────
+  P1    Proximity               20     Always     proximity_scoring_matrix.txt
+  P1A   Regional Patterns       15     Always     P1A_REGIONAL_SCORING_RULES.txt
+  P2    Owner Preferences       15     Dynamic    COMMENTS_PROCESSING_GUIDE.txt
+  P2A   PSC Port Accessibility  20     Always     P2A_PSC_PORT_ACCESSIBILITY_SCORING.txt
+  P3    Cargo Preferences       15     Dynamic    COMMENTS_PROCESSING_GUIDE.txt
+  P4    Last Ports              10     Always     (inline logic)
+  P5    Intake / Cargo Fit      15     Always     intake_calculator_formula.txt
+  P6    OpenArea Comments       15     Dynamic    OPEN_AREA_COMMENTS_SCORING.txt
+  P7    Readiness / ETA         10     Always     READINESSETA_TO_LOADING_PORT_SCORING.txt
+  P8    Restrictions            20     Dynamic    P8_RESTRICTIONS_COMPLIANCE_SCORING.txt
+  P9    Relationship Check      —      Warning    (this file, section below)
 
-BASE_SCORE = P1 + P1A + P2 + P2A + P3 + P4 + P5 + P6 + P7
-MAX_SCORE = 20 + 15 + 15 + 20 + 15 + 10 + 15 + 15 + 10 = 135
-FINAL_SCORE_PERCENT = ROUND((BASE_SCORE / MAX_SCORE) × 100, 1)
+================================================================================
+DYNAMIC MAX_SCORE CALCULATION
+================================================================================
 
-Blocking conditions: technical impossibility, insufficient capacity, geopolitical restrictions.
+  Not all criteria are always active. Some criteria produce 0/0 when there
+  is no data — these are EXCLUDED from the total, not penalized.
 
-**Quick Reference - Scoring Ranges:**
-P1: [0, 20] | P1A: [0, 15] | P2: [0, 15] | P2A: [0, 20] | P3: [0, 15] | P4: [0, 10] | P5: [0, 15] | P6: [0, 15] | P7: [0, 10]
+  ALWAYS ACTIVE (max_score is always set):
+    P1  = 20
+    P1A = 15
+    P2A = 20
+    P4  = 10
+    P5  = 15
+    P7  = 10
+    ────────
+    Base always-active MAX = 90
 
-# ═══════════════════════════════════════════════════════════════════
-# SCORING CRITERIA STRUCTURE
-# ═══════════════════════════════════════════════════════════════════
+  DYNAMIC (max_score = 0 if no data, otherwise max):
+    P2  = 15 or 0 (no owner preference data → excluded)
+    P3  = 15 or 0 (no cargo preference data → excluded)
+    P6  = 15 or 0 (no OpenArea comments → excluded)
+    P8  = 20 or 0 (no restrictions set → excluded)
 
-scoring_criteria:
+  FORMULA:
+    dynamic_max_score = SUM of max_score for ALL criteria where max_score > 0
+    
+    Minimum: 90 (only always-active criteria)
+    Maximum: 90 + 15 + 15 + 15 + 20 = 155 (all criteria active)
+
+  FINAL SCORE:
+    total_score_raw = SUM of all active criteria scores
+    total_score = ROUND((total_score_raw / dynamic_max_score) × 100, 1)
+    
+    Always expressed as percentage: 100% = perfect match
+
+================================================================================
+EVALUATION PRIORITY ORDER
+================================================================================
+
+  Evaluate in this order (highest impact first):
   
-  # ─────────────────────────────────────────────────────────────────
-  P1_PROXIMITY:
-    name: "Geographic Proximity"
-    weight: 20  # out of 100
-    range: [0, 20]
-    
-    description: |
-      Measures geographic distance and economic viability of ballast leg
-      from vessel's current position to loading port.
-      
-    calculation_source: "proximity_scoring_matrix.txt"
-    
-    dependencies:
-      - file: "vessel_location_determination.txt"
-        purpose: "Determine vessel's effective location"
-      - file: "vessel_size_classification.txt"
-        purpose: "Size-based distance penalties"
-      - file: "port_restrictions_map.txt"
-        purpose: "Port accessibility validation"
-    
-    key_factors:
-      - "Distance in nautical miles"
-      - "Vessel size (affects ballast economics)"
-      - "Geographic barriers (straits, canals)"
-      - "Geopolitical restrictions"
-    
-    scoring_logic: |
-      1. Determine vessel location via vessel_location_determination
-      2. Calculate proximity level (same port → far region)
-      3. Apply size-based adjustments
-      4. Scale to 0-20 range
-    
-    blocking_conditions:
-      - "Ukraine-Russia sanctions block"
-      - "Port physically inaccessible for vessel size"
+  1. P8  — Restrictions Compliance (BLOCK potential)
+  2. P2A — PSC Port Accessibility (BLOCK potential)
+  3. P3  — Cargo Preferences
+  4. P2  — Owner Preferences (BLOCK potential for "no X")
+  5. P6  — OpenArea Comments
+  6. P4  — Last Ports
+  7. P1A — Regional Patterns
+  8. P1  — Proximity (BLOCK for non-viable distances)
+  9. P5  — Intake / Cargo Fit (BLOCK potential)
+  10. P7  — Readiness / ETA (BLOCK for missed laycan)
+  11. P9  — Relationship Check (warning only, no score)
 
-  # ─────────────────────────────────────────────────────────────────
-  P1A_REGIONAL_PATTERNS:
-    name: "Regional Trade Patterns"
-    weight: 15
-    range: [0, 15]
-    
-    description: |
-      Evaluates market logic of vessel positioning from current region
-      to loading region based on typical trade flows.
-      
-    calculation_source: "regional_trade_patterns.txt"
-    
-    dependencies:
-      - file: "cargo_export_map.txt"
-        purpose: "Typical cargo flows and vessel sizes"
-      - file: "vessel_size_classification.txt"
-        purpose: "Size economics and behavior"
-      - file: "learning_session_1.txt"
-        purpose: "Expert corrections and overrides"
-    
-    key_factors:
-      - "Region pairs (from → to patterns)"
-      - "Vessel size economics"
-      - "Seasonal patterns"
-      - "Backhaul probability"
-    
-    scoring_logic: |
-      1. Find region_pair pattern for vessel_location → loading_region
-      2. Apply vessel size bucket rules
-      3. Apply seasonal adjustments
-      4. Scale to 0-15 range
-      
-    important_note: |
-      Uses CURRENT vessel position region, NOT last discharge region
+================================================================================
+BLOCK LOGIC
+================================================================================
 
-  # ─────────────────────────────────────────────────────────────────
-  P2_REGIONAL_PREFERENCES:
-    name: "Owner's Regional Preferences"
-    weight: 15
-    range: [0, 15]
-    
-    description: |
-      Manual preferences for countries/regions from company/vessel settings
-      and comments history.
-      
-    calculation_source: "COMMENTS_PROCESSING_GUIDE.txt"
-    
-    data_sources:
-      - "Company settings (specializes/prefers/avoids)"
-      - "Vessel snapshot settings"
-      - "Historical comments patterns"
-    
-    preference_levels:
-      specializes: "+15 points"
-      prefers: "+10 points"
-      can_work: "+5 points"
-      neutral: "0 points"
-      avoids: "-10 points"
-      cannot_work: "-15 points"
-    
-    priority_hierarchy:
-      1: "Vessel-specific settings"
-      2: "Person preferences"
-      3: "Company-wide settings"
-      4: "Formal UI settings"
-  # ─────────────────────────────────────────────────────────────────
-  P2A_PSC_PORT_ACCESSIBILITY:
-    name: "PSC Port Accessibility"
-    weight: 20
-    range: [0, 20]
-    
-    description: |
-      Evaluates whether a vessel can enter a port based on Port State
-      Control (PSC) status and port's PSC enforcement severity.
-      Reflects real shipowner behavior: vessels with poor PSC records
-      AVOID strict ports (detention risk) and PREFER lax ports.
-    
-    calculation_source: "P2A_PSC_PORT_ACCESSIBILITY_SCORING.txt"
-    
-    data_sources:
-      equasis:
-        - "Paris MOU status (White/Grey/Black)"
-        - "Detention rate (%)"
-        - "IMO number (for sanctions check)"
-      external:
-        - "EU sanctions list (Danish Maritime Authority)"
-        - "Paris/Tokyo/USCG MOU banning lists"
-    
-    key_factors:
-      vessel_psc_status:
-        - "GOOD: Paris White or (Grey + <3% detention)"
-        - "MEDIUM: Paris Grey + 3-8% detention"
-        - "POOR: Paris Black or >8% detention"
-        - "BANNED: Currently banned from MOU region"
-      
-      port_psc_severity:
-        - "VERY_STRICT: Italy, France, Greece, Germany, Netherlands, Belgium, UK, USA, Japan, Singapore"
-        - "MODERATE: Turkey, Egypt, Romania, Bulgaria, Cyprus, Malta"
-        - "LAX: Libya, Syria, Lebanon (weak enforcement)"
-    
-    scoring_logic: |
-      Matrix-based scoring: Vessel_Status × Port_Severity
-      
-      GOOD vessel:
-        - Any port: 18-20 points
-      
-      MEDIUM vessel:
-        - Very strict port: 8-12 points
-        - Moderate port: 12-15 points
-        - Lax port: 15-18 points
-      
-      POOR vessel:
-        - Very strict port: 0-5 points (CRITICAL - owner will AVOID)
-        - Moderate port: 8-12 points
-        - Lax port: 15-18 points (owner PREFERS lax PSC)
-      
-      Soft modifiers (±3 points max):
-        - IACS class: +1-2 points
-        - International Group P&I: +1 point
-        - Age >20 years: -1 to -3 points
-    
-    blocking_conditions:
-      hard_blocks:
-        - "EU sanctions: Vessel IMO on EU sanctions list → P2A = 0 for ALL EU ports"
-        - "MOU banning: Vessel banned from Paris/Tokyo/USCG MOU → P2A = 0 for that region"
-      
-      critical_scores:
-        - "P2A ≤ 5 for Poor vessel at Very strict port → Strong signal to avoid"
-    
-    behavioral_logic:
-      key_principle: |
-        Poor PSC vessel + Lax PSC port = HIGH score (15-18)
-        This is CORRECT behavior - reflects real shipowner strategy
-        Vessels with PSC problems actively SEEK ports with weak enforcement
-      
-      critical_rules:
-        - "⚠️ NEVER block on class/P&I alone (Equasis can be outdated)"
-        - "⚠️ NO age restrictions for dry cargo (unlike tankers)"
-        - "⚠️ EU sanctions = absolute legal block (not negotiable)"
-    
-    dependencies:
-      - file: "P2A_PSC_PORT_ACCESSIBILITY_SCORING.txt"
-        purpose: "Complete PSC scoring logic and country classifications"
-    
-    reasoning_template: |
-      "{vessel_name} PSC status: {paris_mou}, {detention_rate}% detention rate
-      {port_name}, {country}: {severity} PSC enforcement ({mou_region})
-      {vessel_status} vessel + {port_severity} port → Base: {base_score}
-      Modifiers: {modifiers}
-      P2A = {final_score}/20 - {interpretation}"
-    
-    confidence_indicators:
-      high: "Complete Equasis PSC data available"
-      medium: "MOU status present, missing class/P&I"
-      low: "Only flag data, no MOU information (assume MEDIUM status)"
-  # ─────────────────────────────────────────────────────────────────
-  P3_CARGO_PREFERENCES:
-    name: "Cargo Type Compatibility"
-    weight: 15
-    range: [0, 15]
-    
-    description: |
-      Compatibility with cargo type, technical requirements, and
-      vessel capabilities.
-      
-    calculation_sources:
-      - "COMMENTS_PROCESSING_GUIDE.txt"
-      - "cargo_export_map.txt"
-    
-    key_factors:
-      - "Cargo type match (grain/steel/fertilizers)"
-      - "Technical requirements (gear/grabs/IMO)"
-      - "Stowage factor compatibility"
-      - "Historical cargo patterns"
-    
-    preference_levels:
-      specializes_in_cargo: "+15 points"
-      regularly_carries: "+10 points"
-      can_carry: "+5 points"
-      neutral: "0 points"
-      avoids_cargo: "-10 points"
-      cannot_carry_technically: "BLOCK"
-
-  # ─────────────────────────────────────────────────────────────────
-  P4_LAST_PORTS:
-    name: "Last Ports of Call Familiarity"
-    weight: 10
-    range: [0, 10]
-    
-    description: |
-      Vessel's historical familiarity with loading/discharge regions
-      based on port call statistics.
-      
-    data_sources:
-      - "Vessel's port call history (%)"
-      - "Company fleet patterns (if vessel new)"
-    
-    scoring_logic: |
-      >30% calls in region: +10 points
-      20-30% calls: +7 points
-      10-20% calls: +5 points
-      5-10% calls: +3 points
-      <5% calls: +1 point
-      Never been: 0 points
-
-  # ─────────────────────────────────────────────────────────────────
-  P5_INTAKE_CAPACITY:
-    name: "Cargo Intake Match"
-    weight: 15
-    range: [0, 15]
-    
-    description: |
-      Vessel's ability to load required cargo quantity considering
-      port restrictions and technical limitations.
-      
-    calculation_source: "intake_calculator_formula.txt"
-    
-    scoring_logic: |
-      Ratio = vessel_intake / cargo_quantity
-      
-      ≥110%: 15 points (comfortable margin)
-      100-110%: 12 points (exact fit)
-      95-100%: 8 points (tight fit)
-      90-95%: 3 points (requires negotiation)
-      <90%: BLOCK (cannot carry)
-    
-    override_priority:
-      1: "Manual intake from vessel comments"
-      2: "Calculated intake"
-      3: "DWT-based estimation"
-
-  # ─────────────────────────────────────────────────────────────────
-  P6_OPEN_AREA_COMMENTS:
-    name: "Current Voyage Preferences"
-    weight: 15
-    range: [0, 15]
-
-    description: |
-      Owner's specific requirements for CURRENT voyage from OpenArea
-      comments. Evaluates alignment with cargo parameters.
-
-    calculation_source: "OPEN_AREA_COMMENTS_SCORING.txt"
-
-    key_signals:
-      cargo_related:
-        - "no grains / only grains"
-        - "no steel / prefer steel"
-        - "high SF only / no low SF"
-      geography_related:
-        - "no Black Sea / only Black Sea"
-        - "nearby only / no long ballast"
-        - "seeking backhaul to X"
-      strategy_related:
-        - "short trip only"
-        - "repositioning to X"
-        - "waiting for rates"
-
-    scoring_levels:
-      no_comments:
-        score: 7.5
-        interpretation: "Neutral - no preferences stated"
-      full_conflict:
-        score: 0
-        interpretation: "Direct refusal matches cargo (e.g., 'no grains' + grain cargo)"
-      soft_conflict:
-        score: "3-5"
-        interpretation: "Preference not met but not explicit refusal"
-      neutral:
-        score: 7.5
-        interpretation: "Comments not relevant to this cargo"
-      positive_match:
-        score: "10-12"
-        interpretation: "Cargo meets stated preference"
-      perfect_match:
-        score: 15
-        interpretation: "Multiple preferences met simultaneously"
-
-  # ─────────────────────────────────────────────────────────────────
-  P7_READINESS_ETA:
-    name: "Timing and Readiness"
-    weight: 10
-    range: [0, 10]
-    
-    description: |
-      Vessel's ability to meet laycan dates considering current position
-      and operational factors.
-      
-    calculation_source: "READINESSETA_TO_LOADING_PORT_SCORING.txt"
-    
-    key_factors:
-      - "Current position and status (laden/ballast)"
-      - "Distance to loading port"
-      - "ETA calculation vs laycan window"
-      - "Discharge time if laden"
-    
-    scoring_categories:
-      perfect_fit: "9-10 points (within laycan)"
-      slightly_early: "7-8 points (1-3 days wait)"
-      slightly_late: "4-6 points (needs extension)"
-      too_early_or_late: "1-3 points"
-      unknown_eta: "0 points"
-    
-    important_note: |
-      P7 focuses on CALENDAR FIT, not distance economics (that's P1)
-
-# ═══════════════════════════════════════════════════════════════════
-# SCORING CALCULATION FORMULA
-# ═══════════════════════════════════════════════════════════════════
-
-scoring_formula:
-
-  base_score_calculation: |
-    BASE_SCORE = P1 + P1A + P2 + P2A + P3 + P4 + P5 + P6 + P7
-    MAX_SCORE = 20 + 15 + 15 + 20 + 15 + 10 + 15 + 15 + 10 = 135
-
-  final_score_percentage: |
-    FINAL_SCORE_PERCENT = ROUND((BASE_SCORE / MAX_SCORE) × 100, 1)
-    Example: If BASE_SCORE = 91, then FINAL_SCORE_PERCENT = 67.4%
-
-  blocking_conditions:
-    - condition: "P3 = CANNOT_CARRY_TECHNICALLY"
-      action: "BLOCK → No score, no offer"
-
-    - condition: "P5_ratio < 0.90"
-      action: "BLOCK → Insufficient capacity"
-
-    - condition: "Geopolitical restriction"
-      action: "BLOCK → Sanctions/war"
-
-# ═══════════════════════════════════════════════════════════════════
-# SCORING THRESHOLDS
-# ═══════════════════════════════════════════════════════════════════
-
-thresholds:
+  Any criterion can produce a BLOCK. A single BLOCK = vessel is not viable.
   
-  classification:
-    excellent_match:
-      range: [85, 100]
-      action: "High priority, immediate offer"
-      email_template: "CASE A - Strong Match"
-      
-    good_match:
-      range: [70, 85]
-      action: "Standard offer"
-      email_template: "CASE A - Standard"
-      
-    acceptable_match:
-      range: [60, 70]
-      action: "Offer with caveats"
-      email_template: "CASE B - Not Ideal"
-      
-    marginal_match:
-      range: [50, 60]
-      action: "Low priority or positioning"
-      email_template: "CASE B - Positioning"
-      
-    poor_match:
-      range: [30, 50]
-      action: "Only if requested"
-      email_template: "CASE B - Unlikely"
-      
-    do_not_offer:
-      range: [0, 30]
-      action: "Skip unless manual override"
-      email_template: "Do not send"
-  
-  automatic_actions:
-    score_below_30: "Do not include in offer list"
-    blocked_vessel: "Mark with reason, exclude completely"
-    excellent_match: "Flag for immediate attention"
+  When BLOCK is triggered:
+    - recommendation = "BLOCKED"
+    - Still score ALL other criteria (for informational value)
+    - Mark blocked criterion with "decision": "blocked", "critical": true
+    - short_summary explains why vessel is blocked
+    - Offer opening is NOT generated (or marked as "do not offer")
 
-# ═══════════════════════════════════════════════════════════════════
-# DATA NORMALIZATION RULES
-# ═══════════════════════════════════════════════════════════════════
+  Multiple BLOCKs: Report all. Summary mentions the most impactful.
 
-normalization:
-  
-  vessel_sizes:
-    canonical_ranges:
-      SC: [0, 4000]       # Small Coasters
-      C:  [4001, 17000]   # Coasters
-      SH: [17001, 24000]  # Small Handy
-      H:  [24001, 40000]  # Handy
-      SS: [40001, 50000]  # Small Supramax
-      SM: [50001, 65000]  # Supramax
-      PM: [65001, 80000]  # Panamax
+================================================================================
+RECOMMENDATION CATEGORIES
+================================================================================
+
+  Based on total_score (percentage):
+
+  BLOCKED — One or more criteria triggered BLOCK
+    → Do not offer
     
-    rule: "ALL files must use these exact ranges"
-  
-  regions:
-    canonical_names:
-      - "Black Sea"
-      - "Black Sea Danube"
-      - "Mediterranean"
-      - "East Mediterranean"
-      - "West Mediterranean"
-      - "Egypt Mediterranean"
-      - "Libya"
-      - "Turkey"
-      - "Greece"
-      - "Marmara Sea"
-      - "Adriatic"
-      - "Atlantic"
-      - "North Europe"
-      - "Red Sea"
-      - "Arabian Sea"
-      - "Far East"
+  STRONG (80%+) — Excellent match
+    → Offer with confidence, intent = ATTRACT
     
-    rule: "Use exact names for region_pairs matching"
+  GOOD (65-80%) — Solid match with minor issues
+    → Offer proactively, intent = ATTRACT or INQUIRE
+    
+  CONDITIONAL (50-65%) — Decent match, has concerns
+    → Offer with questions, intent = INQUIRE
+    
+  WEAK (35-50%) — Poor match but may work
+    → Offer for information gathering, intent = INFORM
+    
+  SKIP (<35%) — Not worth offering
+    → Skip unless desperate for tonnage
 
-# ═══════════════════════════════════════════════════════════════════
-# REASONING GENERATION RULES
-# ═══════════════════════════════════════════════════════════════════
+================================================================================
+P9 — RELATIONSHIP CHECK (WARNING ONLY)
+================================================================================
 
-reasoning_templates:
+  P9 is NOT a scoring criterion. It generates a warning flag that influences
+  the offer approach but does not affect total_score.
+
+  PURPOSE: Detect if the vessel owner has a known relationship with the 
+  charterer (cargo account) — either direct or through another broker.
+
+  DATA SOURCES:
+    - Company/vessel/person comments (current format)
+    - Dedicated relationship field (future, when available)
+    - Any structured data about owner-charterer connections
+    
+  PARSING NOTE:
+    AI should check ALL available sources for relationship data.
+    Source format may change — logic remains the same:
+    Find mentions of charterer names, broker names, "works direct with X"
+
+  WARNING TYPES:
+
+    DIRECT_RELATIONSHIP
+    ─────────────────────────────────────────
+      Trigger: Owner works directly with this charterer
+      Example comment: "works direct with Bunge"
+      Cargo account: "Bunge"
+      Warning: "⚠️ Owner works directly with Bunge. They may already have 
+               this cargo or prefer direct communication."
+      Offer impact: Be careful — don't offer cargo they may already know 
+               about. Consider mentioning "in case you haven't seen this yet"
+               
+    BROKER_RELATIONSHIP
+    ─────────────────────────────────────────
+      Trigger: Owner works through specific broker for this charterer
+      Example comment: "Cargill cargoes via Clarkson"
+      Cargo account: "Cargill"
+      Warning: "⚠️ Owner handles Cargill cargoes through Clarkson."
+      Offer impact: Owner may not respond or redirect to their broker.
+               Adjust expectations.
+               
+    NO_RELATIONSHIP (CLEAR)
+    ─────────────────────────────────────────
+      Trigger: No known connection found
+      Warning: null
+      Offer impact: Standard approach
+
+  OUTPUT FORMAT:
   
-  structure: |
-    1. Overall Score: {final_score_percent}% ({base_score}/135)
-    2. Strengths: {top_scoring_criteria}
-    3. Weaknesses: {low_scoring_criteria}
-    4. Key Factors: {decisive_factors}
-    5. Recommendation: {action}
+    When warning found:
+    "relationship_warning": {
+      "status": "WARNING",
+      "type": "direct_relationship",
+      "details": "Owner works directly with Bunge (from company comments)",
+      "offer_guidance": "They may already have this cargo. Approach carefully."
+    }
+    
+    When no relationship found:
+    "relationship_warning": {
+      "status": "CLEAR"
+    }
+
+================================================================================
+OFFER OPENING GENERATION
+================================================================================
+
+  After scoring all criteria, generate an offer opening line for both 
+  email and messenger formats. The offer opening is a ready-to-use phrase
+  for the beginning of the communication to the owner.
   
-  criterion_explanations:
-    P1: "Vessel is {distance}nm from loading port ({proximity_level})"
-    P1A: "{match_level} with typical {region_pair} trade pattern"
-    P2: "Owner {preference_level} this region"
-    P3: "Vessel {compatibility} with {cargo_type}"
-    P4: "Vessel has {percentage}% history in this region"
-    P5: "Can load {intake}t vs required {cargo_qty}t ({ratio}%)"
-    P6: "Current voyage: {open_area_signal}"
-    P7: "ETA {eta_date} vs laycan {laycan} ({timing_category})"
+  See: OFFER_OPENING_STYLE_GUIDE.txt for detailed style rules and examples.
+
+  GENERATION LOGIC:
+
+  1. Determine INTENT based on total_score:
+     - ATTRACT (70%+): Confident, enthusiastic, lead with strengths
+     - INQUIRE (50-70%): Balanced, show cargo + ask key questions
+     - INFORM (<50%): Cautious, "for your reference", gather info
+     
+  2. Extract KEY SELLING POINTS from high-scoring criteria (offer_hints)
   
-  blocking_explanations:
-    technical: "Vessel cannot technically carry this cargo"
-    capacity: "Insufficient intake capacity ({ratio}% of required)"
-    owner_preference: "Owner explicitly avoids {restriction}"
-    geopolitical: "Blocked due to {restriction_reason}"
+  3. Extract KEY CONCERNS from low-scoring/critical criteria (offer_hints)
+  
+  4. Extract QUESTIONS TO ASK from missing data or unclear points
+  
+  5. Generate email_text (2-4 sentences, shipping English, abbreviations)
+  
+  6. Generate messenger_text (1-2 sentences, max abbreviations, no sign-off)
+
+  OUTPUT FORMAT:
+  
+  "offer_opening": {
+    "intent": "attract",
+    "email_text": "Pls find below cargo details which we believe suits mv 
+                   Example perfectly — she's well positioned and timing aligns 
+                   nicely. Kindly let us know yr interest/ideas.",
+    "messenger_text": "hi, have a nice cargo for Example — good position, 
+                       good timing. pls see below, lmk if interested?",
+    "key_selling_points": ["proximity", "timing"],
+    "key_concerns": ["intake slightly tight"],
+    "questions_to_ask": []
+  }
+  
+  IMPORTANT: 
+    - NO greetings in offer_opening text (greetings handled separately)
+    - Use authentic shipping abbreviations (see OFFER_OPENING_STYLE_GUIDE.txt)
+    - Never sound like AI — sound like a colleague sharing an opportunity
+    - When BLOCKED: offer_opening not generated (or intent = "do_not_offer")
+
+================================================================================
+JSON OUTPUT TEMPLATE
+================================================================================
+
+{
+  "vessel_name": "MV Example",
+  "total_score": 67.4,
+  "total_score_raw": 51,
+  "dynamic_max_score": 90,
+  "confidence": 70,
+  "confidence_note": "No data for P2, P6",
+  "recommendation": "CONDITIONAL",
+  "short_summary": "Decent match — good positioning and timing, but vessel 
+                    oversized for this parcel. Worth offering if no better options.",
+  
+  "relationship_warning": {
+    "status": "CLEAR"
+  },
+  
+  "offer_opening": {
+    "intent": "inquire",
+    "email_text": "...",
+    "messenger_text": "...",
+    "key_selling_points": ["proximity", "timing"],
+    "key_concerns": ["vessel oversized"],
+    "questions_to_ask": ["confirm opening date"]
+  },
+  
+  "detailed_scoring": {
+    "proximity": {
+      "code": "P1",
+      "score": 14.0,
+      "max_score": 20,
+      "reasoning": "Constanta, ~150nm from Chornomorsk. Level 4 — short ballast.",
+      "offer_hint": "Great positioning — lead with 'well positioned nearby'.",
+      "decision": "accepted",
+      "confidence": "high",
+      "critical": false,
+      "citations": ["ref:proximity Level 4"]
+    },
+    "regional_patterns": {
+      "code": "P1A",
+      "score": 12,
+      "max_score": 15,
+      "reasoning": "BS to Med — strong natural trade flow for this size.",
+      "offer_hint": "Natural trade pattern — mention backhaul opportunity.",
+      "decision": "accepted",
+      "confidence": "high",
+      "critical": false,
+      "citations": ["ref:P1A BS→Med score 12"]
+    },
+    "owner_preferences": {
+      "code": "P2",
+      "score": 0,
+      "max_score": 0,
+      "reasoning": "No preference data available — criterion excluded.",
+      "offer_hint": null,
+      "decision": "excluded",
+      "confidence": "n/a",
+      "critical": false,
+      "citations": []
+    },
+    "port_accessibility": {
+      "code": "P2A",
+      "score": 18,
+      "max_score": 20,
+      "reasoning": "IACS class + IG P&I. Both ports Tier 3 — no PSC concerns.",
+      "offer_hint": null,
+      "decision": "accepted",
+      "confidence": "high",
+      "critical": false,
+      "citations": ["ref:P2A Tier3 + High status"]
+    },
+    "cargo_preferences": {
+      "code": "P3",
+      "score": 0,
+      "max_score": 0,
+      "reasoning": "No cargo preference data — criterion excluded.",
+      "offer_hint": null,
+      "decision": "excluded",
+      "confidence": "n/a",
+      "critical": false,
+      "citations": []
+    },
+    "last_ports": {
+      "code": "P4",
+      "score": 7,
+      "max_score": 10,
+      "reasoning": "Regular BS/Med caller — Poti 8.7%, Samsun 6.5%.",
+      "offer_hint": "Vessel knows the area — mention familiarity.",
+      "decision": "accepted",
+      "confidence": "high",
+      "critical": false,
+      "citations": ["top_ports data"]
+    },
+    "intake_capacity": {
+      "code": "P5",
+      "score": 12,
+      "max_score": 15,
+      "reasoning": "Intake 14,300t vs cargo 13,500-16,500t. Fits within range but draft-restricted.",
+      "offer_hint": "Cargo fits but draft restriction limits flexibility. Be transparent.",
+      "decision": "accepted",
+      "confidence": "high",
+      "critical": false,
+      "citations": ["ref:intake_calculator Step 3"]
+    },
+    "openarea_modifier": {
+      "code": "P6",
+      "score": 0,
+      "max_score": 0,
+      "reasoning": "No OpenArea comments — criterion excluded.",
+      "offer_hint": null,
+      "decision": "excluded",
+      "confidence": "n/a",
+      "critical": false,
+      "citations": []
+    },
+    "readiness_eta": {
+      "code": "P7",
+      "score": 10,
+      "max_score": 10,
+      "reasoning": "Open Constanta Feb 12, layday Feb 14. Gap = -2 days — ideal.",
+      "offer_hint": "Timing is perfect — highlight in opening.",
+      "decision": "accepted",
+      "confidence": "high",
+      "critical": false,
+      "citations": ["ref:P7 gap -2 = 10/10"]
+    },
+    "restrictions_compliance": {
+      "code": "P8",
+      "score": 0,
+      "max_score": 0,
+      "reasoning": "No restrictions set — criterion excluded.",
+      "offer_hint": null,
+      "restrictions_checked": [],
+      "decision": "excluded",
+      "confidence": "n/a",
+      "critical": false,
+      "citations": []
+    }
+  }
+}
+
+================================================================================
+AI INSTRUCTIONS
+================================================================================
+
+  ai_must:
+    - Evaluate ALL criteria, even when BLOCK is found early
+    - Calculate dynamic_max_score correctly (only active criteria)
+    - Generate offer_hint for each criterion
+    - Perform P9 relationship check
+    - Generate offer_opening (unless BLOCKED)
+    - Use short, natural reasoning (not verbose)
+    - Express total_score as percentage
+    
+  ai_must_not:
+    - Never include criteria with max_score = 0 in the denominator
+    - Never skip criteria evaluation
+    - Never generate offer_opening when vessel is BLOCKED
+    - Never include greetings in offer_opening text
+    - Never let P9 affect the numerical score
+    - Never use overly formal or AI-sounding language in summaries
+
+================================================================================
