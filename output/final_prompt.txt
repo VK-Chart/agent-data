@@ -1677,7 +1677,7 @@ AI INSTRUCTIONS
 --- START OF estimator-prompts/P8_RESTRICTIONS_COMPLIANCE_SCORING.txt ---
 ================================================================================
 P8 — RESTRICTIONS COMPLIANCE SCORING
-Version: 1.0
+Version: 2.0
 Last updated: 2026-02-07
 ================================================================================
 
@@ -1691,17 +1691,33 @@ SCORE RANGE: [0, 20]
 DYNAMIC CRITERION: If no restrictions set → score = 0, max_score = 0 (excluded)
 
 ================================================================================
+CRITICAL — WHAT P8 DOES AND DOES NOT COVER
+================================================================================
+
+  P8 COVERS ONLY these restriction types from cargo/inquiry settings:
+    HARD: Class, P&I Club, IMO Class, Holds Type
+    GRADUAL: DWT, Age, LOA, Beam
+
+  P8 DOES NOT COVER — DO NOT SCORE THESE IN P8:
+    ❌ Draft / draught restrictions → handled in P5 (Intake Calculator)
+    ❌ Port physical limitations → handled in P5 via port_restrictions_map
+    ❌ Vessel proximity / distance → handled in P1
+    ❌ PSC / flag / inspection risk → handled in P2A
+    ❌ Cargo type compatibility → handled in P3
+    ❌ Owner regional preferences → handled in P2
+
+  If cargo description mentions "draft 7.5m limit" — this is a P5 matter.
+  AI must NOT create a draft restriction in P8.
+
+================================================================================
 NO RESTRICTIONS → EXCLUDED
 ================================================================================
 
-  If the cargo/inquiry has NO restrictions defined:
+  If the cargo/inquiry has NO restrictions from the 8 types above:
     score = 0
     max_score = 0
     reasoning = "No restrictions set — criterion excluded from scoring."
     offer_hint = null
-    
-  This is common for many cargoes. Only active when charterer sets specific 
-  requirements.
 
 ================================================================================
 RESTRICTION TYPES
@@ -1741,11 +1757,16 @@ RESTRICTION TYPES
       BLOCK: Over 15% of limit (vessel too big for berth/facility)
       
     AGE — Maximum vessel age
+      ╔══════════════════════════════════════════════════════════════╗
+      ║  CRITICAL: AGE NEVER TRIGGERS BLOCK. NEVER. NO EXCEPTIONS. ║
+      ║  Age is ALWAYS negotiable with charterer. Even +10 years    ║
+      ║  over limit = 0 points but vessel is still scoreable.      ║
+      ╚══════════════════════════════════════════════════════════════╝
       Within limit: 100% of allocated points
       +1-2 years over: 75% of allocated points
       +3-5 years over: 50% of allocated points
       +5 years over: 0% of allocated points
-      Note: No BLOCK — age is always negotiable
+      BLOCK: NEVER — age is always negotiable
       
     LOA — Maximum length overall
       Within limit: 100% of allocated points
@@ -1763,7 +1784,8 @@ RESTRICTION TYPES
 SCORING FORMULA
 ================================================================================
 
-  1. Count active restrictions (only those actually set by charterer)
+  1. Count active restrictions (ONLY from the 8 types listed above)
+     Do NOT invent additional restriction types.
   
   2. Allocate points equally:
      points_per_restriction = 20 / number_of_active_restrictions
@@ -1782,7 +1804,7 @@ SCORING FORMULA
        
   4. Sum all restriction scores
   
-  5. Check for BLOCK conditions
+  5. Check for BLOCK conditions (NEVER for age)
 
 ================================================================================
 BLOCK CONDITIONS
@@ -1792,12 +1814,14 @@ BLOCK CONDITIONS
     - Hard fail on Class when charterer EXPLICITLY requires specific class
     - Hard fail on IMO when cargo is classified dangerous goods
     - DWT exceeds limit by more than 15%
+    - LOA exceeds limit by more than 5% (physical berth limitation)
 
-  NO BLOCK (0 on restriction but vessel still scoreable):
-    - Age over limit (always negotiable)
-    - Holds type mismatch (often negotiable)
-    - DWT within 15% over (negotiable with charterer)
-    - P&I not matching preference (usually negotiable)
+  NEVER BLOCK (scored 0 but vessel remains scoreable):
+    - Age over limit — ALWAYS negotiable, no matter how much over
+    - Holds type mismatch — often negotiable
+    - DWT within 15% over — negotiable with charterer
+    - P&I not matching preference — usually negotiable
+    - Beam over limit — usually negotiable
 
 ================================================================================
 EXAMPLES
@@ -1812,65 +1836,83 @@ EXAMPLES
     Score: 6.67 + 6.67 + 6.67 = 20/20
     offer_hint: null (all restrictions met)
 
-  EXAMPLE 2: Three restrictions, mixed results
+  EXAMPLE 2: Age +2 years over — NOT a block
   ─────────────────────────────────────────
-    Restrictions: DWT max 12000, Age max 20 years, Class IACS
+    Restrictions: Age max 25 years, DWT max 18000
+    2 restrictions → 10 pts each
+    
+    Vessel: Age 27 (+2yr over), DWT 16,000 (pass)
+    Age: 10 × 0.75 = 7.5 (gradual, +1-2yr = 75%)
+    DWT: 10 × 1.0 = 10.0 (within limit)
+    Score: 7.5 + 10.0 = 17.5/20
+    Decision: "accepted" — NOT blocked
+    offer_hint: "Vessel is 2 years over age limit — negotiable. 
+                 Emphasize vessel condition and recent survey dates."
+
+  EXAMPLE 3: Age +7 years over — STILL not a block
+  ─────────────────────────────────────────
+    Restrictions: Age max 20 years
+    1 restriction → 20 pts
+    
+    Vessel: Age 27 (+7yr over)
+    Age: 20 × 0.0 = 0 (beyond +5yr)
+    Score: 0/20
+    Decision: "accepted" with very low score — NOT blocked
+    offer_hint: "Vessel significantly over age limit. Offer only if 
+                 market is tight and condition is excellent."
+
+  EXAMPLE 4: Mixed results
+  ─────────────────────────────────────────
+    Restrictions: DWT max 12000, Age max 20, Class IACS
     3 restrictions → 6.67 pts each
     
-    Vessel: DWT 12,400 (within 5%), Age 22 (+2yr), Class Turkish Lloyd (non-IACS, fail)
+    Vessel: DWT 12,400 (5% over), Age 22 (+2yr), Class non-IACS (fail)
     DWT: 6.67 × 0.75 = 5.0
     Age: 6.67 × 0.75 = 5.0
     Class: 0 (fail)
-    Score: 5.0 + 5.0 + 0 = 10/20
-    offer_hint: "Vessel class is non-IACS — be prepared for pushback. 
-                 DWT and age are close to limits but acceptable. Emphasize 
-                 vessel's operational track record."
+    Score: 10/20
+    offer_hint: "Non-IACS class — expect pushback. DWT and age close 
+                 to limits but acceptable."
 
-  EXAMPLE 3: Two restrictions, one BLOCK
+  EXAMPLE 5: IMO BLOCK
   ─────────────────────────────────────────
     Restrictions: IMO class 9 required, DWT max 15000
     2 restrictions → 10 pts each
     
-    Vessel: No IMO certificate (fail → BLOCK), DWT 14,500 (pass)
-    IMO: 0 (BLOCK — dangerous cargo requires certification)
-    DWT: 10
+    Vessel: No IMO cert (fail → BLOCK), DWT 14,500 (pass)
     Score: BLOCK
     offer_hint: "Vessel not certified for IMO cargo — do not offer."
 
-  EXAMPLE 4: Single restriction  
+  EXAMPLE 6: Cargo has draft restriction — NOT scored in P8
   ─────────────────────────────────────────
-    Restrictions: Age max 15 years
-    1 restriction → 20 pts
+    Cargo description: "Age max 25 years, draft 7.5m limit"
     
-    Vessel: Age 19 (+4 years over)
-    Age: 20 × 0.50 = 10
-    Score: 10/20
-    offer_hint: "Vessel is 4 years over age limit. This is negotiable — 
-                 mention vessel's condition and recent survey dates."
-
-  EXAMPLE 5: DWT exceeds by >15%
-  ─────────────────────────────────────────
-    Restrictions: DWT max 10000
-    Vessel: DWT 12,000 (20% over)
-    → BLOCK (vessel too large for facility/berth)
-    offer_hint: "Vessel DWT 20% over limit — physical restriction, 
-                 do not offer for this berth."
+    P8 restrictions: Age max 25 years ONLY (1 restriction → 20 pts)
+    Draft 7.5m → goes to P5 (Intake Calculator), NOT P8
+    
+    Vessel: Age 27 (+2yr over)
+    Age: 20 × 0.75 = 15
+    Score: 15/20
+    Decision: "accepted"
 
 ================================================================================
 OUTPUT FORMAT
 ================================================================================
 
-  In the JSON scoring output, P8 includes:
-  
   "restrictions_compliance": {
     "code": "P8",
-    "score": 15,
+    "score": 17.5,
     "max_score": 20,
-    "reasoning": "3 restrictions checked. DWT pass, Age close (+2yr), Class fail.",
-    "offer_hint": "Class is non-IACS — may need to discuss with charterer.",
-    "restrictions_checked": ["DWT: PASS", "Age: MARGINAL (+2yr)", "Class: FAIL"],
+    "reasoning": "2 restrictions checked. DWT pass, Age +2yr (75%). No blocks.",
+    "offer_hint": "Age 2yr over limit — negotiable, mention condition.",
+    "restrictions_checked": [
+      "DWT 16000 vs max 18000: PASS (100%)",
+      "Age 27 vs max 25: MARGINAL +2yr (75%)"
+    ],
+    "decision": "accepted",
     "confidence": "high",
-    "citations": ["restriction: class IACS required, vessel: Turkish Lloyd"]
+    "critical": false,
+    "citations": ["cargo restriction: age max 25, vessel built: 1999"]
   }
 
 ================================================================================
@@ -1878,19 +1920,20 @@ AI INSTRUCTIONS
 ================================================================================
 
   ai_must:
-    - Check ALL restrictions defined in the cargo/inquiry
-    - Score each restriction individually
+    - Check ONLY the 8 restriction types listed in this file
+    - Score each restriction individually with percentage
     - Show restrictions_checked array in output
-    - Apply BLOCK only for critical hard fails
-    - Allow negotiation on soft restrictions (age, holds)
+    - Apply BLOCK only for: Class/IMO hard fail, DWT >15%, LOA >5%
     - Generate offer_hint when restrictions are close to limits
     
   ai_must_not:
-    - Never invent restrictions that aren't defined in the cargo
-    - Never BLOCK vessel for age alone (always negotiable)
-    - Never ignore restrictions even if vessel scores well on other criteria
-    - Never assume "IACS required" unless explicitly stated
-    - Never apply P8 when no restrictions exist (use 0/0 instead)
+    - ❌ NEVER BLOCK vessel for age — age is ALWAYS negotiable
+    - ❌ NEVER BLOCK vessel for age even combined with other fails
+    - ❌ NEVER score draft/draught in P8 — draft belongs in P5
+    - ❌ NEVER invent restriction types beyond the 8 listed
+    - ❌ NEVER assume "IACS required" unless explicitly stated
+    - ❌ NEVER apply P8 when no restrictions exist (use 0/0)
+    - ❌ NEVER count draft as a "restriction" in P8
 
 ================================================================================
 
