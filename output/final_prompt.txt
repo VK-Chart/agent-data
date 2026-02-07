@@ -1897,7 +1897,22 @@ STEP 1 — MANDATORY DRAUGHT ANALYSIS
     ❌ Do NOT use "max-draught" field (max recorded, includes tropical)
     ❌ Do NOT use "min-draught" field (ballast reference only)
 
-  DRAUGHT RATIO:
+  MISSING / ZERO DRAFT:
+    If field "draft" = 0.0, null, or missing:
+      Draught analysis is IMPOSSIBLE (cannot divide by zero).
+      Default to LADEN (+7 days buffer).
+      confidence = "low"
+      reasoning: "draft field is 0/missing — cannot calculate ratio.
+                  Defaulting to laden (conservative)."
+
+  STALE AIS DATA:
+    Check field "position-received". If older than 7 days from today:
+      confidence = "low"
+      Add to reasoning: "AIS data is [X] days old — vessel may have
+        moved since then. Position/draught data unreliable."
+      Scoring still proceeds but with low confidence.
+
+  DRAUGHT RATIO (when draft > 0):
     ratio = current_draught / max_draft (using field "draft")
     
     ratio < 0.65  → BALLAST
