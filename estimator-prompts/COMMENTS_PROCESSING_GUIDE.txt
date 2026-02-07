@@ -1,412 +1,140 @@
-# ═══════════════════════════════════════════════════════════════════
-# COMMENTS PROCESSING GUIDE - UPDATED v2.0
-# VK Charts AI Scoring System
-# ═══════════════════════════════════════════════════════════════════
-#
-# CHANGES IN v2.0:
-# - Updated P2 scoring gradations: spec (7.5), ok (5.0), try (3.0)
-# - Clarified load region (7.5) + discharge region (7.5) = 15 total split
-# - Added explicit examples for load/discharge separation
-# - Maintained all other parsing rules from v1.0
-#
-# ═══════════════════════════════════════════════════════════════════
+================================================================================
+COMMENTS PROCESSING GUIDE — P2 & P3 Support
+Version: 3.0
+Last updated: 2026-02-07
+================================================================================
 
-version: "2.0"
-date: "2026-01-19"
-priority: "CRITICAL - Comments contain expert non-structured knowledge"
+PURPOSE:
+  Guide for parsing and interpreting company/vessel/person comments to 
+  extract owner preferences (P2), cargo preferences (P3), and relationship 
+  data (P9). Comments are free-text and use shipping industry shorthand.
 
-# ═══════════════════════════════════════════════════════════════════
-# SHORT SUMMARY
-# ═══════════════════════════════════════════════════════════════════
+================================================================================
+P2 — OWNER PREFERENCES (from comments + system settings)
+================================================================================
 
-purpose: |
-  This document defines how AI must read, interpret, and apply comments
-  from Companies, Vessels, and Persons during scoring and offer generation.
+  Score range: [0, 15]
+  DYNAMIC CRITERION: If no preference data exists → score = 0, max_score = 0
+
+  DATA SOURCES (check ALL):
+    1. Company comments (free text)
+    2. Person comments (free text)
+    3. Vessel comments (free text)
+    4. System settings / structured preferences (when available)
+    
+  NO DATA RULE:
+    If ALL sources are empty (no comments AND no system settings):
+      score = 0
+      max_score = 0
+      reasoning = "No owner preference data available — criterion excluded."
+      offer_hint = null
+      
+    If comments exist but contain no preference-relevant information:
+      score = 7.5/15 (neutral — data exists but no match/conflict)
+      max_score = 15
+
+  PARSING PREFERENCES FROM COMMENTS:
   
-  The comments contain expert, non-structured knowledge:
-  - Cargo preferences
-  - Geographic restrictions  
-  - Intake data
-  - Technical limitations
-  - Behavioral and communication notes
+    Regional preferences:
+      "spec med/bs" → specializes in Med and Black Sea
+      "pref atlantic" → prefers Atlantic trade
+      "no ukr" → avoids Ukraine (hard block for Ukraine cargoes)
+      "ok greece but pref turkey" → Greece acceptable, Turkey preferred
+      "avoids west africa" → negative for WA cargoes
+      
+    Keyword patterns:
+      "spec [region]" → specialization, score 12-15 if match
+      "pref [region]" → preference, score 10-12 if match
+      "ok [region]" → acceptable, score 7.5-9 if match
+      "no [region/country]" → hard block, score 0 for that region
+      "avoids [region]" → soft block, score 2-4
+
+    Score mapping:
+      Perfect match (spec + region match): 15/15
+      Good match (pref + region match): 10-12/15
+      Acceptable match (ok + region): 7.5-9/15
+      Neutral (no relevant data in comments): 7.5/15
+      Soft conflict (avoids but not "no"): 3-5/15
+      Hard conflict ("no [region]"): 0/15, potential BLOCK
+
+================================================================================
+P3 — CARGO PREFERENCES (vessel/company comments)
+================================================================================
+
+  Score range: [0, 15]
+  DYNAMIC CRITERION: If no cargo preference data exists → score = 0, max_score = 0
+
+  DATA SOURCES:
+    1. Company comments — may mention cargo specializations
+    2. Vessel comments — may mention cargo types handled
+    3. Vessel type — General Cargo, Bulk Carrier, etc.
+    
+  NO DATA RULE:
+    If no cargo preference information is found in any source:
+      score = 0
+      max_score = 0
+      reasoning = "No cargo preference data available — criterion excluded."
+      offer_hint = null
+
+  PARSING CARGO PREFERENCES:
   
-  AI must extract structured meaning from unstructured comments, filter
-  them by relevance to current cargo, resolve contradictions, and incorporate
-  them into scoring and offer text reasoning.
+    "grain specialist" → high score for grain cargoes
+    "cement carrier" → high score for cement, low for grain
+    "no dangerous goods" → block for IMO/DG cargoes
+    "clean holds required" → vessel maintained for sensitive cargoes
+    "bulk only" → block for breakbulk/project cargo
+    "steel/timber regular" → specialization indicators
 
-# ═══════════════════════════════════════════════════════════════════
-# DATA SOURCES
-# ═══════════════════════════════════════════════════════════════════
+================================================================================
+AI MUST NOT — CRITICAL RULES
+================================================================================
 
-data_sources:
+  ❌ Never consider vessel AGE when scoring P3.
+     Age is NOT a cargo preference factor.
+     Age restrictions belong in P8 (Restrictions Compliance), not P3.
+     
+  ❌ Never assign neutral (7.5/15) when data clearly supports match or conflict.
   
-  company_comments:
-    database_field: "companies.comments"
-    example: "spec: turkish domestic cargoes, Italy ok, greece ok, eu ok, cvb ok, continent ok"
+  ❌ Never treat absence of negative data as positive.
+     "No comment about grain" ≠ "vessel is good for grain"
+     
+  ❌ Never mix P2 (region preferences) with P3 (cargo preferences).
+     P2 = WHERE the owner wants to trade
+     P3 = WHAT cargo the vessel can/prefers to carry
+     
+  ❌ Never infer preferences from vessel type alone when comments exist.
+     Comments override vessel type assumptions.
+     
+  ❌ Never consider vessel class, P&I, or flag in P3 — that's P2A/P8.
+
+================================================================================
+COMMENT PARSING PATTERNS
+================================================================================
+
+  ABBREVIATIONS commonly found in comments:
+    spec = specializes
+    pref = prefers  
+    ok = acceptable
+    no = does not accept / avoids
+    w/ = with
+    w/o = without
+    dg = dangerous goods
+    imo = IMO classified cargo
+    bs = Black Sea
+    med = Mediterranean
+    waf = West Africa
+    eaf = East Africa
+    cont = Continent (NW Europe)
+    ukr = Ukraine
+    tur / trk = Turkey
+    gre = Greece
+    ita = Italy
+    fra = France
     
-    typical_content:
-      - "Specialization patterns"
-      - "Geographic preferences"
-      - "Cargo type preferences"
-      - "Communication preferences"
-      - "Payment history"
-      - "Reliability notes"
-      - "Special requirements"
-      
-  vessel_comments:
-    database_field: "vessels.comments"
-    example: "Real intake: Corn, draft 7m, Izmail = 4800t"
-    
-    typical_content:
-      - "Technical specifications"
-      - "Performance data"
-      - "Intake records"
-      - "Port restrictions"
-      - "Maintenance issues"
-      - "Crew information"
-      - "Historical behavior"
-      
-  person_comments:
-    database_field: "people.comments"
-    example: "Prefers WhatsApp communication, responds within 1 hour"
-    
-    typical_content:
-      - "Communication style"
-      - "Response patterns"
-      - "Decision-making authority"
-      - "Language preferences"
-      - "Time zone considerations"
+  RELATIONSHIP INDICATORS (for P9, see MASTER_SCORING_SYSTEM.txt):
+    "works direct with [company]" → direct relationship
+    "[company] cargoes via [broker]" → broker relationship
+    "exclusive [company]" → exclusive relationship, caution
+    "broker for [company]" → intermediary relationship
 
-# ═══════════════════════════════════════════════════════════════════
-# PARSING STRATEGY
-# ═══════════════════════════════════════════════════════════════════
-
-parsing_strategy:
-  
-  principle: "Extract structured information from unstructured text"
-  
-  step_1_keyword_detection:
-    description: "Identify key patterns and keywords"
-    
-    patterns:
-      
-      specialization:
-        keywords: ["spec:", "specializes", "mainly", "mostly"]
-        examples:
-          - "spec: turkish domestic cargoes"
-          - "specializes in grain trades"
-          - "mainly works Black Sea"
-          
-      geographic_preferences:
-        keywords: ["ok", "no", "cannot", "avoids", "prefers", "try"]
-        examples:
-          - "Italy ok, greece ok, eu ok"
-          - "no Egypt"
-          - "cannot work Libya"
-          - "avoids Turkey"
-          - "try POC"
-          
-      cargo_preferences:
-        keywords: ["cargo:", "loads", "carries", "no bulk"]
-        examples:
-          - "cargo: grain only"
-          - "loads steel products"
-          - "no bulk fertilizers"
-          
-      technical_info:
-        keywords: ["intake:", "draft", "gear", "speed"]
-        examples:
-          - "Real intake: Wheat 5200t"
-          - "draft restricted to 7m"
-          - "geared vessel"
-          
-      behavioral_notes:
-        keywords: ["always", "never", "typically", "usually"]
-        examples:
-          - "always asks for freight first"
-          - "never responds weekends"
-          - "typically ballasts to Black Sea"
-          
-  step_2_relevance_filtering:
-    description: "Extract only information relevant to current cargo"
-    
-    relevance_rules:
-      geographic:
-        - "If comment mentions cargo loading/discharge region → RELEVANT"
-        - "If comment mentions country → RELEVANT"
-        - "If general restriction → RELEVANT"
-        
-      cargo_type:
-        - "If comment mentions cargo type → RELEVANT"
-        - "If comment about capacity → RELEVANT"
-        - "If technical restrictions → RELEVANT"
-        
-      communication:
-        - "Always relevant for offer text generation"
-        
-  step_3_conflict_resolution:
-    description: "Handle contradictions between sources"
-    
-    priority_order:
-      1: "Vessel comments (most specific)"
-      2: "Person comments (behavioral patterns)"
-      3: "Company comments (general policies)"
-      4: "Formal preferences (UI settings)"
-
-# ═══════════════════════════════════════════════════════════════════
-# P2 OWNER PREFERENCES SCORING - UPDATED v2.0
-# ═══════════════════════════════════════════════════════════════════
-
-p2_owner_preferences_scoring_v2:
-  
-  total_score: 15
-  
-  score_split:
-    load_region_score: 7.5
-    discharge_region_score: 7.5
-    
-    principle: |
-      P2 evaluates preferences for BOTH loading and discharge regions.
-      Each region contributes 7.5 points to total 15 points.
-      
-      This reflects reality: owners care about BOTH where cargo loads
-      AND where it discharges. A perfect match requires both.
-  
-  # ─────────────────────────────────────────────────────────────────
-  # SCORING GRADATIONS
-  # ─────────────────────────────────────────────────────────────────
-  
-  keyword_gradations:
-    
-    spec_specialization:
-      keywords: ["spec:", "specializes", "specialized in"]
-      score_value: 7.5
-      interpretation: "PRIMARY specialization - this is core business"
-      examples:
-        - "spec: ukraine" for Ukrainian load → 7.5/7.5
-        - "spec: turkey" for Turkish discharge → 7.5/7.5
-        - "spec: Black Sea grain" for BS grain cargo → 7.5/7.5
-      
-    ok_acceptable:
-      keywords: ["ok", "acceptable", "willing"]
-      score_value: 5.0
-      interpretation: "INTERMEDIATE - between primary and secondary"
-      examples:
-        - "ukraine ok" for Ukrainian load → 5.0/7.5
-        - "turkey ok" for Turkish discharge → 5.0/7.5
-        - "EU ok" for European discharge → 5.0/7.5
-      
-    try_secondary:
-      keywords: ["try", "may try", "can try"]
-      score_value: 3.0
-      interpretation: "SECONDARY option - willing but not preferred"
-      examples:
-        - "try POC" for POC load → 3.0/7.5
-        - "try Med" for Med discharge → 3.0/7.5
-      
-      citations:
-        - "Correction (akdeniz): 'try POC' means secondary option, not primary"
-      
-    no_mention:
-      score_value: 0.0
-      interpretation: "NEUTRAL - no preference stated, no penalty"
-      note: "No comment = no bonus, no penalty"
-      
-    negative_no:
-      keywords: ["no", "cannot", "avoid", "never"]
-      score_value: 0
-      interpretation: "NEGATIVE preference - no points for this region"
-      note: "Score is 0, NOT negative. P2 cannot go below 0."
-      examples:
-        - "no Egypt" for Egyptian discharge → 0/7.5
-        - "cannot work Libya" → 0/7.5
-        - "avoid Turkey" → 0/7.5
-  
-  # ─────────────────────────────────────────────────────────────────
-  # LOAD vs DISCHARGE SEPARATION
-  # ─────────────────────────────────────────────────────────────────
-  
-  load_discharge_separation:
-    
-    principle: |
-      Comments must be interpreted in context of cargo route.
-      A comment about "ukraine" applies to:
-      - LOAD region if cargo loads FROM Ukraine
-      - DISCHARGE region if cargo discharges TO Ukraine
-      - GENERAL if comment doesn't specify load/discharge
-    
-    interpretation_rules:
-      
-      explicit_load_comment:
-        format: "loads from X" or "loading: X"
-        application: "Apply to load_region_score only"
-        example: "loads from Ukraine" → 7.5 to load region
-        
-      explicit_discharge_comment:
-        format: "discharges to X" or "destination: X"
-        application: "Apply to discharge_region_score only"
-        example: "destination: Turkey" → 7.5 to discharge region
-        
-      region_only_comment:
-        format: "spec: ukraine" or "turkey ok" (no load/discharge specified)
-        application: "Apply to whichever region matches cargo"
-        
-        example_1:
-          comment: "spec: ukraine"
-          cargo: "Chornomorsk → Yarimca"
-          interpretation: "Ukraine is LOAD region"
-          scoring: "7.5 to load_region_score, 0 to discharge_region_score"
-          
-        example_2:
-          comment: "spec: turkey"
-          cargo: "Chornomorsk → Yarimca"
-          interpretation: "Turkey is DISCHARGE region"
-          scoring: "0 to load_region_score, 7.5 to discharge_region_score"
-          
-        example_3:
-          comment: "spec: ukraine, turkey ok"
-          cargo: "Chornomorsk → Yarimca"
-          interpretation: "Ukraine=load (spec), Turkey=discharge (ok)"
-          scoring: "7.5 load + 5.0 discharge = 12.5/15 total"
-      
-      general_region_comment:
-        format: "spec: Black Sea" or "spec: Mediterranean"
-        application: "Split proportionally if both load and discharge in region"
-        
-        example:
-          comment: "spec: Black Sea"
-          cargo: "Chornomorsk → Constanta" (both Black Sea)
-          interpretation: "Both regions match"
-          scoring: "3.75 load + 3.75 discharge = 7.5/15 total"
-          note: "Split the 7.5 points equally when comment covers both"
-  
-  # ─────────────────────────────────────────────────────────────────
-  # SCORING EXAMPLES
-  # ─────────────────────────────────────────────────────────────────
-  
-  scoring_examples:
-    
-    example_1_perfect_match:
-      comment: "spec: ukraine, spec: turkey"
-      cargo: "Chornomorsk → Yarimca"
-      
-      calculation:
-        ukraine_load: 7.5
-        turkey_discharge: 7.5
-        total: 15.0
-      
-      reasoning: "Perfect specialization match for both load and discharge regions"
-    
-    example_2_mixed_match:
-      comment: "spec: ukraine, turkey ok"
-      cargo: "Chornomorsk → Yarimca"
-      
-      calculation:
-        ukraine_load: 7.5
-        turkey_discharge: 5.0
-        total: 12.5
-      
-      reasoning: "Strong Ukraine spec, Turkey acceptable"
-      citations:
-        - "Updated v2.0: 'ok' = 5.0 points (intermediate level)"
-    
-    example_3_secondary_option:
-      comment: "try POC, turkey ok"
-      cargo: "Chornomorsk → Yarimca"
-      
-      calculation:
-        poc_load: 3.0
-        turkey_discharge: 5.0
-        total: 8.0
-      
-      reasoning: "POC is secondary option, Turkey acceptable"
-      citations:
-        - "Correction (akdeniz): 'try POC' = secondary, score 3.0"
-    
-    example_4_negative:
-      comment: "ukraine ok, no turkey"
-      cargo: "Chornomorsk → Yarimca"
-
-      calculation:
-        ukraine_load: 5.0    # "ukraine ok" = 5.0 points
-        turkey_discharge: 0  # "no turkey" = 0 points, NOT negative
-        total: 5.0
-
-      reasoning: "Ukraine acceptable (5.0), Turkey explicitly avoided (0)"
-      note: "P2 score is sum of [0, 7.5] + [0, 7.5], never negative"
-
-    example_5_no_comments:
-      comment: ""
-      cargo: "Chornomorsk → Yarimca"
-
-      calculation:
-        ukraine_load: 0
-        turkey_discharge: 0
-        total: 0
-
-      reasoning: "No preferences stated, neutral score"
-
-    example_6_spec_greece_no_ukraine:
-      comment: "spec: greece, no ukraine"
-      cargo: "Izmail → Crete"
-
-      calculation:
-        ukraine_load: 0       # "no ukraine" = 0 points
-        greece_discharge: 7.5 # "spec: greece" = max points
-
-        total: 7.5
-
-      reasoning: "Owner specializes in Greece discharge but avoids Ukraine loading"
-      note: "This is correct - 'no ukraine' gives 0, not negative"
-
-# ═══════════════════════════════════════════════════════════════════
-# INTEGRATION WITH OTHER CRITERIA
-# ═══════════════════════════════════════════════════════════════════
-
-integration_notes:
-  
-  p3_cargo_preferences:
-    description: "Comments about cargo types"
-    examples:
-      - "cargo: grain only" → boost P3 if grain cargo
-      - "no fertilizers" → penalty P3 if fertilizer cargo
-    
-  p4_port_familiarity:
-    description: "Comments about specific ports"
-    examples:
-      - "knows Odessa well" → boost P4
-      - "avoid Italian ports" → penalty P4
-    
-  p5_intake:
-    description: "Comments with actual intake data"
-    examples:
-      - "Real intake: Wheat 5200t at Izmail" → override calculated intake
-      - "draft 7m max" → affects intake calculation
-    
-  offer_personalization:
-    description: "Comments about communication style"
-    examples:
-      - "prefers short messages" → adjust offer tone
-      - "responds fast on WhatsApp" → mention in offer
-
-# ═══════════════════════════════════════════════════════════════════
-# CRITICAL AI INSTRUCTIONS
-# ═══════════════════════════════════════════════════════════════════
-
-ai_must:
-  - "ALWAYS parse comments for all three sources (company, vessel, person)"
-  - "ALWAYS apply load/discharge separation for P2 scoring"
-  - "ALWAYS use explicit score values: spec=7.5, ok=5.0, try=3.0"
-  - "ALWAYS respect priority: vessel > person > company"
-  - "ALWAYS cite specific comment text in reasoning"
-
-ai_must_not:
-  - "Never ignore 'try' keyword (it means SECONDARY, not PRIMARY)"
-  - "Never apply same regional comment to both load and discharge without logic"
-  - "Never exceed 15 points for P2 (7.5 + 7.5 max)"
-  - "Never use NEGATIVE scores - 'no X' means 0 points, not -7.5"
-  - "P2 range is always [0, 15] - sum of two [0, 7.5] components"
-
-# ═══════════════════════════════════════════════════════════════════
-# END OF COMMENTS PROCESSING GUIDE v2.0
-# ═══════════════════════════════════════════════════════════════════
+================================================================================
