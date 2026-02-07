@@ -945,7 +945,7 @@ OFFER_HINT → OFFER_OPENING MAPPING
 --- START OF estimator-prompts/OPEN_AREA_COMMENTS_SCORING.txt ---
 ================================================================================
 OPEN_AREA_COMMENTS_SCORING — P6
-Version: 4.0
+Version: 5.0
 Last updated: 2026-02-07
 ================================================================================
 
@@ -956,22 +956,25 @@ PURPOSE:
   requirements for the next voyage.
 
 SCORE RANGE: [0, 15]
-DYNAMIC CRITERION: If no comments exist → score = 0, max_score = 0 (excluded from total)
+DYNAMIC CRITERION: If no comments exist → score = 0, max_score = 0 (excluded)
 
 ================================================================================
-CRITICAL RULE — NO DATA HANDLING
+CRITICAL — NO DATA vs NEUTRAL
 ================================================================================
 
-  If the vessel has NO OpenArea comments (empty or missing):
-    score = 0
-    max_score = 0
-    reasoning = "No OpenArea comments available — criterion excluded from scoring."
-    offer_hint = null
-    
-  RATIONALE: Absence of data should not inflate or deflate the total score.
-  The criterion is simply excluded from the dynamic MAX_SCORE calculation.
-  This is different from "neutral" — neutral means data exists but doesn't
-  help or hurt.
+  NO DATA (excluded):
+    Comments field is empty or missing.
+    score = 0, max_score = 0
+    reasoning = "No OpenArea comments — criterion excluded."
+    This removes P6 from the dynamic_max_score denominator.
+
+  NEUTRAL (scored):
+    Comments exist but don't clearly match or conflict with cargo.
+    score = 7.5/15, max_score = 15
+    reasoning = "Comments exist but no clear alignment or conflict."
+    This keeps P6 in the denominator.
+
+  These are DIFFERENT outcomes. Do not confuse them.
 
 ================================================================================
 SCORING LEVELS (when comments exist, max_score = 15)
@@ -981,50 +984,45 @@ SCORING LEVELS (when comments exist, max_score = 15)
   ─────────────────────────────────────────
     Owner explicitly states they do NOT want what this cargo offers.
     Examples:
-      - Comment says "looking for Med" but cargo is Black Sea
-      - Comment says "no grain" but cargo is wheat
-      - Comment says "needs min 20k" but cargo is 6,000t
-    offer_hint: "Owner's stated strategy conflicts with this cargo. Only offer 
-                 if exceptional circumstances justify it. Acknowledge their preference."
+      - "looking for Med" but cargo is Black Sea
+      - "no grain" but cargo is wheat
+      - "needs min 20k" but cargo is 6,000t
+    offer_hint: "Owner's strategy conflicts. Only offer if exceptional."
 
   SOFT CONFLICT — score: 3-5/15
   ─────────────────────────────────────────
     Owner's stated preferences don't match well but aren't hard blocks.
     Examples:
-      - Comment says "pref Med/BS" and cargo is East Med (borderline)
-      - Comment mentions a different cargo type but doesn't exclude this one
-      - Comment says "looking for long voyage" but this is short
-    offer_hint: "Partial mismatch with owner's stated preferences. Emphasize 
-                 what makes this cargo attractive despite the mismatch."
+      - "pref Med/BS" and cargo is East Med (borderline)
+      - Mentions different cargo type but doesn't exclude this one
+      - "looking for long voyage" but this is short
+    offer_hint: "Partial mismatch — emphasize what makes this attractive."
 
   NEUTRAL — score: 7.5/15
   ─────────────────────────────────────────
-    Comments exist but don't clearly support or contradict this cargo.
+    Comments exist but don't clearly support or contradict.
     Examples:
       - Comment only mentions opening date/area, no preferences
-      - Comment is generic ("open for offers")
-      - Comment mentions unrelated details
-    offer_hint: null (no specific guidance needed)
+      - "open for offers"
+      - Mentions unrelated details
+    offer_hint: null
 
   POSITIVE MATCH — score: 10-12/15
   ─────────────────────────────────────────
-    Owner's comments align well with what this cargo offers.
+    Owner's comments align well with the cargo.
     Examples:
-      - Comment says "open for BS/Med" and cargo is Black Sea
-      - Comment mentions similar cargo type
-      - Comment says "looking for short voyage" and this fits
-    offer_hint: "Owner's strategy aligns with this cargo — mention this alignment 
-                 in the opening."
+      - "open for BS/Med" and cargo is Black Sea
+      - Mentions similar cargo type
+      - "looking for short voyage" and this fits
+    offer_hint: "Owner's strategy aligns — mention this in opening."
 
   PERFECT MATCH — score: 15/15
   ─────────────────────────────────────────
     Owner explicitly asks for exactly what this cargo is.
     Examples:
-      - Comment says "looking for grain ex Ukraine" and cargo is wheat ex Chornomorsk
-      - Comment says "need cargo to Sfax" and discharge is Sfax
-      - Comment mentions the exact charterer or cargo type
-    offer_hint: "Perfect match with owner's stated strategy — lead with this. 
-                 Cargo is exactly what they asked for."
+      - "looking for grain ex Ukraine" and cargo is wheat ex Chornomorsk
+      - "need cargo to Sfax" and discharge is Sfax
+    offer_hint: "Perfect match with owner's request — lead with this."
 
 ================================================================================
 AI INSTRUCTIONS
@@ -1032,32 +1030,18 @@ AI INSTRUCTIONS
 
   ai_must:
     - Read ALL OpenArea comments carefully
-    - Compare comments against: cargo type, load region, discharge region, 
-      quantity range, voyage duration, laycan timing
+    - Compare against: cargo type, load/discharge region, quantity, timing
     - Score based on degree of alignment/conflict
-    - Generate offer_hint based on the scoring outcome
-    - Set max_score = 0 when no comments exist
+    - Set max_score = 0 when comments are empty (excluded)
+    - Set max_score = 15 when comments exist (even if neutral)
 
   ai_must_not:
-    - Never invent or assume preferences not stated in comments
-    - Never score neutral (7.5) when there is a clear match or conflict
-    - Never give max_score = 15 when comments are empty
-    - Never consider vessel specifications here (that's P5, P8)
-    - Never consider owner preferences from other sources here (that's P2)
-
-================================================================================
-DATA SOURCES
-================================================================================
-
-  Primary: OpenArea comments field from vessel listing
-  
-  Comment types to look for:
-    - Region preferences: "pref Med", "looking for BS", "no Atlantic"
-    - Cargo preferences: "grain preferred", "no dangerous", "cement ok"
-    - Quantity preferences: "needs min 15k", "looking for full cargo"
-    - Voyage preferences: "short voyage", "TC out", "trip to Far East"
-    - Timing: "need prompt cargo", "can wait until end month"
-    - Restrictions: "no war zone", "no sanctions", "no [country]"
+    - ❌ Never invent preferences not stated in comments
+    - ❌ Never score neutral (7.5) when clear match or conflict exists
+    - ❌ Never give max_score = 15 when comments are empty
+    - ❌ Never consider vessel specs here (that's P5, P8)
+    - ❌ Never consider owner preferences from other sources (that's P2)
+    - ❌ Never confuse "no comments" (excluded) with "neutral" (scored)
 
 ================================================================================
 
