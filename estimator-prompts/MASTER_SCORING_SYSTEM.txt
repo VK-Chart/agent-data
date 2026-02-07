@@ -1,6 +1,6 @@
 ================================================================================
 MASTER SCORING SYSTEM
-Version: 4.0
+Version: 5.0
 Last updated: 2026-02-07
 ================================================================================
 
@@ -20,7 +20,7 @@ ALL CRITERIA — OVERVIEW
   P2    Owner Preferences       15     Dynamic    COMMENTS_PROCESSING_GUIDE.txt
   P2A   PSC Port Accessibility  20     Always     P2A_PSC_PORT_ACCESSIBILITY_SCORING.txt
   P3    Cargo Preferences       15     Dynamic    COMMENTS_PROCESSING_GUIDE.txt
-  P4    Last Ports              10     Always     (inline logic)
+  P4    Last Ports              10     Always     P4_LAST_PORTS_SCORING.txt
   P5    Intake / Cargo Fit      15     Always     intake_calculator_formula.txt
   P6    OpenArea Comments       15     Dynamic    OPEN_AREA_COMMENTS_SCORING.txt
   P7    Readiness / ETA         10     Always     READINESSETA_TO_LOADING_PORT_SCORING.txt
@@ -56,11 +56,15 @@ DYNAMIC MAX_SCORE CALCULATION
     Minimum: 90 (only always-active criteria)
     Maximum: 90 + 15 + 15 + 15 + 20 = 155 (all criteria active)
 
-  FINAL SCORE:
-    total_score_raw = SUM of all active criteria scores
-    total_score = ROUND((total_score_raw / dynamic_max_score) × 100, 1)
-    
-    Always expressed as percentage: 100% = perfect match
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  FINAL SCORE — ALWAYS EXPRESSED AS PERCENTAGE:                  ║
+  ║                                                                 ║
+  ║  total_score = ROUND((total_score_raw / dynamic_max_score)×100) ║
+  ║                                                                 ║
+  ║  total_score is a number from 0 to 100 (percentage).            ║
+  ║  total_score_raw is the sum of absolute points.                 ║
+  ║  NEVER report total_score as raw points.                        ║
+  ╚══════════════════════════════════════════════════════════════════╝
 
 ================================================================================
 EVALUATION PRIORITY ORDER
@@ -68,17 +72,43 @@ EVALUATION PRIORITY ORDER
 
   Evaluate in this order (highest impact first):
   
-  1. P8  — Restrictions Compliance (BLOCK potential)
-  2. P2A — PSC Port Accessibility (BLOCK potential)
-  3. P3  — Cargo Preferences
+  1. P8  — Restrictions Compliance (BLOCK potential — but NOT for age)
+  2. P5  — Intake / Cargo Fit (BLOCK potential — includes draft restrictions)
+  3. P2A — PSC Port Accessibility (BLOCK potential)
   4. P2  — Owner Preferences (BLOCK potential for "no X")
-  5. P6  — OpenArea Comments
-  6. P4  — Last Ports
-  7. P1A — Regional Patterns
-  8. P1  — Proximity (BLOCK for non-viable distances)
-  9. P5  — Intake / Cargo Fit (BLOCK potential)
+  5. P3  — Cargo Preferences
+  6. P6  — OpenArea Comments
+  7. P4  — Last Ports
+  8. P1A — Regional Patterns
+  9. P1  — Proximity (BLOCK for non-viable distances)
   10. P7  — Readiness / ETA (BLOCK for missed laycan)
   11. P9  — Relationship Check (warning only, no score)
+
+  IMPORTANT: Even when a BLOCK is found early, score ALL remaining criteria.
+  The full scoring provides informational value.
+
+================================================================================
+CRITICAL — RESTRICTION SCOPE RULES
+================================================================================
+
+  Different criteria handle different types of restrictions. Never mix them:
+
+  P5 handles: Draft/draught restrictions (from cargo description or 
+              port_restrictions_map), cargo quantity fit, cubature
+              
+  P8 handles: ONLY these 8 types from cargo settings:
+              Class, P&I, IMO, Holds Type, DWT, Age, LOA, Beam
+              
+  P2A handles: PSC risk based on flag, class, P&I, age, port strictness
+  
+  P2 handles: Owner's regional preferences from comments
+  
+  P3 handles: Cargo type preferences from comments
+
+  EXAMPLE: Cargo says "max age 25yr, draft 7.5m"
+    → Age 25yr → goes to P8 (gradual restriction)
+    → Draft 7.5m → goes to P5 (intake calculator)
+    → AI must NOT put draft in P8
 
 ================================================================================
 BLOCK LOGIC
@@ -92,6 +122,14 @@ BLOCK LOGIC
     - Mark blocked criterion with "decision": "blocked", "critical": true
     - short_summary explains why vessel is blocked
     - Offer opening is NOT generated (or marked as "do not offer")
+
+  BLOCK can come from:
+    P8: Class/IMO hard fail, DWT >15%, LOA >5% (NEVER from age)
+    P5: intake < min_qty × 0.85 (vessel physically too small)
+    P2A: LOW status + Tier 1 port, Paris MOU blacklist
+    P2: "no [region]" when cargo is in that region
+    P1: Non-viable distance for vessel size
+    P7: Vessel misses laycan by >7 days
 
   Multiple BLOCKs: Report all. Summary mentions the most impactful.
 
@@ -145,20 +183,16 @@ P9 — RELATIONSHIP CHECK (WARNING ONLY)
     ─────────────────────────────────────────
       Trigger: Owner works directly with this charterer
       Example comment: "works direct with Bunge"
-      Cargo account: "Bunge"
-      Warning: "⚠️ Owner works directly with Bunge. They may already have 
+      Warning: "Owner works directly with Bunge. They may already have 
                this cargo or prefer direct communication."
-      Offer impact: Be careful — don't offer cargo they may already know 
-               about. Consider mentioning "in case you haven't seen this yet"
+      Offer impact: Be careful — mention "in case you haven't seen this yet"
                
     BROKER_RELATIONSHIP
     ─────────────────────────────────────────
       Trigger: Owner works through specific broker for this charterer
       Example comment: "Cargill cargoes via Clarkson"
-      Cargo account: "Cargill"
-      Warning: "⚠️ Owner handles Cargill cargoes through Clarkson."
-      Offer impact: Owner may not respond or redirect to their broker.
-               Adjust expectations.
+      Warning: "Owner handles Cargill cargoes through Clarkson."
+      Offer impact: Owner may redirect to their broker. Adjust expectations.
                
     NO_RELATIONSHIP (CLEAR)
     ─────────────────────────────────────────
@@ -168,92 +202,80 @@ P9 — RELATIONSHIP CHECK (WARNING ONLY)
 
   OUTPUT FORMAT:
   
-    When warning found:
     "relationship_warning": {
       "status": "WARNING",
       "type": "direct_relationship",
       "details": "Owner works directly with Bunge (from company comments)",
-      "offer_guidance": "They may already have this cargo. Approach carefully."
+      "offer_guidance": "They may already have this cargo."
     }
-    
-    When no relationship found:
-    "relationship_warning": {
-      "status": "CLEAR"
-    }
+
+    "relationship_warning": { "status": "CLEAR" }
 
 ================================================================================
 OFFER OPENING GENERATION
 ================================================================================
 
   After scoring all criteria, generate an offer opening line for both 
-  email and messenger formats. The offer opening is a ready-to-use phrase
-  for the beginning of the communication to the owner.
+  email and messenger formats.
   
   See: OFFER_OPENING_STYLE_GUIDE.txt for detailed style rules and examples.
 
   GENERATION LOGIC:
 
   1. Determine INTENT based on total_score:
-     - ATTRACT (70%+): Confident, enthusiastic, lead with strengths
+     - ATTRACT (70%+): Confident, lead with strengths
      - INQUIRE (50-70%): Balanced, show cargo + ask key questions
      - INFORM (<50%): Cautious, "for your reference", gather info
      
   2. Extract KEY SELLING POINTS from high-scoring criteria (offer_hints)
-  
-  3. Extract KEY CONCERNS from low-scoring/critical criteria (offer_hints)
-  
+  3. Extract KEY CONCERNS from low-scoring criteria (offer_hints)
   4. Extract QUESTIONS TO ASK from missing data or unclear points
-  
   5. Generate email_text (2-4 sentences, shipping English, abbreviations)
-  
-  6. Generate messenger_text (1-2 sentences, max abbreviations, no sign-off)
+  6. Generate messenger_text (1-2 sentences, max abbreviations)
 
-  OUTPUT FORMAT:
-  
   "offer_opening": {
     "intent": "attract",
-    "email_text": "Pls find below cargo details which we believe suits mv 
-                   Example perfectly — she's well positioned and timing aligns 
-                   nicely. Kindly let us know yr interest/ideas.",
-    "messenger_text": "hi, have a nice cargo for Example — good position, 
-                       good timing. pls see below, lmk if interested?",
+    "email_text": "...",
+    "messenger_text": "...",
     "key_selling_points": ["proximity", "timing"],
     "key_concerns": ["intake slightly tight"],
     "questions_to_ask": []
   }
   
   IMPORTANT: 
-    - NO greetings in offer_opening text (greetings handled separately)
-    - Use authentic shipping abbreviations (see OFFER_OPENING_STYLE_GUIDE.txt)
-    - Never sound like AI — sound like a colleague sharing an opportunity
-    - When BLOCKED: offer_opening not generated (or intent = "do_not_offer")
+    - NO greetings in offer_opening text
+    - When BLOCKED: offer_opening not generated (intent = "do_not_offer")
 
 ================================================================================
 JSON OUTPUT TEMPLATE
 ================================================================================
 
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  ALL criteria MUST appear in detailed_scoring, even if excluded ║
+  ║  Excluded criteria show: score=0, max_score=0, decision="excluded" ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
 {
   "vessel_name": "MV Example",
-  "total_score": 67.4,
-  "total_score_raw": 51,
+  "total_score": 81.1,
+  "total_score_raw": 73,
   "dynamic_max_score": 90,
-  "confidence": 70,
-  "confidence_note": "No data for P2, P6",
-  "recommendation": "CONDITIONAL",
-  "short_summary": "Decent match — good positioning and timing, but vessel 
-                    oversized for this parcel. Worth offering if no better options.",
+  "confidence": 85,
+  "confidence_note": "High confidence. P2, P3, P6, P8 excluded (no data).",
+  "recommendation": "STRONG",
+  "short_summary": "Excellent match — well positioned, good timing, cargo fits. No restrictions to worry about.",
   
   "relationship_warning": {
     "status": "CLEAR"
   },
   
   "offer_opening": {
-    "intent": "inquire",
-    "email_text": "...",
-    "messenger_text": "...",
-    "key_selling_points": ["proximity", "timing"],
-    "key_concerns": ["vessel oversized"],
-    "questions_to_ask": ["confirm opening date"]
+    "intent": "attract",
+    "email_text": "Pls find below cargo which suits mv Example nicely — well positioned nearby and timing works perfectly. Kindly let us know yr interest/ideas.",
+    "messenger_text": "have a nice cargo for Example — close by, good timing, full cargo. pls see below, lmk?",
+    "key_selling_points": ["proximity", "timing", "cargo fit"],
+    "key_concerns": [],
+    "questions_to_ask": []
   },
   
   "detailed_scoring": {
@@ -266,18 +288,18 @@ JSON OUTPUT TEMPLATE
       "decision": "accepted",
       "confidence": "high",
       "critical": false,
-      "citations": ["ref:proximity Level 4"]
+      "citations": ["ref:proximity_scoring_matrix.txt Level 4"]
     },
     "regional_patterns": {
       "code": "P1A",
       "score": 12,
       "max_score": 15,
-      "reasoning": "BS to Med — strong natural trade flow for this size.",
+      "reasoning": "BS internal — strong natural trade flow for coasters.",
       "offer_hint": "Natural trade pattern — mention backhaul opportunity.",
       "decision": "accepted",
       "confidence": "high",
       "critical": false,
-      "citations": ["ref:P1A BS→Med score 12"]
+      "citations": ["ref:P1A black_sea_internal"]
     },
     "owner_preferences": {
       "code": "P2",
@@ -294,7 +316,7 @@ JSON OUTPUT TEMPLATE
       "code": "P2A",
       "score": 18,
       "max_score": 20,
-      "reasoning": "IACS class + IG P&I. Both ports Tier 3 — no PSC concerns.",
+      "reasoning": "IACS class, IG P&I. Ukraine Tier 3, Tunisia Tier 3.",
       "offer_hint": null,
       "decision": "accepted",
       "confidence": "high",
@@ -316,23 +338,23 @@ JSON OUTPUT TEMPLATE
       "code": "P4",
       "score": 7,
       "max_score": 10,
-      "reasoning": "Regular BS/Med caller — Poti 8.7%, Samsun 6.5%.",
-      "offer_hint": "Vessel knows the area — mention familiarity.",
+      "reasoning": "Regular BS/Med caller. Poti 8.7%, Samsun 6.5%.",
+      "offer_hint": "Vessel knows the region — mention familiarity.",
       "decision": "accepted",
       "confidence": "high",
       "critical": false,
-      "citations": ["top_ports data"]
+      "citations": ["ref:P4_LAST_PORTS_SCORING.txt", "top_ports data"]
     },
     "intake_capacity": {
       "code": "P5",
       "score": 12,
       "max_score": 15,
-      "reasoning": "Intake 14,300t vs cargo 13,500-16,500t. Fits within range but draft-restricted.",
-      "offer_hint": "Cargo fits but draft restriction limits flexibility. Be transparent.",
+      "reasoning": "Intake 14,305t (draft-restricted). Fits cargo range 13,500-16,500t.",
+      "offer_hint": "Cargo fits but at draft limit. Be transparent about qty.",
       "decision": "accepted",
       "confidence": "high",
       "critical": false,
-      "citations": ["ref:intake_calculator Step 3"]
+      "citations": ["ref:intake_calculator_formula.txt"]
     },
     "openarea_modifier": {
       "code": "P6",
@@ -349,12 +371,12 @@ JSON OUTPUT TEMPLATE
       "code": "P7",
       "score": 10,
       "max_score": 10,
-      "reasoning": "Open Constanta Feb 12, layday Feb 14. Gap = -2 days — ideal.",
-      "offer_hint": "Timing is perfect — highlight in opening.",
+      "reasoning": "Open Constanta Feb 12, layday Feb 14. Gap -2 days — ideal.",
+      "offer_hint": "Timing perfect — highlight in opening.",
       "decision": "accepted",
       "confidence": "high",
       "critical": false,
-      "citations": ["ref:P7 gap -2 = 10/10"]
+      "citations": ["ref:READINESSETA_TO_LOADING_PORT_SCORING.txt"]
     },
     "restrictions_compliance": {
       "code": "P8",
@@ -371,25 +393,38 @@ JSON OUTPUT TEMPLATE
   }
 }
 
+  SCORE CALCULATION:
+    Active: P1(20)+P1A(15)+P2A(20)+P4(10)+P5(15)+P7(10) = 90
+    Excluded: P2(0/0), P3(0/0), P6(0/0), P8(0/0)
+    dynamic_max_score = 90
+    total_score_raw = 14+12+18+7+12+10 = 73
+    total_score = ROUND((73/90) × 100, 1) = 81.1%
+    recommendation = STRONG
+
 ================================================================================
 AI INSTRUCTIONS
 ================================================================================
 
   ai_must:
     - Evaluate ALL criteria, even when BLOCK is found early
+    - Include ALL criteria in detailed_scoring (even excluded ones with 0/0)
     - Calculate dynamic_max_score correctly (only active criteria)
-    - Generate offer_hint for each criterion
+    - Express total_score as PERCENTAGE (0-100), never as raw points
+    - Generate offer_hint for each active criterion
     - Perform P9 relationship check
     - Generate offer_opening (unless BLOCKED)
-    - Use short, natural reasoning (not verbose)
-    - Express total_score as percentage
+    - Use short, natural reasoning
+    - Route draft restrictions to P5, not P8
+    - Route age/DWT/class/etc restrictions to P8
     
   ai_must_not:
-    - Never include criteria with max_score = 0 in the denominator
-    - Never skip criteria evaluation
-    - Never generate offer_opening when vessel is BLOCKED
-    - Never include greetings in offer_opening text
-    - Never let P9 affect the numerical score
-    - Never use overly formal or AI-sounding language in summaries
+    - ❌ Never include criteria with max_score=0 in the denominator
+    - ❌ Never skip criteria evaluation
+    - ❌ Never omit excluded criteria from output (show them as 0/0)
+    - ❌ Never report total_score as raw points — always percentage
+    - ❌ Never generate offer_opening when vessel is BLOCKED
+    - ❌ Never put draft restrictions in P8 — they go to P5
+    - ❌ Never let P9 affect the numerical score
+    - ❌ Never BLOCK vessel for age alone (P8 rule)
 
 ================================================================================
