@@ -1,0 +1,311 @@
+================================================================================
+OFFER OPENING STYLE GUIDE
+Version: 1.0
+Last updated: 2026-02-07
+================================================================================
+
+PURPOSE:
+  Define the style, tone, abbreviations, and approach for generating offer
+  opening lines. These are ready-to-use phrases for the beginning of an 
+  email or messenger message to a shipowner about a cargo opportunity.
+
+  IMPORTANT: Offer openings contain NO GREETINGS. Greetings (gm, hi, dear)
+  are handled separately with personalization based on company comments,
+  nationalities, holidays, and relationship context.
+
+================================================================================
+ABBREVIATIONS LIBRARY — SHIPPING ENGLISH
+================================================================================
+
+  VESSEL & SPECS:
+    mv = motor vessel
+    vsl = vessel
+    dwt = deadweight tonnage
+    dft = draft/draught
+    loa = length overall
+    blt = built
+    grd = geared
+    gls = gearless
+    ho/ha = holds/hatches
+    cbft = cubic feet
+    teu = twenty-foot equivalent unit
+    
+  CARGO & QUANTITY:
+    mt = metric tonnes
+    qty = quantity
+    abt = about
+    moloo = more or less in owner's option
+    molchopt = more or less in charterer's option
+    sf = stowage factor
+    wog = without guarantee
+    dg = dangerous goods
+    imo = IMO classified
+    
+  TIMING & DATES:
+    eta = estimated time of arrival
+    etb = estimated time of berthing
+    etc = estimated time of completion
+    laycan = laydays/canceling
+    ppt = prompt
+    spd = speed
+    
+  PARTIES:
+    ownrs = owners
+    chrtrs = charterers
+    rcvrs = receivers
+    shprs = shippers
+    
+  REGIONS & PORTS:
+    bs = Black Sea
+    med = Mediterranean
+    emed = East Mediterranean
+    wmed = West Mediterranean
+    cont = Continent (NW Europe)
+    waf = West Africa
+    eaf = East Africa
+    ag = Arabian Gulf
+    sea = Southeast Asia
+    usec = US East Coast
+    uswc = US West Coast
+    poc = port of call / port of loading in context
+    pod = port of discharge
+    
+  ACTIONS & PHRASES:
+    pls = please
+    yr = your
+    fyi = for your information
+    lmk = let me know
+    wld = would
+    cld = could
+    shld = should
+    re = regarding / about
+    rgds = regards
+    brgs = best regards
+    tks = thanks
+    thx = thanks
+    w/ = with
+    w/o = without
+    incl = including
+    excl = excluding
+    approx = approximately
+    subj = subject to
+    
+  SIGN-OFFS (email only):
+    brgs = best regards (standard)
+    rgds = regards (shorter)
+    tks & brgs = thanks and best regards (when asking for something)
+
+================================================================================
+STYLE RULES
+================================================================================
+
+  GENERAL:
+    - Sound like a REAL BROKER, not like AI
+    - Colleague tone — sharing an opportunity, not selling
+    - Short sentences, no fluff
+    - Use shipping abbreviations naturally (not forced)
+    - Be honest about concerns — diplomatic but direct
+    - Always include a call to action (lmk, what do you think, yr ideas)
+    
+  EMAIL FORMAT:
+    - 2-4 sentences for the opening/intro paragraph
+    - Then cargo details follow (not generated here — just the intro)
+    - Sign off: "brgs" or "rgds" (NOT generated in offer_opening)
+    - Can reference specific selling points or concerns
+    - Slightly more formal than messenger but still shipping casual
+    
+  MESSENGER FORMAT:
+    - 1-2 sentences maximum
+    - Maximum abbreviations
+    - No sign-off
+    - Get to the point immediately
+    - Can use lowercase throughout
+    - More direct and casual than email
+
+  NEVER DO:
+    - Never start with greetings (gm, ga, hi, dear — handled separately)
+    - Never sound like a sales pitch or marketing copy
+    - Never use "we are pleased to inform you"
+    - Never use "we would like to take this opportunity"
+    - Never be overly enthusiastic or use exclamation marks
+    - Never use "dear sir/madam" style formality
+    - Never include the full cargo description in the opening
+    - Never use "I hope this email finds you well"
+
+================================================================================
+TEMPLATES BY INTENT LEVEL
+================================================================================
+
+  NOTE: These are EXAMPLES, not rigid templates. AI should adapt and vary
+  the phrasing based on specific circumstances. Never copy-paste the same
+  opening for different vessels.
+
+────────────────────────────────────────────────────────────────────────────────
+  ATTRACT (score 70%+) — vessel is a good match
+────────────────────────────────────────────────────────────────────────────────
+
+  Goal: Show confidence that cargo fits, encourage quick response.
+  Tone: Positive, direct, enthusiastic (but professional)
+
+  Email examples:
+    "Pls find below cargo details which we believe suits mv [vessel] 
+     nicely — she's well positioned and timing works. Wld appreciate 
+     yr freight ideas."
+     
+    "Pls find below what looks like a very good fit for mv [vessel] —
+     nearby, good timing, full cargo. Kindly let us know yr interest."
+     
+    "Wish to draw yr attention to below cargo for mv [vessel]. She 
+     seems perfectly placed for this one. Yr indication pls."
+
+  Messenger examples:
+    "have a nice cargo for [vessel] — good position, good timing. 
+     pls see below, lmk if interested?"
+     
+    "smth nice for [vessel] — close by and timing fits. see below, 
+     what do you think?"
+     
+    "cargo that suits [vessel] well — pls check below and lmk yr view"
+
+────────────────────────────────────────────────────────────────────────────────
+  INQUIRE (50-70%) — decent match but has questions/concerns
+────────────────────────────────────────────────────────────────────────────────
+
+  Goal: Show cargo + ask key questions to clarify fit.
+  Tone: Interested but cautious, transparent about concerns.
+
+  Email examples:
+    "Pls find below cargo we'd like to show for mv [vessel]. We note 
+     she's opening [area] — cld you kindly confirm her exact opening 
+     date/position? Also wld be helpful to know yr view on [topic]."
+     
+    "Pls find below cargo for mv [vessel]. Position looks reasonable 
+     but intake is tight — wld appreciate yr indication on qty 
+     flexibility. Yr view pls."
+     
+    "Wish to show below cargo for mv [vessel]. Timing cld work if she 
+     opens as stated. Cld you confirm her current status?"
+
+  Messenger examples:
+    "sending you a cargo for [vessel]. can you confirm her opening? 
+     also is she ok for [region/cargo]?"
+     
+    "cargo for [vessel] — position ok but need to check timing. 
+     can you confirm when she opens exactly?"
+     
+    "have smth for [vessel] — looks possible but intake bit tight. 
+     pls see below, yr view?"
+
+────────────────────────────────────────────────────────────────────────────────
+  INFORM (<50%) — poor match but showing for relationship/info
+────────────────────────────────────────────────────────────────────────────────
+
+  Goal: Send for reference, gather information, maintain contact.
+  Tone: Low-key, honest about limitations, looking for info exchange.
+
+  Email examples:
+    "Pls find below cargo details for yr good order. We understand mv 
+     [vessel] may not be ideal fit at this stage given [reason], hvr 
+     sending in case circumstances have changed. Any update on her 
+     availability/preferences wld be appreciated."
+     
+    "Pls find below for yr reference — appreciate this may not be the 
+     best match for mv [vessel] but wanted to keep you informed. Wld 
+     welcome any update on her trading plans."
+     
+    "Sending below cargo fyi for mv [vessel]. We note [concern] but 
+     wanted to show just in case. Any news on her position/plans?"
+
+  Messenger examples:
+    "sending below cargo fyi — understand [vessel] might not fit 
+     perfectly but wanted to show just in case. any updates on her?"
+     
+    "know [region] isn't first choice but sending below just in case —
+     any change in plans for [vessel]?"
+     
+    "cargo fyi for [vessel] — not perfect match but sending for yr 
+     reference. any news on her?"
+
+================================================================================
+SPECIAL CASES
+================================================================================
+
+  BALLAST QUESTION (vessel appears in ballast, need confirmation):
+  ─────────────────────────────────────────
+    Email: "Pls find below cargo for mv [vessel]. We see she's heading 
+           to [destination] — cld you confirm if she's proceeding for 
+           loading (already fixed) or if this is ballast positioning? 
+           Cargo details below for yr consideration."
+           
+    Messenger: "see [vessel] heading to [destination] — is she going 
+               for loading or just ballasting? have a cargo below that 
+               cld work"
+
+  OWNER AVOIDS REGION (soft block, sending anyway):
+  ─────────────────────────────────────────
+    Email: "Pls find below cargo details for yr reference. We note from 
+           previous communication that [region] may not be of primary 
+           interest, hvr sending for good order in case the situation 
+           has changed. Any update on [vessel]'s current trading plans 
+           wld be much appreciated."
+           
+    Messenger: "know [region] isn't first choice but sending below 
+               just in case — any change in plans for [vessel]?"
+
+  MULTIPLE ISSUES (several concerns at once):
+  ─────────────────────────────────────────
+    Email: "Pls find below cargo for yr reference re mv [vessel]. We 
+           note [issue1] and [issue2] may present challenges, hvr 
+           wanted to show in case any of these factors have changed. 
+           Yr update wld be appreciated."
+           
+    Messenger: "cargo fyi for [vessel] — has some challenges 
+               ([issue1], [issue2]) but sending in case situation 
+               changed. any news?"
+
+  NO DATA ON PREFERENCES (want to learn about the owner):
+  ─────────────────────────────────────────
+    Email: "Wish to draw yr attention to below cargo for mv [vessel]. 
+           She seems well suited positionally. Cld you also let us know 
+           if [vessel/owner] has any particular preferences on cargo 
+           types or regions? Wld help us tailor future offerings."
+           
+    Messenger: "pls see below cargo for [vessel], looks ok positionally. 
+               btw does she have any preferences on cargo/regions? good 
+               to know for future"
+
+  RELATIONSHIP WARNING (P9 flagged):
+  ─────────────────────────────────────────
+    When direct relationship found, add diplomatic language:
+    
+    Email: "Pls find below cargo details for mv [vessel] — sending in 
+           case you haven't seen this one yet. [rest of opening]"
+           
+    Messenger: "in case you haven't seen it — cargo below for [vessel]. 
+               [rest of opening]"
+
+================================================================================
+OFFER_HINT → OFFER_OPENING MAPPING
+================================================================================
+
+  The offer_opening is generated by combining offer_hints from individual 
+  criteria into a coherent opening phrase. Here's how hints map to opening:
+
+  High-score hints (selling points):
+    P1 "well positioned nearby" → "she's well positioned"
+    P7 "timing perfect" → "timing works nicely"
+    P6 "matches stated strategy" → "fits with yr stated plans"
+    P4 "knows the area" → "familiar with these ports"
+    
+  Low-score hints (concerns to mention diplomatically):
+    P5 "intake tight" → "intake is a bit tight"
+    P7 "timing tight" → "timing cld be challenging"
+    P1 "long ballast" → "appreciate the ballast is significant"
+    P2 "region not preferred" → "note [region] may not be first choice"
+    
+  Missing data hints (questions to ask):
+    P2 "no preference data" → "wld be helpful to know yr preferences"
+    Draught "ballast confirmation" → "cld you confirm her status?"
+    P7 "opening date unclear" → "pls confirm her exact opening"
+
+================================================================================

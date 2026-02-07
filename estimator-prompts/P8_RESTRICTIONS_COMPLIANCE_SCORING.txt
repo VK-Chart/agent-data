@@ -1,0 +1,218 @@
+================================================================================
+P8 — RESTRICTIONS COMPLIANCE SCORING
+Version: 1.0
+Last updated: 2026-02-07
+================================================================================
+
+PURPOSE:
+  Score how well the vessel complies with charterer/cargo restrictions.
+  Restrictions come from the cargo/inquiry settings and define specific
+  requirements the vessel must meet. Supports both hard (pass/fail) and
+  gradual (scale) restrictions with per-restriction allocation.
+
+SCORE RANGE: [0, 20]
+DYNAMIC CRITERION: If no restrictions set → score = 0, max_score = 0 (excluded)
+
+================================================================================
+NO RESTRICTIONS → EXCLUDED
+================================================================================
+
+  If the cargo/inquiry has NO restrictions defined:
+    score = 0
+    max_score = 0
+    reasoning = "No restrictions set — criterion excluded from scoring."
+    offer_hint = null
+    
+  This is common for many cargoes. Only active when charterer sets specific 
+  requirements.
+
+================================================================================
+RESTRICTION TYPES
+================================================================================
+
+  HARD RESTRICTIONS (pass/fail — no gradient):
+  ─────────────────────────────────────────
+  
+    CLASS — Required classification society
+      Pass: Vessel class matches required (e.g., IACS when IACS required)
+      Fail: Vessel class doesn't match
+      BLOCK: When class is explicitly required (e.g., "BV/LR/DNV only")
+      
+    P&I CLUB — Required P&I coverage
+      Pass: Vessel has required P&I club or tier
+      Fail: Vessel doesn't have required P&I
+      BLOCK: When specific IG club is mandatory
+      
+    IMO CLASS — Required for dangerous goods
+      Pass: Vessel has required IMO fitness (e.g., class 1.1, class 9)
+      Fail: Vessel not certified for required IMO class
+      BLOCK: Always when dangerous cargo requires specific IMO certification
+      
+    HOLDS TYPE — Box-shaped vs non-box
+      Pass: Vessel hold type matches requirement
+      Fail: Hold type doesn't match
+      Note: Usually not a BLOCK, sometimes negotiable
+
+  GRADUAL RESTRICTIONS (scale — degrees of compliance):
+  ─────────────────────────────────────────
+  
+    DWT — Maximum deadweight tonnage
+      Within limit: 100% of allocated points
+      Within 5% over: 75% of allocated points
+      Within 10% over: 50% of allocated points
+      Over 10%: 0% of allocated points
+      BLOCK: Over 15% of limit (vessel too big for berth/facility)
+      
+    AGE — Maximum vessel age
+      Within limit: 100% of allocated points
+      +1-2 years over: 75% of allocated points
+      +3-5 years over: 50% of allocated points
+      +5 years over: 0% of allocated points
+      Note: No BLOCK — age is always negotiable
+      
+    LOA — Maximum length overall
+      Within limit: 100% of allocated points
+      Within 5% over: 75% of allocated points
+      Over 5%: 0% of allocated points
+      BLOCK: LOA is usually physical limitation (berth length)
+      
+    BEAM — Maximum beam
+      Within limit: 100% of allocated points
+      Within 5% over: 75% of allocated points
+      Over 5%: 0% of allocated points
+      Note: Less commonly restricted
+
+================================================================================
+SCORING FORMULA
+================================================================================
+
+  1. Count active restrictions (only those actually set by charterer)
+  
+  2. Allocate points equally:
+     points_per_restriction = 20 / number_of_active_restrictions
+     
+  3. Score each restriction:
+  
+     HARD restriction:
+       Pass → full allocated points
+       Fail → 0 points (+ potential BLOCK if critical)
+       
+     GRADUAL restriction:
+       Full pass (within limit) → 100% of allocated points
+       Close (within 5% for DWT/LOA/Beam, +1-2yr for Age) → 75%
+       Marginal (within 10% for DWT, +3-5yr for Age) → 50%
+       Fail (beyond thresholds) → 0%
+       
+  4. Sum all restriction scores
+  
+  5. Check for BLOCK conditions
+
+================================================================================
+BLOCK CONDITIONS
+================================================================================
+
+  FULL VESSEL BLOCK (do not offer):
+    - Hard fail on Class when charterer EXPLICITLY requires specific class
+    - Hard fail on IMO when cargo is classified dangerous goods
+    - DWT exceeds limit by more than 15%
+
+  NO BLOCK (0 on restriction but vessel still scoreable):
+    - Age over limit (always negotiable)
+    - Holds type mismatch (often negotiable)
+    - DWT within 15% over (negotiable with charterer)
+    - P&I not matching preference (usually negotiable)
+
+================================================================================
+EXAMPLES
+================================================================================
+
+  EXAMPLE 1: Three restrictions, all pass
+  ─────────────────────────────────────────
+    Restrictions: DWT max 12000, Age max 20 years, Class IACS
+    3 restrictions → 20/3 = 6.67 pts each
+    
+    Vessel: DWT 11,500 (pass), Age 18 (pass), Class BV (IACS, pass)
+    Score: 6.67 + 6.67 + 6.67 = 20/20
+    offer_hint: null (all restrictions met)
+
+  EXAMPLE 2: Three restrictions, mixed results
+  ─────────────────────────────────────────
+    Restrictions: DWT max 12000, Age max 20 years, Class IACS
+    3 restrictions → 6.67 pts each
+    
+    Vessel: DWT 12,400 (within 5%), Age 22 (+2yr), Class Turkish Lloyd (non-IACS, fail)
+    DWT: 6.67 × 0.75 = 5.0
+    Age: 6.67 × 0.75 = 5.0
+    Class: 0 (fail)
+    Score: 5.0 + 5.0 + 0 = 10/20
+    offer_hint: "Vessel class is non-IACS — be prepared for pushback. 
+                 DWT and age are close to limits but acceptable. Emphasize 
+                 vessel's operational track record."
+
+  EXAMPLE 3: Two restrictions, one BLOCK
+  ─────────────────────────────────────────
+    Restrictions: IMO class 9 required, DWT max 15000
+    2 restrictions → 10 pts each
+    
+    Vessel: No IMO certificate (fail → BLOCK), DWT 14,500 (pass)
+    IMO: 0 (BLOCK — dangerous cargo requires certification)
+    DWT: 10
+    Score: BLOCK
+    offer_hint: "Vessel not certified for IMO cargo — do not offer."
+
+  EXAMPLE 4: Single restriction  
+  ─────────────────────────────────────────
+    Restrictions: Age max 15 years
+    1 restriction → 20 pts
+    
+    Vessel: Age 19 (+4 years over)
+    Age: 20 × 0.50 = 10
+    Score: 10/20
+    offer_hint: "Vessel is 4 years over age limit. This is negotiable — 
+                 mention vessel's condition and recent survey dates."
+
+  EXAMPLE 5: DWT exceeds by >15%
+  ─────────────────────────────────────────
+    Restrictions: DWT max 10000
+    Vessel: DWT 12,000 (20% over)
+    → BLOCK (vessel too large for facility/berth)
+    offer_hint: "Vessel DWT 20% over limit — physical restriction, 
+                 do not offer for this berth."
+
+================================================================================
+OUTPUT FORMAT
+================================================================================
+
+  In the JSON scoring output, P8 includes:
+  
+  "restrictions_compliance": {
+    "code": "P8",
+    "score": 15,
+    "max_score": 20,
+    "reasoning": "3 restrictions checked. DWT pass, Age close (+2yr), Class fail.",
+    "offer_hint": "Class is non-IACS — may need to discuss with charterer.",
+    "restrictions_checked": ["DWT: PASS", "Age: MARGINAL (+2yr)", "Class: FAIL"],
+    "confidence": "high",
+    "citations": ["restriction: class IACS required, vessel: Turkish Lloyd"]
+  }
+
+================================================================================
+AI INSTRUCTIONS
+================================================================================
+
+  ai_must:
+    - Check ALL restrictions defined in the cargo/inquiry
+    - Score each restriction individually
+    - Show restrictions_checked array in output
+    - Apply BLOCK only for critical hard fails
+    - Allow negotiation on soft restrictions (age, holds)
+    - Generate offer_hint when restrictions are close to limits
+    
+  ai_must_not:
+    - Never invent restrictions that aren't defined in the cargo
+    - Never BLOCK vessel for age alone (always negotiable)
+    - Never ignore restrictions even if vessel scores well on other criteria
+    - Never assume "IACS required" unless explicitly stated
+    - Never apply P8 when no restrictions exist (use 0/0 instead)
+
+================================================================================
