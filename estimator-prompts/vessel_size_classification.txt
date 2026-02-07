@@ -1,531 +1,51 @@
 # ═══════════════════════════════════════════════════════════════════
-# SHORT SUMMARY
+# VESSEL SIZE CLASSIFICATION — DRY CARGO
+# VK Charts AI Scoring System
+# Version: 2.0
+# Last updated: 2026-02-07
+# ═══════════════════════════════════════════════════════════════════
+#
+# SINGLE SOURCE OF TRUTH for vessel size categorization.
+# Used across ALL scoring criteria (P1-P9) for size-dependent logic.
+#
 # ═══════════════════════════════════════════════════════════════════
 
-DOCUMENT: Vessel Size Classification - Size Category Definitions
-PURPOSE: Single source of truth for vessel size categorization in VK Charts AI
-SCOPE: Dry cargo bulk carriers and general cargo vessels (bulk operations)
-INTEGRATION: Used across all scoring criteria (P1-P7) for size-dependent logic
-
-WHAT THIS DOCUMENT DEFINES:
-This file establishes the official VK Charts vessel size classification system
-for all dry-cargo vessels (bulk + general cargo). It provides the authoritative
-DWT ranges, category codes, and size-specific behavioral characteristics that
-drive AI scoring decisions across all criteria.
-
-SIZE CATEGORIES (7 total):
-1. Small Coasters (SC): 0-4,000 DWT - River/coastal vessels
-2. Coasters (C): 4,001-17,000 DWT - Regional bulk trades (most common Black Sea-Med)
-3. Small Handy (SH): 17,001-24,000 DWT - Medium haul bulk carriers
-4. Handy (H): 24,001-40,000 DWT - Long haul capable (NOT common in Greek trades)
-5. Small Supramax (SS): 40,001-50,000 DWT - Deep sea bulk carriers
-6. Supramax (SM): 50,001-65,000 DWT - Global bulk trades
-7. Panamax (PM): 65,000-80,000 DWT - Maximum size for Panama Canal
-
-KEY FEATURES:
-- Precise DWT ranges for each category
-- Size-specific economic behavior (ballast tolerance, operating cost)
-- Typical trade patterns and routes for each size
-- Impact on proximity scoring (smaller vessels = higher distance penalty)
-- Cargo-vessel size compatibility rules
-- Integration with all scoring criteria
-
-CRITICAL DEPENDENCIES:
-- proximity_scoring_matrix.txt: Uses size categories for distance penalties
-- regional_trade_patterns_corrected.txt: References size categories in vessel_size_rules
-- MASTER_SCORING_SYSTEM.txt: All criteria use vessel size for score adjustments
-
-SIZE IMPACT ON SCORING:
-- Small vessels (SC, C): Very sensitive to distance, seek backhaul aggressively
-- Medium vessels (SH, H): Moderate distance tolerance, selective on backhaul
-- Large vessels (SS, SM, PM): High distance tolerance, can ballast for positioning
-
-SCOPE LIMITATIONS:
-✓ INCLUDED: Dry cargo bulk carriers, general cargo (bulk ops)
-✗ EXCLUDED: Oil tankers, chemical tankers, LNG/LPG, containers, RoRo, pure breakbulk
-
-EXAMPLE USAGE:
-- Vessel DWT 8,500 → Category C (Coaster) → High ballast sensitivity
-- Vessel DWT 55,000 → Category SM (Supramax) → Low ballast sensitivity
-- Cargo Black Sea-Med grain → Prefer C/SH sizes (4,001-24,000 DWT)
-
-**Size category used across all scoring criteria:**
-   - P1 (Proximity): Distance penalty scaling
-   - P1A (Regional Patterns): Size-specific trade pattern rules
-   - P2 (Regional Preferences): Size preferences for regions
-   - P3 (Cargo Preferences): Cargo-vessel size compatibility
-   - P4 (Last Ports): Size-specific return patterns
-   - P6 (Intake Capacity): Size-based capacity calculations
-   - P7 (OpenArea Comments): Size-specific readiness interpretation
-
-### Important Notes:
-- DWT is the ONLY input needed for size categorization
-- Categories are mutually exclusive (no overlap in ranges)
-- This file is the SINGLE SOURCE OF TRUTH - never hardcode ranges elsewhere
-- If vessel type is not bulk carrier, skip size-based scoring
-- Size category must be included in all scoring responses for transparency
-
----
-
-## FOR AI/LangChain (Size Categorization Implementation)
-
-### Step-by-Step Algorithm:
-
-**STEP 1: Validate Input**
-```
-Required: vessel_dwt (integer or float, > 0)
-Optional: vessel_type (for scope validation)
-
-Validation:
-- IF vessel_dwt <= 0: REJECT with error "Invalid DWT"
-- IF vessel_type NOT in [bulk_carrier, general_cargo, multi_purpose]: 
-    WARN "Vessel may be outside scope" but CONTINUE
-```
-
-**STEP 2: Determine Size Category**
-```
-Based on vessel_dwt, match to ONE category:
-
-IF dwt >= 0 AND dwt <= 4000:
-    category = "SC" (Small Coasters)
-    
-ELSE IF dwt >= 4001 AND dwt <= 17000:
-    category = "C" (Coasters)
-    
-ELSE IF dwt >= 17001 AND dwt <= 24000:
-    category = "SH" (Small Handy)
-    
-ELSE IF dwt >= 24001 AND dwt <= 40000:
-    category = "H" (Handy)
-    
-ELSE IF dwt >= 40001 AND dwt <= 50000:
-    category = "SS" (Small Supramax)
-    
-ELSE IF dwt >= 50001 AND dwt <= 65000:
-    category = "SM" (Supramax)
-    
-ELSE IF dwt >= 65000 AND dwt <= 80000:
-    category = "PM" (Panamax)
-    
-ELSE IF dwt > 80000:
-    category = "OVERSIZED" (outside current scope)
-    NOTE: "Vessel larger than Panamax, may need special handling"
-```
-
-**STEP 3: Retrieve Category Characteristics**
-```
-Look up category in vessel_sizes section:
-- dwt_range
-- typical_characteristics
-- typical_uses
-- examples
-- notes (if any)
-```
-
-**STEP 4: Retrieve Economic Behavior**
-```
-Look up category in economics_by_size section:
-- daily_operating_cost
-- ballast_cost_sensitivity
-- backhaul_seeking_behavior
-- viable_ballast_distance
-```
-
-**STEP 5: Retrieve Trade Patterns**
-```
-Determine size group for trade patterns:
-- small_coasters_and_coasters: SC, C
-- small_handy_and_handy: SH, H
-- supramax_and_panamax: SS, SM, PM
-
-Retrieve:
-- primary_regions
-- typical_routes
-- ballast_strategy
-- notes (if any)
-```
-
-**STEP 6: Calculate Scoring Impact**
-```
-Based on category, determine impact on scoring:
-
-Proximity Penalty (from ai_scoring_guidelines):
-- SC: "Very high penalty per 100nm" → -30 to -50 for long ballast
-- C: "High penalty per 100nm" → -20 to -40 for long ballast
-- SH: "Medium penalty per 100nm" → -15 to -30 for long ballast
-- H: "Medium-low penalty per 100nm" → -10 to -20 for long ballast
-- SS/SM/PM: "Low penalty per 100nm" → -5 to -15 for long ballast
-```
-
-## QUICK REFERENCE
-
-**Size Categories (7 total):**
-- SC: 0-4,000 DWT (Small Coasters)
-- C: 4,001-17,000 DWT (Coasters) ← Most common Black Sea-Med
-- SH: 17,001-24,000 DWT (Small Handy)
-- H: 24,001-40,000 DWT (Handy) ← NOT common in Greek trades
-- SS: 40,001-50,000 DWT (Small Supramax)
-- SM: 50,001-65,000 DWT (Supramax)
-- PM: 65,000-80,000 DWT (Panamax)
-
-**Ballast Tolerance:**
-- SC/C: Very low/low - avoid long ballast
-- SH/H: Medium - selective on ballast
-- SS/SM/PM: High/very high - can ballast for positioning
-
-**Typical Trades:**
-- SC/C: Black Sea-Med, regional short haul
-- SH/H: Medium to long haul, cross-Med
-- SS/SM/PM: Global deep sea, trans-ocean
-
-**Proximity Impact:**
-- Smaller vessels = higher distance penalty
-- Larger vessels = lower distance penalty
-
-**Cargo Type Fit:**
-- Black Sea-Med grain: C, SH preferred
-- Black Sea-Far East grain: SM, PM preferred
-- Steel/fertilizers: C, SH preferred
-
-**Scope:**
-- ✓ Dry cargo bulk, general cargo (bulk ops)
-- ✗ Tankers, containers, RoRo, LNG/LPG
-
 # ═══════════════════════════════════════════════════════════════════
-# VESSEL SIZE CATEGORIES - DRY CARGO
+# QUICK REFERENCE
 # ═══════════════════════════════════════════════════════════════════
 
-vessel_sizes:
-  
-  small_coasters:
-    dwt_range: [0, 4000]
-    dwt_min: 0
-    dwt_max: 4000
-    category_code: "SC"
-    
-    typical_characteristics:
-      trade_area: "Very short haul, coastal, inland waterways"
-      ballast_tolerance: "Very low - must find cargo"
-      
-    typical_uses:
-      - "River navigation"
-      - "Small coastal parcels"
-      - "Short sea shipping"
-      - "Inland waterways (Danube, Rhine, etc)"
-      
-    examples:
-      - "Small river-sea vessels"
-      - "Coastal feeders"
-      
-  coasters:
-    dwt_range: [4001, 17000]
-    dwt_min: 4001
-    dwt_max: 17000
-    category_code: "C"
-    
-    typical_characteristics:
-      trade_area: "Short to medium haul"
-      ballast_tolerance: "Low - prefer backhaul"
-      typical_routes: "Black Sea-Med, Med-Med, regional trades"
-      
-    typical_uses:
-      - "Regional grain trades"
-      - "Steel products"
-      - "Fertilizers"
-      - "General bulk"
-      - "Bagged cargoes"
-      
-    sub_categories:
-      small_coasters:
-        dwt_range: [4001, 8000]
-        notes: "Lower end coasters"
-        
-      medium_coasters:
-        dwt_range: [8001, 12000]
-        notes: "Most common coaster size"
-        
-      large_coasters:
-        dwt_range: [12001, 17000]
-        notes: "Upper end coasters"
-    
-    examples:
-      - "Typical Black Sea grain vessels"
-      - "Med short haul bulk"
-      
-  small_handy:
-    dwt_range: [17001, 24000]
-    dwt_min: 17001
-    dwt_max: 24000
-    category_code: "SH"
-    
-    typical_characteristics:
-      trade_area: "Medium to long haul"
-      ballast_tolerance: "Medium"
-      typical_routes: "Cross-Med, Black Sea-North Africa, regional"
-      
-    typical_uses:
-      - "Larger grain parcels"
-      - "Steel products"
-      - "Fertilizers"
-      - "Ore parcels"
-      
-    examples:
-      - "Transitional size between coaster and handy"
-      
-  handy:
-    dwt_range: [24001, 40000]
-    dwt_min: 24001
-    dwt_max: 40000
-    category_code: "H"
-    
-    typical_characteristics:
-      trade_area: "Long haul capable"
-      ballast_tolerance: "Medium-high"
-      typical_routes: "Trans-ocean, long distance trades"
-      
-    typical_uses:
-      - "Large grain parcels"
-      - "Coal"
-      - "Iron ore"
-      - "Long haul bulk"
-      
-    notes:
-      - "NOT common in Greek trades (per Vitaly)"
-      - "More common in Atlantic, long haul trades"
-      
-    examples:
-      - "Handysize bulk carriers"
-      
-  small_supramax:
-    dwt_range: [40001, 50000]
-    dwt_min: 40001
-    dwt_max: 50000
-    category_code: "SS"
-    
-    typical_characteristics:
-      trade_area: "Long haul, deep sea"
-      ballast_tolerance: "High"
-      typical_routes: "Trans-ocean, far distances"
-      
-    typical_uses:
-      - "Large grain parcels to Far East"
-      - "Coal"
-      - "Iron ore"
-      - "Major bulk commodities"
-      
-  supramax:
-    dwt_range: [50001, 65000]
-    dwt_min: 50001
-    dwt_max: 65000
-    category_code: "SM"
-    
-    typical_characteristics:
-      trade_area: "Global deep sea"
-      ballast_tolerance: "Very high - can absorb long ballast"
-      typical_routes: "Major trade routes, long haul"
-      
-    typical_uses:
-      - "Major bulk commodity trades"
-      - "Grain to Far East"
-      - "Coal, iron ore"
-      - "Trans-ocean routes"
-      
-  panamax:
-    dwt_range: [65000, 80000]
-    dwt_min: 65000
-    dwt_max: 80000
-    category_code: "PM"
-    
-    typical_characteristics:
-      trade_area: "Global major routes"
-      ballast_tolerance: "Very high"
-      typical_routes: "Major bulk trade lanes"
-      
-    typical_uses:
-      - "Large grain shipments"
-      - "Major coal/ore trades"
-      - "Trans-ocean bulk"
-      
-    notes:
-      - "Maximum size for Panama Canal (hence name)"
-      - "Maximum practical size ex-Black Sea ports"
-      
-  other_sizes:
-    notes: "Larger sizes (Capesize, etc) can be added later if needed"
-    not_relevant_for_current_scope: true
+# SIZE CATEGORIES (7 total):
+#   SC:  0-4,000 DWT       Small Coasters (river/coastal)
+#   C:   4,001-17,000 DWT  Coasters (most common BS-Med)
+#   SH:  17,001-24,000 DWT Small Handy
+#   H:   24,001-40,000 DWT Handy
+#   SS:  40,001-50,000 DWT Small Supramax
+#   SM:  50,001-65,000 DWT Supramax
+#   PM:  65,000-80,000 DWT Panamax
 
 # ═══════════════════════════════════════════════════════════════════
-# VESSEL SIZE ECONOMICS
+# PROXIMITY SCORING — DWT MULTIPLIER RANGES
 # ═══════════════════════════════════════════════════════════════════
-
-economics_by_size:
-  
-  small_coasters:
-    daily_operating_cost: "lowest"
-    ballast_cost_sensitivity: "very high"
-    backhaul_seeking_behavior: "aggressive - must find cargo"
-    viable_ballast_distance: "< 300 nm"
-    
-  coasters:
-    daily_operating_cost: "low"
-    ballast_cost_sensitivity: "high"
-    backhaul_seeking_behavior: "strong preference for backhaul"
-    viable_ballast_distance: "< 800 nm"
-    
-  small_handy:
-    daily_operating_cost: "medium-low"
-    ballast_cost_sensitivity: "medium-high"
-    backhaul_seeking_behavior: "moderate"
-    viable_ballast_distance: "< 1200 nm"
-    
-  handy:
-    daily_operating_cost: "medium"
-    ballast_cost_sensitivity: "medium"
-    backhaul_seeking_behavior: "selective"
-    viable_ballast_distance: "< 2000 nm"
-    
-  small_supramax:
-    daily_operating_cost: "medium-high"
-    ballast_cost_sensitivity: "low-medium"
-    backhaul_seeking_behavior: "selective"
-    viable_ballast_distance: "< 3000 nm"
-    
-  supramax:
-    daily_operating_cost: "high"
-    ballast_cost_sensitivity: "low"
-    backhaul_seeking_behavior: "opportunistic - can ballast if rates justify"
-    viable_ballast_distance: "< 5000 nm"
-    
-  panamax:
-    daily_operating_cost: "very high"
-    ballast_cost_sensitivity: "very low"
-    backhaul_seeking_behavior: "strategic - ballast acceptable for positioning"
-    viable_ballast_distance: "> 5000 nm possible"
-
-# ═══════════════════════════════════════════════════════════════════
-# SIZE-SPECIFIC TRADE PATTERNS
-# ═══════════════════════════════════════════════════════════════════
-
-trade_patterns_by_size:
-  
-  small_coasters_and_coasters:
-    primary_regions:
-      - "Black Sea"
-      - "Mediterranean"
-      - "Marmara Sea"
-      - "Adriatic"
-      - "Short sea shipping"
-      
-    typical_routes:
-      - "Black Sea → Mediterranean"
-      - "Black Sea → North Africa"
-      - "Mediterranean internal"
-      - "Marmara → Black Sea"
-      
-    ballast_strategy:
-      - "Avoid long ballast at all costs"
-      - "Seek backhaul aggressively"
-      - "Prefer short positioning legs"
-      
-  small_handy_and_handy:
-    primary_regions:
-      - "Regional to medium distance"
-      - "Can do longer hauls but prefer medium"
-      
-    typical_routes:
-      - "Black Sea → North Africa"
-      - "Mediterranean → Atlantic"
-      - "Regional bulk trades"
-      
-    ballast_strategy:
-      - "Can consider medium ballast legs"
-      - "Still prefer backhaul when economical"
-      
-    notes:
-      - "Handy size NOT common in Greek trades"
-      
-  supramax_and_panamax:
-    primary_regions:
-      - "Global trades"
-      - "Long haul routes"
-      
-    typical_routes:
-      - "Black Sea → Far East"
-      - "Atlantic → Pacific"
-      - "Major bulk trade lanes"
-      
-    ballast_strategy:
-      - "Can ballast long distances if rates justify"
-      - "Less pressure to find backhaul"
-      - "Strategic positioning for high-paying cargoes"
-
-# ═══════════════════════════════════════════════════════════════════
-# IMPORTANT NOTES FOR AI SCORING
-# ═══════════════════════════════════════════════════════════════════
-
-ai_scoring_guidelines:
-  
-  critical_rules:
-    - "ALWAYS use correct DWT ranges from this file"
-    - "Smaller vessels = higher penalty for long ballast"
-    - "Larger vessels = more tolerant of ballast positioning"
-    - "Coasters in Asia = likely working local market, not positioning"
-    - "Supramax+ in Asia = could be positioning from Black Sea"
-    
-  size_impact_on_scoring:
-    - "Small coaster long ballast: -30 to -50 score"
-    - "Coaster long ballast: -20 to -40 score"
-    - "Small handy long ballast: -15 to -30 score"
-    - "Handy long ballast: -10 to -20 score"
-    - "Supramax+ long ballast: -5 to -15 score"
-    
-  proximity_multiplier:
-    concept: "Closer = Better, scaled by vessel size"
-    formula: "Base score × (1 - distance_penalty)"
-    distance_penalty_by_size:
-      small_coasters: "Very high penalty per 100nm"
-      coasters: "High penalty per 100nm"
-      small_handy: "Medium penalty per 100nm"
-      handy: "Medium-low penalty per 100nm"
-      supramax_panamax: "Low penalty per 100nm"
-
-# ═══════════════════════════════════════════════════════════════════
-# CARGO TYPE vs VESSEL SIZE PREFERENCES
-# ═══════════════════════════════════════════════════════════════════
-
-cargo_vessel_size_fit:
-  
-  grain_black_sea_to_med:
-    preferred_sizes:
-      - "Coasters: 4001-17000 DWT"
-      - "Small handy: 17001-24000 DWT"
-    rare_sizes:
-      - "Handy: 24001-40000 DWT (not common for Med)"
-      
-  grain_black_sea_to_far_east:
-    preferred_sizes:
-      - "Supramax: 50001-65000 DWT"
-      - "Panamax: 65000-80000 DWT"
-    minimum_practical:
-      - "Small supramax: 40001-50000 DWT"
-      
-  steel_products:
-    preferred_sizes:
-      - "Coasters: 4001-17000 DWT"
-      - "Small handy: 17001-24000 DWT"
-      
-  fertilizers:
-    preferred_sizes:
-      - "Coasters: 4001-17000 DWT"
-      - "Small handy: 17001-24000 DWT"
-      
-  bauxite_ore:
-    preferred_sizes:
-      - "Coasters: 8001-17000 DWT"
-      - "Small handy: 17001-24000 DWT"
-
-# ═══════════════════════════════════════════════════════════════════
-# SCOPE DEFINITION
+#
+# IMPORTANT: proximity_scoring_matrix.txt uses finer DWT ranges for
+# distance sensitivity multipliers. These are SUB-RANGES within the
+# main categories above. AI must use these DWT ranges (not category
+# names) when applying proximity multipliers:
+#
+#   DWT 0-6,000:      multiplier 0.8  (very sensitive to distance)
+#   DWT 6,001-8,000:  multiplier 1.0  (baseline — reference coaster)
+#   DWT 8,001-17,000: multiplier 1.15 (less sensitive)
+#   DWT 17,001-24,000: multiplier 1.3  (moderate tolerance)
+#   DWT 24,001+:      multiplier 1.5  (high tolerance)
+#
+# These multipliers apply to proximity levels 8+ (long distance).
+# Levels 1-7 (short distance) use base scores without multiplier.
+#
+# EXAMPLE: Vessel DWT 16,000
+#   Main category: Coaster (C: 4,001-17,000)
+#   Proximity multiplier: 1.15 (DWT 8,001-17,000 range)
+#   Level 9 East Med: internal 15 × 1.15 = 17.25 → P1 = 6.9/20
+#
 # ═══════════════════════════════════════════════════════════════════
 
 scope:
@@ -533,15 +53,169 @@ scope:
     - "Dry cargo bulk carriers"
     - "General cargo vessels (if carrying bulk)"
     - "Multi-purpose vessels (for bulk operations)"
-    
   excluded:
-    - "Oil tankers"
-    - "Chemical tankers"
-    - "LNG/LPG carriers"
-    - "Container ships"
-    - "RoRo vessels"
-    - "Pure breakbulk (non-bulk cargo)"
+    - "Oil tankers, chemical tankers, LNG/LPG"
+    - "Container ships, RoRo vessels"
+
+vessel_sizes:
+  
+  small_coasters:
+    dwt_range: [0, 4000]
+    category_code: "SC"
+    proximity_multiplier: 0.8
+    typical_characteristics:
+      trade_area: "Very short haul, coastal, inland waterways"
+      ballast_tolerance: "Very low - must find cargo"
+    typical_uses:
+      - "River navigation (Danube, Rhine)"
+      - "Small coastal parcels"
+      - "Short sea shipping"
+      
+  coasters:
+    dwt_range: [4001, 17000]
+    category_code: "C"
+    note: "Most common Black Sea-Med vessel size"
     
-  notes:
-    - "This system focuses exclusively on DRY BULK shipping"
-    - "Oil and liquid cargo not considered"
+    proximity_multiplier_note: |
+      Coasters span a wide DWT range. For proximity scoring, use
+      finer sub-ranges for the multiplier:
+        4,001-6,000 DWT: multiplier 0.8
+        6,001-8,000 DWT: multiplier 1.0 (baseline)
+        8,001-17,000 DWT: multiplier 1.15
+    
+    typical_characteristics:
+      trade_area: "Short to medium haul"
+      ballast_tolerance: "Low - prefer backhaul"
+      typical_routes: "Black Sea-Med, Med-Med, regional trades"
+    typical_uses:
+      - "Regional grain trades"
+      - "Steel products, fertilizers"
+      - "General bulk, bagged cargoes"
+    sub_categories:
+      small_coasters: { dwt_range: [4001, 8000] }
+      medium_coasters: { dwt_range: [8001, 12000] }
+      large_coasters: { dwt_range: [12001, 17000] }
+      
+  small_handy:
+    dwt_range: [17001, 24000]
+    category_code: "SH"
+    proximity_multiplier: 1.3
+    typical_characteristics:
+      trade_area: "Medium to long haul"
+      ballast_tolerance: "Medium"
+      typical_routes: "Cross-Med, Black Sea-North Africa"
+    typical_uses:
+      - "Larger grain parcels"
+      - "Steel products, fertilizers, ore"
+      
+  handy:
+    dwt_range: [24001, 40000]
+    category_code: "H"
+    proximity_multiplier: 1.5
+    typical_characteristics:
+      trade_area: "Long haul capable"
+      ballast_tolerance: "Medium-high"
+    notes:
+      - "NOT common in Greek trades (per Vitaly)"
+      - "More common in Atlantic, long haul"
+      
+  small_supramax:
+    dwt_range: [40001, 50000]
+    category_code: "SS"
+    proximity_multiplier: 1.5
+    typical_characteristics:
+      trade_area: "Long haul, deep sea"
+      ballast_tolerance: "High"
+      
+  supramax:
+    dwt_range: [50001, 65000]
+    category_code: "SM"
+    proximity_multiplier: 1.5
+    typical_characteristics:
+      trade_area: "Global deep sea"
+      ballast_tolerance: "Very high"
+      
+  panamax:
+    dwt_range: [65000, 80000]
+    category_code: "PM"
+    proximity_multiplier: 1.5
+    typical_characteristics:
+      trade_area: "Global major routes"
+      ballast_tolerance: "Very high"
+    notes:
+      - "Maximum size for Panama Canal"
+      - "Maximum practical size ex-Black Sea"
+
+# ═══════════════════════════════════════════════════════════════════
+# ECONOMICS BY SIZE
+# ═══════════════════════════════════════════════════════════════════
+
+economics_by_size:
+  small_coasters:
+    ballast_cost_sensitivity: "very high"
+    viable_ballast_distance: "< 300 nm"
+  coasters:
+    ballast_cost_sensitivity: "high"
+    viable_ballast_distance: "< 800 nm"
+  small_handy:
+    ballast_cost_sensitivity: "medium-high"
+    viable_ballast_distance: "< 1200 nm"
+  handy:
+    ballast_cost_sensitivity: "medium"
+    viable_ballast_distance: "< 2000 nm"
+  small_supramax:
+    ballast_cost_sensitivity: "low-medium"
+    viable_ballast_distance: "< 3000 nm"
+  supramax:
+    ballast_cost_sensitivity: "low"
+    viable_ballast_distance: "< 5000 nm"
+  panamax:
+    ballast_cost_sensitivity: "very low"
+    viable_ballast_distance: "> 5000 nm possible"
+
+# ═══════════════════════════════════════════════════════════════════
+# TRADE PATTERNS BY SIZE
+# ═══════════════════════════════════════════════════════════════════
+
+trade_patterns_by_size:
+  small_coasters_and_coasters:
+    primary_regions: ["Black Sea", "Mediterranean", "Marmara", "Adriatic"]
+    ballast_strategy: "Avoid long ballast, seek backhaul aggressively"
+  small_handy_and_handy:
+    primary_regions: ["Regional to medium distance", "Cross-Med"]
+    ballast_strategy: "Can consider medium ballast legs"
+  supramax_and_panamax:
+    primary_regions: ["Global trades", "Long haul routes"]
+    ballast_strategy: "Can ballast long distances if rates justify"
+
+# ═══════════════════════════════════════════════════════════════════
+# CARGO-VESSEL SIZE FIT
+# ═══════════════════════════════════════════════════════════════════
+
+cargo_vessel_size_fit:
+  grain_black_sea_to_med:
+    preferred: ["C: 4001-17000", "SH: 17001-24000"]
+  grain_black_sea_to_far_east:
+    preferred: ["SM: 50001-65000", "PM: 65000-80000"]
+  steel_products:
+    preferred: ["C: 4001-17000", "SH: 17001-24000"]
+  fertilizers:
+    preferred: ["C: 4001-17000", "SH: 17001-24000"]
+
+# ═══════════════════════════════════════════════════════════════════
+# AI INSTRUCTIONS
+# ═══════════════════════════════════════════════════════════════════
+
+ai_must:
+  - "Use DWT to determine main category (SC/C/SH/H/SS/SM/PM)"
+  - "For proximity multiplier: use finer DWT ranges, not category names"
+  - "Include vessel size category in all scoring responses"
+
+ai_must_not:
+  - "Never hardcode DWT ranges — always reference this file"
+  - "Never assume Coaster means 6-8k only — Coaster is 4-17k"
+  - "Never use category name for proximity multiplier — use DWT range"
+
+# ═══════════════════════════════════════════════════════════════════
+# END
+# ═══════════════════════════════════════════════════════════════════
