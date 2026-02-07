@@ -1,409 +1,165 @@
-# ═══════════════════════════════════════════════════════════════════
-# VESSEL LOCATION DETERMINATION - UPDATED v2.0
-# VK Charts AI Scoring System
-# ═══════════════════════════════════════════════════════════════════
-#
-# CHANGES IN v2.0:
-# - Added Istanbul/Canakkale as TRANSIT CHANNELS (not actual ports)
-# - Added Tuzla as DRY DOCK location (+30 days for repairs)
-# - Clarified priority logic for determining opening position
-# - Added special handling rules for edge cases
-#
-# ═══════════════════════════════════════════════════════════════════
+================================================================================
+VESSEL LOCATION DETERMINATION
+Version: 3.0
+Last updated: 2026-02-07
+================================================================================
 
-version: "2.0"
-date: "2026-01-19"
-priority: "CRITICAL - Location determines P1, P1A, P7 scoring"
+PURPOSE:
+  Determine the vessel's current position, heading, and operational status
+  to support P1 (proximity), P7 (readiness/ETA), and offer generation.
+  Includes draught analysis for ballast/laden detection.
 
-# ═══════════════════════════════════════════════════════════════════
-# OVERVIEW
-# ═══════════════════════════════════════════════════════════════════
+================================================================================
+POSITION SOURCES (priority order)
+================================================================================
 
-purpose: |
-  Determine vessel's effective opening position for scoring purposes.
-  
-  This affects:
-  - P1 (Proximity): Distance to loading port
-  - P1A (Regional Patterns): Trade pattern viability
-  - P7 (Readiness): When vessel will be ready
-  
-  KEY PRINCIPLE:
-  Use most specific/reliable data available, following priority order.
+  1. OpenArea data (vessel listing):
+     - open_area: "Montoir, Feb 17"
+     - Contains: location name, date, sometimes heading
+     
+  2. VesselFinder / MarineTraffic data:
+     - current-position: lat/lon
+     - destination: next port
+     - eta: estimated arrival
+     - navigation-status: "under way", "at anchor", "moored"
+     - current-draught: current draught reading (meters)
+     
+  3. Vessel JSON fields:
+     - vessel_area: general area description
+     - last_ports: recent port calls with dates
 
-# ═══════════════════════════════════════════════════════════════════
-# DATA PRIORITY ORDER
-# ═══════════════════════════════════════════════════════════════════
+================================================================================
+DETERMINING VESSEL READY DATE
+================================================================================
 
-priority_order:
-  
-  priority_1_open_area:
-    source: "OpenArea field (manually entered)"
-    reliability: "HIGHEST - owner's stated position"
-    format: "Port name + Date"
-    example: "Constanta, Jan 20"
-    
-    usage: |
-      If open_area is provided, this is DEFINITIVE.
-      Use this location and date for all scoring.
-      Ignore destination and current_area.
-    
-  priority_2_destination:
-    source: "Destination field (from AIS)"
-    reliability: "MEDIUM - vessel heading there, but purpose unclear"
-    format: "Port name"
-    additional: "ETA (Estimated Time of Arrival)"
-    example: "Mersin, ETA Jan 25"
-    
-    usage: |
-      If destination is set (and no open_area):
-      - Vessel is likely going there to load OR discharge
-      - Opening location = destination port
-      - Opening date = ETA + 7 days (operations buffer)
-      
-      EXCEPTIONS:
-      - Istanbul: Treat as TRANSIT, not destination
-      - Canakkale: Treat as TRANSIT, not destination  
-      - Tuzla: Treat as DRY DOCK (+30 days)
-    
-  priority_3_current_area:
-    source: "Current Area field (from AIS)"
-    reliability: "LOW - only shows current position"
-    format: "Geographic region or port name"
-    example: "East Mediterranean" or "Sulina"
-    
-    usage: |
-      If no open_area or valid destination:
-      - Use current_area as opening location
-      - Use position_received as opening date
-      - Assume vessel is at anchor/waiting
-      
-      EXCEPTIONS:
-      - Istanbul: Treat as TRANSIT
-      - Canakkale: Treat as TRANSIT
-      - Tuzla: Treat as DRY DOCK
+  OPTION A — Open area with date only (no destination):
+    Example: "open Montoir Feb 17"
+    vessel_ready = Feb 17 (use as-is)
+    No ballast/operations buffer needed — vessel is stated as open.
 
-# ═══════════════════════════════════════════════════════════════════
-# SPECIAL LOCATION HANDLING
-# ═══════════════════════════════════════════════════════════════════
+  OPTION B — Destination with ETA:
+    Example: "heading Ravenna ETA Feb 13"
+    
+    Step 1: Perform DRAUGHT ANALYSIS (see below)
+    Step 2: Apply operations buffer based on draught status
+    
+    If BALLAST: vessel_ready = ETA (no +7 days)
+      → Vessel is likely heading to load, may be available for redirection
+      → Ask owner to confirm if heading for loading or positioning
+      
+    If LADEN: vessel_ready = ETA + 7 days
+      → Vessel is carrying cargo, needs time to discharge + prepare
+      → 7 days is default operations buffer (discharge + cleaning + docs)
+      
+  OPTION C — Current position only (no destination/ETA):
+    Example: "last seen at anchor Iskenderun"
+    vessel_ready = today + estimated sailing time to load port
+    Use with low confidence, note in reasoning.
 
-special_locations:
-  
-  # ─────────────────────────────────────────────────────────────────
-  # ISTANBUL - TRANSIT CHANNEL (NOT A PORT)
-  # ─────────────────────────────────────────────────────────────────
-  
-  istanbul_handling:
-    
-    principle: |
-      Istanbul is a TRANSIT CHANNEL (Bosphorus Strait), not a destination port.
-      When vessels pass through Istanbul, it appears in their position data,
-      but this is NOT an actual port call - just transit between Black Sea
-      and Marmara/Mediterranean.
-    
-    recognition:
-      port_names:
-        - "Istanbul"
-        - "Bosphorus"
-        - "Bosporus"
-      
-      context_clues:
-        - "Appears in top_ports with high percentage"
-        - "Vessel track shows brief passage"
-        - "No long stays (just hours, not days)"
-    
-    ai_interpretation:
-      
-      if_in_destination:
-        condition: "destination = Istanbul"
-        action: "IGNORE - treat as null destination"
-        reasoning: "Vessel transiting through straits, not calling Istanbul port"
-        fallback: "Use current_area or treat as in-transit"
-        
-        example:
-          vessel_destination: "Istanbul"
-          vessel_current_area: "Black Sea"
-          interpretation: "Vessel exiting Black Sea via Bosphorus, NOT opening in Istanbul"
-          use_for_scoring: "Black Sea (current_area)"
-      
-      if_in_current_area:
-        condition: "current_area = Istanbul"
-        action: "Determine direction of transit"
-        
-        if_heading_to_black_sea:
-          interpretation: "Vessel entering Black Sea"
-          use_for_scoring: "Marmara Sea (origin) or Black Sea (destination)"
-          
-        if_heading_to_mediterranean:
-          interpretation: "Vessel exiting Black Sea"
-          use_for_scoring: "Black Sea (origin) or Marmara/Med (destination)"
-      
-      if_in_top_ports:
-        condition: "Istanbul appears in vessel's top_ports history"
-        action: "DO NOT count as actual port experience"
-        reasoning: |
-          High Istanbul percentage simply means vessel transits frequently
-          between Black Sea and Med. It does NOT indicate familiarity with
-          Istanbul as a loading/discharge port.
-        
-        citations:
-          - "Correction (valmiera): Istanbul is transit channel, not port"
-          - "Correction: Do not treat Istanbul as port call in P4 scoring"
-  
-  # ─────────────────────────────────────────────────────────────────
-  # CANAKKALE - TRANSIT CHANNEL (NOT A PORT)
-  # ─────────────────────────────────────────────────────────────────
-  
-  canakkale_handling:
-    
-    principle: |
-      Canakkale is DARDANELLES STRAIT transit, similar to Istanbul.
-      Same logic applies: transit channel, not destination port.
-    
-    recognition:
-      port_names:
-        - "Canakkale"
-        - "Dardanelles"
-        - "Çanakkale"
-    
-    ai_interpretation:
-      same_as_istanbul: true
-      
-      if_in_destination:
-        action: "IGNORE - treat as null destination"
-        
-      if_in_current_area:
-        action: "Determine direction (Marmara ↔ Aegean)"
-        
-      if_in_top_ports:
-        action: "DO NOT count as port experience"
-  
-  # ─────────────────────────────────────────────────────────────────
-  # TUZLA - DRY DOCK / REPAIRS
-  # ─────────────────────────────────────────────────────────────────
-  
-  tuzla_handling:
-    
-    principle: |
-      Tuzla (Turkey) is a major SHIPYARD and DRY DOCK location.
-      If vessel is in Tuzla or heading to Tuzla, assume repairs.
-      Repair durations are UNCERTAIN, typically 1+ months.
-    
-    recognition:
-      port_names:
-        - "Tuzla"
-        - "Tuzla Shipyard"
-      
-      location:
-        country: "Turkey"
-        region: "Marmara Sea"
-        near: "Istanbul"
-    
-    ai_interpretation:
-      
-      if_currently_in_tuzla:
-        condition: "current_area = Tuzla OR destination = Tuzla (already arrived)"
-        
-        impact_on_p7:
-          assumption: "Vessel undergoing repairs"
-          duration_estimate: "+30 days minimum"
-          uncertainty: "HIGH - repair completion dates very uncertain"
-          
-          scoring:
-            p7_score: 2
-            confidence: 60
-            reasoning: |
-              "Vessel currently in Tuzla (dry dock). Repairs typically take
-              1+ months with uncertain completion. Position highly unreliable
-              for near-term cargo."
-        
-        impact_on_other_criteria:
-          p1_proximity: "Calculate from Tuzla, but add uncertainty note"
-          p1a_regional: "Normal assessment, but flag repair status"
-        
-        warning_to_user: |
-          "⚠️ Vessel is currently in Tuzla shipyard. This typically indicates
-          repairs/dry docking. Completion date uncertain."
-      
-      if_heading_to_tuzla:
-        condition: "destination = Tuzla AND not yet arrived"
-        
-        impact_on_p7:
-          vessel_ready_date: "ETA + 30 days (minimum)"
-          
-          scoring:
-            p7_score: 3
-            confidence: 65
-            reasoning: |
-              "Vessel heading to Tuzla (ETA {date}). Tuzla is a major shipyard,
-              suggesting scheduled repairs. Assume +30 days for dry docking."
-        
-        warning_to_user: |
-          "⚠️ Vessel is heading to Tuzla shipyard (ETA {date}). This likely
-          indicates planned repairs. Opening date highly uncertain."
-  
-  # ─────────────────────────────────────────────────────────────────
-  # SULINA ANCHORAGE - SPECIAL POSITIONING
-  # ─────────────────────────────────────────────────────────────────
-  
-  sulina_handling:
-    
-    principle: |
-      Sulina is a WAITING AREA / ANCHORAGE, not a commercial port.
-      Vessels wait here before either:
-      a) Entering Danube River, OR
-      b) Proceeding to POC ports
-      
-      This is NOT an issue like Istanbul - Sulina IS a valid opening position.
-    
-    recognition:
-      port_names:
-        - "Sulina"
-        - "Sulina Anchorage"
-      
-    ai_interpretation:
-      treat_as: "Valid opening position"
-      
-      impact_on_p1:
-        proximity_to_poc: "Level 3 (very close, ~80nm)"
-        proximity_to_danube: "Level 3 (very close, river entrance)"
-      
-      impact_on_p1a:
-        pattern_to_poc: "Score 14/15 (excellent positioning)"
-        pattern_to_danube: "Score 14/15 (excellent positioning)"
-        reasoning: "Sulina = neutral waiting area, equal viability for both directions"
-        
-        citations:
-          - "Correction (eleanora): Sulina vessels can go to POC or Danube equally"
+================================================================================
+DRAUGHT ANALYSIS — BALLAST/LADEN DETECTION
+================================================================================
 
-# ═══════════════════════════════════════════════════════════════════
-# LOCATION DETERMINATION ALGORITHM
-# ═══════════════════════════════════════════════════════════════════
+  PURPOSE: Determine if the vessel is currently in ballast or laden (carrying
+  cargo) based on current draught vs maximum summer draught.
 
-determination_algorithm:
+  FORMULA:
+    draught_ratio = current_draught / max_draft
+    
+    current_draught = from VesselFinder data (field: "current-draught")
+    max_draft = from vessel specs (field: "draft" — summer draft/loaded)
+    
+  THRESHOLDS:
   
-  step_1_check_open_area:
-    if: "open_area field is not null"
-    then:
-      location: "Use open_area port"
-      date: "Use open_area date"
-      confidence: "HIGH"
-      stop: true
-  
-  step_2_check_destination:
-    if: "destination field is not null"
-    then:
+    draught_ratio < 0.65 → STATUS: BALLAST
+    ────────────────────────────────────────
+      Vessel is likely empty or nearly empty, heading to loading port.
       
-      check_special_cases:
+      Impact:
+        - operations_buffer = 0 days (vessel may be ready upon arrival)
+        - vessel_ready = ETA (no +7 days added)
+        - ask_owner = true (confirm if fixed for loading or open)
         
-        if_istanbul_or_canakkale:
-          action: "SKIP destination, continue to step 3"
-          reasoning: "Transit channel, not valid destination"
-        
-        if_tuzla:
-          location: "Tuzla (dry dock)"
-          date: "ETA + 30 days"
-          confidence: "LOW (repair uncertainty)"
-          add_warning: true
-          stop: true
-        
-        if_normal_port:
-          location: "Use destination port"
-          date: "ETA + 7 days (operations)"
-          confidence: "MEDIUM"
-          stop: true
-  
-  step_3_check_current_area:
-    if: "current_area is not null"
-    then:
+      Offer text suggestion:
+        "We note vsl appears to be in ballast heading to [destination].
+         Could you confirm if she is proceeding for loading (already fixed)
+         or if this is ballast positioning?"
+
+    draught_ratio >= 0.65 → STATUS: LADEN
+    ────────────────────────────────────────
+      Vessel is likely carrying cargo, heading to discharge port.
       
-      check_special_cases:
+      Impact:
+        - operations_buffer = +7 days (discharge + prepare for next)
+        - vessel_ready = ETA + 7 days
+        - Standard approach — offer for post-discharge window
         
-        if_istanbul_or_canakkale:
-          action: "Interpret as in-transit, use broader region"
-          location: "Use adjacent sea (Black Sea or Marmara)"
-          date: "position_received"
-          confidence: "LOW"
-          stop: true
-        
-        if_tuzla:
-          location: "Tuzla (dry dock)"
-          date: "position_received + 30 days"
-          confidence: "LOW"
-          add_warning: true
-          stop: true
-        
-        if_normal_location:
-          location: "Use current_area"
-          date: "position_received"
-          confidence: "LOW (no confirmed destination)"
-          stop: true
-  
-  step_4_no_data:
-    if: "All fields are null"
-    then:
-      action: "ERROR - insufficient data"
-      recommendation: "Request owner clarification"
+    current_draught > max_draft → STATUS: OVER_DRAFT
+    ────────────────────────────────────────
+      Data anomaly — current draught exceeds vessel specs.
+      Possible causes: outdated AIS data, measurement error, 
+      vessel loaded to tropical marks.
+      
+      Impact:
+        - Treat as LADEN (conservative approach)
+        - operations_buffer = +7 days  
+        - Note data anomaly in reasoning
+        - confidence = "medium" (due to data quality)
 
-# ═══════════════════════════════════════════════════════════════════
-# P4 (LAST PORTS) SPECIAL HANDLING
-# ═══════════════════════════════════════════════════════════════════
-
-p4_top_ports_filtering:
-  
-  principle: |
-    When analyzing vessel's top_ports historical data, EXCLUDE
-    transit channels from port experience calculation.
-  
-  exclude_from_p4:
-    - "Istanbul"
-    - "Canakkale"
-    - "Bosphorus"
-    - "Dardanelles"
-  
-  rationale: |
-    These locations appear frequently in AIS data due to transit,
-    but they do NOT represent actual port calling experience.
+  DATA FIELD MAPPING:
+    - current_draught: VesselFinder field "current-draught" (meters)
+    - max_draft: Vessel specs field "draft" (summer draft in meters)
+    - navigation_status: VesselFinder field "navigation-status"
     
-    Including them inflates P4 scores incorrectly.
-  
-  example:
-    raw_top_ports:
-      - "Istanbul: 25.7%"
-      - "Sulina: 12.2%"
-      - "Izmail: 8.5%"
-      - "Constanta: 6.3%"
-    
-    filtered_top_ports:
-      - "Sulina: 12.2%"
-      - "Izmail: 8.5%"
-      - "Constanta: 6.3%"
-      - "(Istanbul removed as transit)"
-    
-    p4_calculation:
-      use: "Filtered list only"
-      reasoning: "Istanbul removed - transit channel, not port experience"
-    
-    citations:
-      - "Correction (valmeira, eleanora): Istanbul is transit, not port call"
+  MISSING DATA:
+    If current_draught is not available:
+      - Check navigation-status: "under way using engine" suggests active voyage
+      - Default to LADEN assumption (conservative)
+      - Note missing data in reasoning, reduce confidence
+      
+    If max_draft is not available:
+      - Cannot calculate ratio
+      - Use navigation-status and destination context
+      - Default to LADEN assumption
 
-# ═══════════════════════════════════════════════════════════════════
-# CRITICAL AI INSTRUCTIONS
-# ═══════════════════════════════════════════════════════════════════
+================================================================================
+IMPACT ON OTHER CRITERIA
+================================================================================
 
-ai_must:
-  - "ALWAYS follow priority order: open_area > destination > current_area"
-  - "ALWAYS treat Istanbul/Canakkale as transit (not valid destinations)"
-  - "ALWAYS treat Tuzla as dry dock (+30 days)"
-  - "ALWAYS exclude Istanbul/Canakkale from P4 top_ports analysis"
-  - "ALWAYS add +7 days to destination ETA for operations"
-  - "ALWAYS add warning if vessel in/heading to Tuzla"
+  P7 (Readiness/ETA):
+    - BALLAST: vessel_ready = ETA (faster availability)
+    - LADEN: vessel_ready = ETA + 7 days (slower availability)
+    - See: READINESSETA_TO_LOADING_PORT_SCORING.txt
 
-ai_must_not:
-  - "Never use Istanbul/Canakkale as opening position"
-  - "Never count Istanbul/Canakkale in P4 port experience"
-  - "Never assume vessel ready at destination ETA without operations buffer"
-  - "Never ignore Tuzla dry dock implications"
+  P1 (Proximity):
+    - Use destination port (not current position) for distance calculation
+      when vessel is underway
 
-# ═══════════════════════════════════════════════════════════════════
-# END OF VESSEL LOCATION DETERMINATION v2.0
-# ═══════════════════════════════════════════════════════════════════
+  Offer Opening:
+    - BALLAST vessels: include question about availability/fixing status
+    - LADEN vessels: standard approach with post-discharge timing
+
+================================================================================
+EXAMPLES
+================================================================================
+
+  Example 1: ADAMAR heading to Ravenna
+    current_draught = 8.8m, max_draft = 8.6m
+    draught_ratio = 8.8 / 8.6 = 1.023 → OVER_DRAFT
+    Treat as LADEN, +7 days buffer
+    Note: "Current draught 8.8m exceeds max draft 8.6m — data anomaly,
+           treating as laden. Vessel ready = ETA + 7 days."
+
+  Example 2: Small coaster heading to Mersin
+    current_draught = 2.1m, max_draft = 5.2m  
+    draught_ratio = 2.1 / 5.2 = 0.404 → BALLAST
+    No buffer, vessel may be available at ETA
+    Ask owner: "Is she proceeding for loading or open?"
+
+  Example 3: Handysize heading to Constanta  
+    current_draught = 7.5m, max_draft = 9.8m
+    draught_ratio = 7.5 / 9.8 = 0.765 → LADEN
+    Standard +7 days buffer
+    vessel_ready = ETA + 7 days
+
+================================================================================
