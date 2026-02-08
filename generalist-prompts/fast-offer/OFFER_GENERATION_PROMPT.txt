@@ -371,7 +371,7 @@ SECTION 8 — OUTPUT JSON FORMAT
   },
   "message": {
     "to": ["+905551234567"],
-    "body": "have good cargo for triumph iv — 5-8k wheat cvb>tunisia. timing works, intake fits. lmk yr interest?"
+    "body": "have good cargo for triumph iv — timing works, intake fits. lmk yr interest?\n\n5-8k wheat wog\n*cvb\\tunisia*\n1x be\nspot onw\n1.25 add"
   },
   "metadata": {
     "vessel_name": "TRIUMPH IV",
@@ -388,7 +388,8 @@ SECTION 8 — OUTPUT JSON FORMAT
 RULES:
   - "cc": exclude contacts marked "no mailing" or "operations only"
   - "message": generate ONLY when score ≥80% or relationship_warning has
-    messenger instructions. Keep to 1-2 sentences max abbreviations.
+    messenger instructions. Keep text to 1-2 sentences max abbreviations.
+    ALWAYS append full cargo block after the text (same format as email cargo block).
   - "body_html": include signature from signature_for_emails.html
   - "metadata": track for greeting rotation and analytics
 
@@ -625,6 +626,7 @@ Before generating offer, verify:
   □ No weak language ("just wanted to", "maybe we can")
   □ Message length within target for score range
   □ Cargo block is complete and properly formatted
+  □ Messenger body includes full cargo block after text
   □ Easy exit provided for scores <80%
   □ body_html includes signature
 
