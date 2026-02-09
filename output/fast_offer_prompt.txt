@@ -109,9 +109,17 @@ A broker asks softly — the owner understands WHY you're asking.
     ❌ "PSC risk at Constanta due to class/flag"
     ❌ "confirm if P&I is with an IG club"
     ❌ "pls confirm class\p&i"
-    ✅ "is she ok to work from romania?"
+    ❌ "is she all good on the documentary side for romania?"
+       (implies you think there's a documentation problem — too direct,
+       and our database may have outdated info on vessel docs anyway)
+    ✅ "ok to work from romania?"
     ✅ "can she call ctza without any issues?"
-    ✅ "all good on documentary side for EU?"
+    ✅ "can she work from EU ports?"
+
+    RULE: NEVER ask about "documentary side", "documents", "class\p&i"
+    directly. Just ask if the vessel can WORK from the port/country.
+    The owner understands what you mean. If there's no real documentary
+    concern based on the estimation — don't ask at all.
 
   Owner preference conflicts:
     ❌ "company comments mention no ukraine"
@@ -780,7 +788,8 @@ Before generating offer, verify:
   □ No "perfect"/"ideal" when owner has conflict
   □ No weak language ("just wanted to", "maybe we can")
   □ No CRM data exposed (don't quote company_comments)
-  □ No direct mention of class/P&I/flag concerns (ask indirectly)
+  □ No direct mention of class/P&I/flag/documents (ask indirectly)
+  □ No "documentary side" / "documents" questions — ask "ok to work from X?"
   □ Questions are operational, not academic
   □ Commercial argument present (WHY should owner take this cargo?)
   □ Greeting is creative and unique
@@ -800,6 +809,7 @@ AI MUST NOT:
   ❌ Use bullet points
   ❌ Expose CRM/estimation data
   ❌ Ask directly about class/P&I/flag
+  ❌ Ask about "documentary side" or "documents" (ask "ok to work from X?" instead)
   ❌ Say "perfect" with P2 conflict
   ❌ Write formal business English
   ❌ Copy estimation text verbatim into offers
