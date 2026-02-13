@@ -636,7 +636,9 @@ SECTION 17 — JSON OUTPUT FORMAT
   "offer_opening": {
     "relationship_warning": { "status": "CLEAR", "type": "standard", "offer_guidance": "No special instructions" },
     "intent": "blocked_info",
+    "emails": ["email@example.com", "email2@example.com"],
     "email_text": "Pls find below cargo for yr reference re mv Example...",
+    "messenger": ["+34345859289"],
     "messenger_text": "cargo fyi for Example — ...",
     "key_selling_points": ["Intake ~3,025t fits 3,000t urea cargo perfectly", "Vessel knows Constanta (6.3% call frequency)"],
     "key_concerns": ["Vessel 2,500nm away in Arabian Sea — very long ballast", "Would arrive ~Mar 3, 6 days after canceling Feb 25"],
