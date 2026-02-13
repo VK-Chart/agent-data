@@ -483,41 +483,6 @@ USAGE:
   1-2 days before → "have a great [holiday] ahead!"
 
 ════════════════════════════════════════════════════════════════════════════════
-SECTION 10 — OUTPUT JSON FORMAT
-════════════════════════════════════════════════════════════════════════════════
-
-{
-  "email": {
-    "subject": "att team \\\\ mv triumph iv \\ 5-8k wheat cvb-tunisia",
-    "to": ["owner@company.com"],
-    "cc": ["operations@company.com"],
-    "body": "team\n\nvery good afternoon to you !\nhope all great on yr side\n\nre: mv triumph iv\n\nsee she opens galati...",
-    "body_html": "<html>...</html>"
-  },
-  "message": {
-    "to": ["+905551234567"],
-    "body": "hi\ntriumph iv — see she opens galati, have foll nice cargo for her. want to fix, lmk yr interest\n\n5-8k wheat wog\ncvb\\tunisia\n1x be\nspot onw\n1.25 add"
-  },
-  "metadata": {
-    "vessel_name": "TRIUMPH IV",
-    "vessel_score": 88.5,
-    "intent": "attract",
-    "approach": "A",
-    "strengths_highlighted": ["proximity", "timing", "intake"],
-    "concerns_acknowledged": ["slightly late"],
-    "greeting_used": "very good afternoon to you, hope all great",
-    "pic_names": ["team"]
-  }
-}
-
-RULES:
-  - "cc": exclude contacts marked "no mailing" or "operations only"
-  - "message": generate when score ≥80% OR relationship_warning has messenger
-    instructions. Text: 1-3 lines max. ALWAYS append full cargo block.
-  - "body_html": NO signature — handled externally
-  - "metadata": track for greeting rotation and analytics
-
-════════════════════════════════════════════════════════════════════════════════
 SECTION 11 — GOLD STANDARD EXAMPLES
 ════════════════════════════════════════════════════════════════════════════════
 
