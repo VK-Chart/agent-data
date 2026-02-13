@@ -633,9 +633,8 @@ SECTION 17 — JSON OUTPUT FORMAT
   "recommendation": "BLOCKED",
   "short_summary": "Blocked by distance and timing...",
   
-  "relationship_warning": { "status": "CLEAR", "type": "standard", "offer_guidance": "No special instructions" },
-  
   "offer_opening": {
+    "relationship_warning": { "status": "CLEAR", "type": "standard", "offer_guidance": "No special instructions" },
     "intent": "blocked_info",
     "email_text": "Pls find below cargo for yr reference re mv Example...",
     "messenger_text": "cargo fyi for Example — ...",
