@@ -1,0 +1,35 @@
+{
+  "vessel_name": "MV EXAMPLE",
+  "total_score": 46.2,
+  "total_score_raw": 41.6,
+  "dynamic_max_score": 105,
+  "confidence": 70,
+  "confidence_note": "Low confidence due to stale AIS (58 days) and missing draft data.",
+  "recommendation": "BLOCKED",
+  "short_summary": "Blocked by distance and timing...",
+  
+  "offer_opening": {
+    "relationship_warning": { "status": "CLEAR", "type": "standard", "offer_guidance": "No special instructions" },
+    "intent": "blocked_info",
+    "emails": ["email@example.com", "email2@example.com"],
+    "email_text": "Pls find below cargo for yr reference re mv Example...",
+    "messenger": ["+34345859289"],
+    "messenger_text": "cargo fyi for Example — ...",
+    "key_selling_points": ["Intake ~3,025t fits 3,000t urea cargo perfectly", "Vessel knows Constanta (6.3% call frequency)"],
+    "key_concerns": ["Vessel 2,500nm away in Arabian Sea — very long ballast", "Would arrive ~Mar 3, 6 days after canceling Feb 25"],
+    "questions_to_ask": ["Any plans to reposition towards Med/BS?"]
+  },
+  
+  "detailed_scoring": {
+    "proximity":               { "code": "P1",  "score": 0,    "max_score": 20, "reasoning": "...", "offer_hint": "...", "decision": "blocked", "confidence": "high", "critical": true,  "citations": ["..."] },
+    "regional_patterns":       { "code": "P1A", "score": 0,    "max_score": 15, "reasoning": "...", "offer_hint": "...", "decision": "blocked", "confidence": "high", "critical": true,  "citations": ["..."] },
+    "owner_preferences":       { "code": "P2",  "score": 15,   "max_score": 15, "reasoning": "...", "offer_hint": null,  "decision": "accepted","confidence": "high", "critical": false, "citations": ["..."] },
+    "port_accessibility":      { "code": "P2A", "score": 9.6,  "max_score": 20, "reasoning": "...", "offer_hint": "...", "decision": "accepted","confidence": "med",  "critical": false, "citations": ["..."] },
+    "cargo_preferences":       { "code": "P3",  "score": 0,    "max_score": 0,  "reasoning": "No data — excluded.", "offer_hint": null, "decision": "excluded", "confidence": "n/a", "critical": false, "citations": [] },
+    "last_ports":              { "code": "P4",  "score": 5.5,  "max_score": 10, "reasoning": "...", "offer_hint": "...", "decision": "accepted","confidence": "high", "critical": false, "citations": ["..."] },
+    "intake_capacity":         { "code": "P5",  "score": 15,   "max_score": 15, "reasoning": "...", "offer_hint": "...", "decision": "accepted","confidence": "high", "critical": false, "citations": ["..."] },
+    "openarea_modifier":       { "code": "P6",  "score": 0,    "max_score": 0,  "reasoning": "No data — excluded.", "offer_hint": null, "decision": "excluded", "confidence": "n/a", "critical": false, "citations": [] },
+    "readiness_eta":           { "code": "P7",  "score": 0,    "max_score": 10, "reasoning": "...", "offer_hint": "...", "decision": "blocked", "confidence": "low",  "critical": true,  "citations": ["..."] },
+    "restrictions_compliance": { "code": "P8",  "score": 0,    "max_score": 0,  "reasoning": "No restrictions — excluded.", "offer_hint": null, "decision": "excluded", "confidence": "n/a", "critical": false, "citations": ["..."] }
+  }
+}
