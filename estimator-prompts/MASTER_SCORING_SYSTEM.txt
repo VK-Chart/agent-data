@@ -258,52 +258,10 @@ OFFER OPENING GENERATION — ALWAYS REQUIRED
     - For BLOCKED: mention what makes it blocked + what could change
 
 ================================================================================
-JSON OUTPUT TEMPLATE
-================================================================================
-
-  ALL criteria MUST appear in detailed_scoring, even excluded (0/0).
-
-{
-  "vessel_name": "MV EXAMPLE",
-  "total_score": 81.1,
-  "total_score_raw": 73,
-  "dynamic_max_score": 90,
-  "confidence": 85,
-  "confidence_note": "...",
-  "recommendation": "STRONG",
-  "short_summary": "...",
-  
-  "relationship_warning": { "status": "CLEAR" },
-  
-  "offer_opening": {
-    "intent": "attract",
-    "email_text": "...",
-    "messenger_text": "...",
-    "key_selling_points": ["proximity", "timing"],
-    "key_concerns": [],
-    "questions_to_ask": []
-  },
-  
-  "detailed_scoring": {
-    "proximity":              { "code": "P1",  ... },
-    "regional_patterns":      { "code": "P1A", ... },
-    "owner_preferences":      { "code": "P2",  ... },
-    "port_accessibility":     { "code": "P2A", ... },
-    "cargo_preferences":      { "code": "P3",  ... },
-    "last_ports":             { "code": "P4",  ... },
-    "intake_capacity":        { "code": "P5",  ... },
-    "openarea_modifier":      { "code": "P6",  ... },
-    "readiness_eta":          { "code": "P7",  ... },
-    "restrictions_compliance":{ "code": "P8",  ... }
-  }
-}
-
-================================================================================
 AI INSTRUCTIONS
 ================================================================================
 
   ai_must:
-    - Use correct JSON fields (see FIELD MAPPING above)
     - Evaluate ALL criteria, even when BLOCK is found early
     - Include ALL criteria in output (even excluded 0/0)
     - Calculate dynamic_max_score correctly
