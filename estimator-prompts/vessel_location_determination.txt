@@ -1,0 +1,135 @@
+================================================================================
+VESSEL LOCATION DETERMINATION
+Version: 5.0 FINAL
+Last updated: 2026-02-07
+================================================================================
+
+PURPOSE:
+  Determine the vessel's current position, heading, and operational status.
+  Provides draught analysis (ballast/laden) for P7 scoring.
+
+================================================================================
+CRITICAL — FIELD MAPPING FOR DRAUGHT ANALYSIS
+================================================================================
+
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  Use field "draft" for max_draft (summer loadline).            ║
+  ║  Do NOT use "max-draught" (max recorded, includes tropical).   ║
+  ║  Do NOT use "min-draught" (ballast reference).                 ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  FIELD DEFINITIONS:
+    "draft"          = Design summer loadline draft (vessel specs) ← USE THIS
+    "max-draught"    = Max recorded AIS draught (may exceed summer line)
+    "min-draught"    = Min recorded AIS draught (ballast state)
+    "current-draught"= Current AIS draught reading ← USE THIS
+
+  MISSING / ZERO DRAFT:
+    If "draft" = 0.0 or null → draught ratio IMPOSSIBLE.
+    Default: LADEN (+7 days buffer), confidence = "low".
+
+  STALE AIS DATA:
+    If "position-received" is older than 7 days:
+    → Mark confidence = "low", note stale data in reasoning.
+    → Vessel may have moved, discharged, or changed status.
+
+================================================================================
+DRAUGHT ANALYSIS — BALLAST/LADEN DETECTION
+================================================================================
+
+  FORMULA:
+    draught_ratio = current-draught / draft
+    
+  THRESHOLDS:
+    ratio < 0.65 → BALLAST
+    ratio >= 0.65 → LADEN
+    current-draught > draft → OVER_DRAFT → treat as LADEN
+    
+  MISSING DATA:
+    If current-draught unavailable → default to LADEN (conservative)
+    
+  Note: OVER_DRAFT (ratio > 1.0) happens when vessel is loaded beyond
+  summer marks (tropical zone, river allowance) or AIS data is outdated.
+  Always treat as LADEN.
+
+================================================================================
+VESSEL STATUS DETECTION
+================================================================================
+
+  UNDERWAY:
+    speed > 2 knots AND navigation-status contains "Under Way"
+    
+  AT ANCHOR / MOORED:
+    navigation-status = "At anchor" or "Moored"
+    OR speed < 2 knots AND position near port
+    
+  AT DESTINATION:
+    Vessel is at anchor/moored AND destination matches current area
+    OR ETA is in the past
+    
+    This is a critical distinction for P7: vessel has ARRIVED and is
+    either waiting to berth, discharging, or waiting for orders.
+
+================================================================================
+DETERMINING VESSEL READY DATE (for P7)
+================================================================================
+
+  CASE A — Open area with date (open_area field not null):
+    vessel_ready = stated date
+    No buffer. Location = stated port.
+
+  CASE B — Underway, ETA in future:
+    BALLAST → vessel_ready = ETA
+    LADEN → vessel_ready = ETA + 7 days
+
+  CASE C — At destination / ETA in past:
+    This is the most common real-world scenario for vessels already
+    arrived at their port.
+    
+    BALLAST at destination:
+      vessel_ready = TODAY
+      
+    LADEN at destination:
+      days_since_arrival = TODAY - MAX(ETA, position_received - 3d)
+      remaining_ops = MAX(0, 7 - days_since_arrival)
+      vessel_ready = TODAY + remaining_ops
+      
+      Logic: discharge + prep ≈ 7 days. Subtract time already there.
+      MINIMUM: vessel_ready = TODAY
+
+  CASE D — No destination / no ETA:
+    Estimate from current position.
+    confidence = "low"
+
+================================================================================
+EXAMPLES
+================================================================================
+
+  Example 1: PETREL S — Laden at anchor, ETA past
+    current-draught: 8.3, draft: 8.48
+    ratio = 8.3/8.48 = 0.978 → LADEN
+    navigation-status: "At anchor"
+    destination: "Lisboa Anch., Portugal" (already there)
+    ETA: Feb 1 (past), today: Feb 7
+    days_since_arrival = 6
+    remaining_ops = MAX(0, 7-6) = 1
+    vessel_ready = Feb 8
+
+  Example 2: Ballast underway
+    current-draught: 2.1, draft: 5.2
+    ratio = 0.404 → BALLAST
+    destination: Mersin, ETA Feb 10
+    vessel_ready = Feb 10 (no buffer)
+
+  Example 3: OVER_DRAFT
+    current-draught: 8.8, draft: 8.6
+    ratio = 1.023 → OVER_DRAFT → LADEN
+    ETA Feb 13 (future)
+    vessel_ready = Feb 13 + 7 = Feb 20
+
+  Example 4: No draught data
+    current-draught: null
+    Default LADEN, +7 days from ETA
+    confidence = "medium"
+
+================================================================================

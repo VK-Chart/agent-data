@@ -12,6 +12,7 @@
     "relationship_warning": { "status": "CLEAR", "type": "standard", "offer_guidance": "No special instructions" },
     "intent": "blocked_info",
     "emails": ["email@example.com", "email2@example.com"],
+    "subject": "Some good defined subject",
     "email_text": "Pls find below cargo for yr reference re mv Example...",
     "messenger": ["+34345859289"],
     "messenger_text": "cargo fyi for Example — ...",
