@@ -1,0 +1,656 @@
+# ═══════════════════════════════════════════════════════════════════
+# PROXIMITY SCORING MATRIX - UPDATED v2.0
+# VK Charts AI Scoring System - Criterion P1
+# ═══════════════════════════════════════════════════════════════════
+#
+# CHANGES IN v2.0:
+# - Updated East Med scoring (Level 9): 8 → 15 internal for Coasters (~6 P1)
+# - Updated Adriatic scoring (Level 10): 4 → 17 internal for Coasters (~7 P1)
+# - Added vessel size multipliers for all categories
+# - Aligned with broker corrections (Adriatic/East Med are viable for coasters)
+#
+# ═══════════════════════════════════════════════════════════════════
+
+version: "2.0"
+date: "2026-01-19"
+priority: "CRITICAL - Distance directly impacts commercial viability"
+
+# ═══════════════════════════════════════════════════════════════════
+# SHORT SUMMARY
+# ═══════════════════════════════════════════════════════════════════
+
+purpose: |
+  This file defines P1 (Proximity) scoring - how AI evaluates geographic
+  distance compatibility between vessel's current position and cargo's
+  loading port. P1 contributes 0-20 points to the total score (100 max).
+  
+  WHAT THIS FILE CONTAINS:
+  
+  1. INTERNAL SCORING LEVELS (0-50 internal points)
+     - Level 1: Same port = 50 internal points
+     - Level 7: Marmara Sea = 20 internal points
+     - Level 10: Adriatic = 17 internal points (UPDATED!)
+     - These are SCALED to final P1 range [0, 20]
+  
+  2. VESSEL SIZE MULTIPLIERS (NEW!)
+     - Small Coaster (3-6k): ×0.8 (more sensitive to distance)
+     - Coaster (6-8k): ×1.0 (baseline)
+     - Small Handy (8-17k): ×1.15
+     - Handy (17-24k): ×1.3
+     - Large vessels (24k+): ×1.5
+  
+  3. DISTANCE PENALTIES
+     - Fine-tuning based on actual nautical miles within same level
+     - Penalty per 100nm varies by vessel size
+  
+  4. GEOPOLITICAL RESTRICTIONS
+     - Ukraine-Russia war sanctions (IMPOSSIBLE scoring)
+  
+  5. AI USAGE INSTRUCTIONS
+     - Step-by-step scoring process
+
+# ═══════════════════════════════════════════════════════════════════
+# AI USAGE PROCESS
+# ═══════════════════════════════════════════════════════════════════
+  
+for_ai_langchain:
+  role: "Proximity Scoring Implementation"
+  process:
+    step_1: "Read vessel location from input"
+    step_2: "Read cargo loading port from input"
+    step_3: "Determine vessel size category (DWT)"
+    step_4: "Find matching proximity level in this file"
+    step_5: "Get internal base score (0-50 range)"
+    step_6: "Apply vessel size multiplier if applicable"
+    step_7: "Apply distance penalty if applicable"
+    step_8: "Apply geopolitical restrictions if applicable"
+    step_9: "Scale final internal score to P1 range [0-20]"
+    step_10: "Generate explanation and reasoning"
+  
+  scaling_formula:
+    internal_to_final: "P1_final = (internal_score / 50) * 20"
+    example_1: "Internal 50 → P1 = 20 (maximum)"
+    example_2: "Internal 25 → P1 = 10 (mid-range)"
+    example_3: "Internal 17 → P1 = 6.8 (Adriatic)"
+    example_4: "Internal 15 → P1 = 6.0 (East Med)"
+    example_5: "Internal 0 → P1 = 0 (minimum)"
+
+# ═══════════════════════════════════════════════════════════════════
+# SCORING PRINCIPLE
+# ═══════════════════════════════════════════════════════════════════
+
+scoring_principle: |
+  Proximity = Lower ballast cost = Higher score
+  
+  Чем ближе судно к порту погрузки, тем выше score
+  
+  INTERNAL SCORING: 0-50 points (used for detailed level differentiation)
+  FINAL P1 SCORE: 0-20 points (scaled from internal score)
+  
+  Scaling formula: P1_final = (internal_score / 50) * 20
+
+# ═══════════════════════════════════════════════════════════════════
+# BLACK SEA SUB-REGIONS
+# ═══════════════════════════════════════════════════════════════════
+
+black_sea_subregions:
+  
+  poc:
+    name: "POC (Pivdenny-Odessa-Chornomorsk)"
+    country: "Ukraine"
+    ports:
+      - "Odessa"
+      - "Pivdenny (Yuzhny)"
+      - "Chornomorsk (Ilyichevsk)"
+    characteristics:
+      - "Major grain export hub"
+      - "Close proximity to each other"
+      - "Shared anchorage areas"
+  
+  sulina_anchorage:
+    name: "Sulina Anchorage"
+    country: "Romania/International waters"
+    characteristics:
+      - "Strategic position"
+      - "Can access BOTH Danube AND POC"
+      - "Excellent positioning for either direction"
+    
+  danube_ports:
+    name: "Danube River Ports"
+    countries: ["Romania", "Moldova", "Ukraine"]
+    ports:
+      romania:
+        - "Galati"
+        - "Braila"
+      moldova:
+        - "Giurgiulesti"
+      ukraine:
+        - "Kiliya"
+        - "Orlovka"
+        - "Izmail"
+        - "Reni"
+    characteristics:
+      - "River ports"
+      - "Draft restrictions"
+      - "Smaller vessel sizes"
+  
+  cvb:
+    name: "CVB (Constanta-Varna-Burgas)"
+    countries: ["Romania", "Bulgaria"]
+    ports:
+      romania:
+        - "Constanta"
+      bulgaria:
+        - "Varna"
+        - "Burgas"
+    characteristics:
+      - "Major Black Sea ports"
+      - "Good facilities"
+      - "Western Black Sea"
+  
+  turkish_black_sea:
+    name: "Turkish Black Sea Ports"
+    country: "Turkey"
+    ports:
+      - "Samsun"
+      - "Trabzon"
+      - "Zonguldak"
+      - "Eregli"
+  
+  russian_black_sea:
+    name: "Russian Black Sea Ports"
+    country: "Russia"
+    ports:
+      - "Novorossiysk"
+      - "Kavkaz (Caucasus)"
+    
+    geopolitical_restriction:
+      status: "BLOCKED due to Ukraine-Russia war"
+      ukraine_to_russia: "IMPOSSIBLE - sanctions"
+      russia_to_ukraine: "IMPOSSIBLE - sanctions"
+      effective_date: "2022-present"
+  
+  georgian_black_sea:
+    name: "Georgian Black Sea Ports"
+    country: "Georgia"
+    ports:
+      - "Poti"
+      - "Batumi"
+
+# ═══════════════════════════════════════════════════════════════════
+# VESSEL SIZE MULTIPLIERS (NEW IN v2.0!)
+# ═══════════════════════════════════════════════════════════════════
+
+vessel_size_multipliers:
+  
+  principle: |
+    Larger vessels can absorb longer ballast legs economically.
+    Apply multipliers to distance-sensitive levels (8-12 for coasters).
+  
+  categories:
+    
+    small_coaster_3_6k:
+      dwt_range: [3000, 6000]
+      multiplier: 0.8
+      effect: "MORE sensitive to distance - reduce by 20%"
+      application: "Multiply internal score by 0.8 for levels 8+"
+      
+    coaster_6_8k:
+      dwt_range: [6001, 8000]
+      multiplier: 1.0
+      effect: "BASELINE - no adjustment"
+      
+    small_handy_8_17k:
+      dwt_range: [8001, 17000]
+      multiplier: 1.15
+      effect: "LESS sensitive - increase by 15%"
+      
+    handy_17_24k:
+      dwt_range: [17001, 24000]
+      multiplier: 1.3
+      effect: "Much less sensitive - increase by 30%"
+      
+    large_handy_24k_plus:
+      dwt_range: [24001, 999999]
+      multiplier: 1.5
+      effect: "Least sensitive - increase by 50%"
+  
+  application_rules:
+    when_to_apply: "Levels 8 and beyond (longer distance levels)"
+    when_NOT_to_apply: "Levels 1-7 (short distances, already optimal)"
+    
+  example:
+    level: "Level 9 - East Med"
+    base_internal_score: 15
+    
+    for_small_coaster_5k:
+      calculation: "15 × 0.8 = 12"
+      p1_score: "~4.8/20"
+      
+    for_coaster_7k:
+      calculation: "15 × 1.0 = 15"
+      p1_score: "~6.0/20"
+      
+    for_small_handy_12k:
+      calculation: "15 × 1.15 = 17.25"
+      p1_score: "~6.9/20"
+      
+    for_handy_20k:
+      calculation: "15 × 1.3 = 19.5"
+      p1_score: "~7.8/20"
+
+# ═══════════════════════════════════════════════════════════════════
+# PROXIMITY SCORING - BASELINE COASTERS (6000-8000 DWT)
+# ═══════════════════════════════════════════════════════════════════
+
+proximity_scoring_coasters_baseline:
+  vessel_size_range: [6000, 8000]
+  cargo_loading_example: "Black Sea (Odessa)"
+  multiplier: 1.0
+  
+  levels:
+    
+    level_1_same_port:
+      internal_score: 50
+      p1_equivalent: 20.0
+      description: "Vessel in same port as loading port"
+      examples:
+        - vessel_location: "Odessa"
+          cargo_loading: "Odessa"
+          result: "Perfect - zero ballast"
+      
+    level_2_same_port_cluster:
+      internal_score: 48
+      p1_equivalent: 19.2
+      description: "Vessel in same port cluster/region"
+      distance_nm: "< 50nm"
+      examples:
+        - vessel_location: "Pivdenny"
+          cargo_loading: "Odessa"
+          result: "POC cluster - minimal ballast"
+        - vessel_location: "Chornomorsk"
+          cargo_loading: "Odessa"
+          result: "POC cluster - ~30nm"
+      
+    level_3_sulina_anchorage:
+      internal_score: 48
+      p1_equivalent: 19.2
+      description: "Special case - Sulina Anchorage to POC"
+      distance_nm: "~80nm"
+      reasoning: "Strategic waiting area, can access both POC and Danube"
+      examples:
+        - vessel_location: "Sulina Anchorage"
+          cargo_loading: "Chornomorsk"
+          result: "Very close, excellent positioning"
+      citations:
+        - "Correction 3 (eleanora): Sulina is waiting area for POC or Danube"
+    
+    level_4_same_subregion:
+      internal_score: 45
+      p1_equivalent: 18.0
+      description: "Different port within same Black Sea sub-region"
+      distance_nm: "~150nm"
+      examples:
+        - vessel_location: "Constanta"
+          cargo_loading: "Chornomorsk"
+          result: "CVB → POC, short ballast"
+      
+    level_5_nearby_subregion:
+      internal_score: 40
+      p1_equivalent: 16.0
+      description: "Nearby Black Sea sub-region"
+      distance_nm: "~300nm"
+      examples:
+        - vessel_location: "Varna"
+          cargo_loading: "Odessa"
+          result: "CVB → POC cross-Black Sea"
+     
+    level_6_same_black_sea:
+      internal_score: 35
+      p1_equivalent: 14.0
+      description: "Anywhere in Black Sea (excluding Russian ports)"
+      distance_nm: "~400-600nm"
+      examples:
+        - vessel_location: "Turkish Black Sea (Samsun)"
+          cargo_loading: "Odessa"
+          result: "Same sea but longer ballast"
+        - vessel_location: "Batumi (Georgia)"
+          cargo_loading: "Odessa"
+          result: "Cross Black Sea ballast"
+      
+      geopolitical_exceptions:
+        ukraine_russia_block:
+          condition: "Ukraine port ↔ Russian vessel OR Russia port ↔ Ukrainian vessel"
+          score_override: 0
+          p1_override: 0
+          reason: "War, sanctions, impossible"
+      
+    level_7_marmara_sea:
+      internal_score: 25
+      p1_equivalent: 10.0
+      description: "Vessel in Marmara Sea"
+      distance_nm: "~400nm"
+      examples:
+        - vessel_location: "Istanbul (Marmara side)"
+          cargo_loading: "Odessa"
+          result: "Bosphorus crossing + Black Sea ballast"
+        - vessel_location: "Derince"
+          cargo_loading: "Constanta"
+          result: "Acceptable ballast"
+      
+    level_8_aegean_east_greece:
+      internal_score: 20
+      p1_equivalent: 8.0
+      description: "Aegean Sea and East coast Greece"
+      distance_nm: "~600nm"
+      vessel_size_multiplier_applies: true
+      examples:
+        - vessel_location: "Izmir"
+          cargo_loading: "Odessa"
+          result: "Aegean → Dardanelles → Marmara → Bosphorus → Black Sea"
+        - vessel_location: "Nemrut Bay"
+          cargo_loading: "Constanta"
+          result: "Short to Dardanelles, then Black Sea"
+        - vessel_location: "Thessaloniki"
+          cargo_loading: "Varna"
+          result: "Eastern Greece → Black Sea acceptable"
+      
+    level_9_east_med:
+      internal_score: 15
+      p1_equivalent: 6.0
+      description: "East Mediterranean"
+      distance_nm: "~1200nm"
+      vessel_size_multiplier_applies: true
+      examples:
+        - vessel_location: "Mersin (Turkey)"
+          cargo_loading: "Odessa"
+          result: "East Med → Black Sea, viable backhaul"
+        - vessel_location: "Limassol (Cyprus)"
+          cargo_loading: "Constanta"
+          result: "Med → Black Sea feasible"
+        - vessel_location: "Alexandria (Egypt)"
+          cargo_loading: "Chornomorsk"
+          result: "Common backhaul route"
+      citations:
+        - "Correction 5 (ak brothers): Distance not as critical as initially scored"
+        - "Correction: East Med vessels commonly return to Black Sea"
+      notes: "UPDATED from 8 → 15 internal (was 3.2 P1, now 6.0 P1)"
+      
+    level_10_adriatic_ionian:
+      internal_score: 17
+      p1_equivalent: 6.8
+      description: "Adriatic or Ionian Sea"
+      distance_nm: "~1100nm"
+      vessel_size_multiplier_applies: true
+      examples:
+        - vessel_location: "Rijeka (Croatia)"
+          cargo_loading: "Odessa"
+          result: "Adriatic → Med → Black Sea"
+        - vessel_location: "Bar (Montenegro)"
+          cargo_loading: "Constanta"
+          result: "Viable due to lack of Adriatic backhaul"
+        - vessel_location: "Durres (Albania)"
+          cargo_loading: "Chornomorsk"
+          result: "Ionian → Med → Black Sea"
+      citations:
+        - "Correction 6 (ismail bey): Score should be higher, distance acceptable"
+        - "Correction: Adriatic vessels often ballast to Black Sea (no backhaul)"
+      notes: "UPDATED from 4 → 17 internal (was 1.6 P1, now 6.8 P1)"
+    
+    level_11_west_med:
+      internal_score: 7
+      p1_equivalent: 2.8
+      description: "West Mediterranean"
+      distance_nm: "~2000nm"
+      vessel_size_multiplier_applies: true
+      examples:
+        - vessel_location: "Barcelona (Spain)"
+          cargo_loading: "Odessa"
+          result: "Long ballast - marginal for coasters"
+        - vessel_location: "Algiers (Algeria)"
+          cargo_loading: "Constanta"
+          result: "Possible but needs good freight"
+      notes: "Approaching limit for coasters"
+    
+    level_12_atlantic_west_africa:
+      internal_score: 0
+      p1_equivalent: 0.0
+      description: "Atlantic, West Africa - NOT VIABLE for coasters"
+      distance_nm: "> 3000nm"
+      examples:
+        - vessel_location: "Dakar (Senegal)"
+          cargo_loading: "Odessa"
+          result: "Commercially non-viable for coaster (~4200nm)"
+      citations:
+        - "Correction 7 (ak beauty): West Africa ballast impossible for coaster"
+      notes: "Coasters working in these areas, not positioning to Black Sea"
+
+# ═══════════════════════════════════════════════════════════════════
+# SMALL COASTERS (3000-6000 DWT) - Apply 0.8 multiplier
+# ═══════════════════════════════════════════════════════════════════
+
+proximity_scoring_small_coasters:
+  vessel_size_range: [3000, 6000]
+  multiplier: 0.8
+  note: "Levels 1-7 same as baseline, levels 8+ reduced by 20%"
+  
+  adjusted_levels:
+    level_8_aegean:
+      base_internal: 20
+      adjusted_internal: 16
+      p1_equivalent: 6.4
+      
+    level_9_east_med:
+      base_internal: 15
+      adjusted_internal: 12
+      p1_equivalent: 4.8
+      
+    level_10_adriatic:
+      base_internal: 17
+      adjusted_internal: 13.6
+      p1_equivalent: 5.4
+      
+    level_11_west_med:
+      base_internal: 7
+      adjusted_internal: 5.6
+      p1_equivalent: 2.2
+
+# ═══════════════════════════════════════════════════════════════════
+# SMALL HANDY (8000-17000 DWT) - Apply 1.15 multiplier
+# ═══════════════════════════════════════════════════════════════════
+
+proximity_scoring_small_handy:
+  vessel_size_range: [8000, 17000]
+  multiplier: 1.15
+  note: "Levels 1-7 same as baseline, levels 8+ increased by 15%"
+  
+  adjusted_levels:
+    level_8_aegean:
+      base_internal: 20
+      adjusted_internal: 23
+      p1_equivalent: 9.2
+      
+    level_9_east_med:
+      base_internal: 15
+      adjusted_internal: 17.25
+      p1_equivalent: 6.9
+      
+    level_10_adriatic:
+      base_internal: 17
+      adjusted_internal: 19.55
+      p1_equivalent: 7.8
+      
+    level_11_west_med:
+      base_internal: 7
+      adjusted_internal: 8.05
+      p1_equivalent: 3.2
+      
+    level_12_atlantic:
+      base_internal: 3
+      p1_equivalent: 1.2
+      description: "Feasible for Small Handy"
+
+# ═══════════════════════════════════════════════════════════════════
+# HANDY (17000-24000 DWT) - Apply 1.3 multiplier
+# ═══════════════════════════════════════════════════════════════════
+
+proximity_scoring_handy:
+  vessel_size_range: [17000, 24000]
+  multiplier: 1.3
+  note: "Levels 1-7 same as baseline, levels 8+ increased by 30%"
+  
+  adjusted_levels:
+    level_8_aegean:
+      base_internal: 20
+      adjusted_internal: 26
+      p1_equivalent: 10.4
+      
+    level_9_east_med:
+      base_internal: 15
+      adjusted_internal: 19.5
+      p1_equivalent: 7.8
+      
+    level_10_adriatic:
+      base_internal: 17
+      adjusted_internal: 22.1
+      p1_equivalent: 8.8
+      
+    level_11_west_med:
+      base_internal: 7
+      adjusted_internal: 9.1
+      p1_equivalent: 3.6
+      
+    level_12_atlantic:
+      base_internal: 5
+      p1_equivalent: 2.0
+      description: "Acceptable for Handy"
+
+# ═══════════════════════════════════════════════════════════════════
+# LARGE VESSELS (24000+ DWT) - Apply 1.5 multiplier
+# ═══════════════════════════════════════════════════════════════════
+
+proximity_scoring_large_vessels:
+  vessel_size_range: [24000, 80000]
+  multiplier: 1.5
+  note: "Can absorb long ballast legs, global positioning capability"
+  
+  adjusted_levels:
+    level_8_aegean:
+      base_internal: 20
+      adjusted_internal: 30
+      p1_equivalent: 12.0
+      
+    level_9_east_med:
+      base_internal: 15
+      adjusted_internal: 22.5
+      p1_equivalent: 9.0
+      
+    level_10_adriatic:
+      base_internal: 17
+      adjusted_internal: 25.5
+      p1_equivalent: 10.2
+      
+    level_11_west_med:
+      base_internal: 7
+      adjusted_internal: 10.5
+      p1_equivalent: 4.2
+      
+    level_12_atlantic:
+      base_internal: 10
+      p1_equivalent: 4.0
+      description: "Good for large vessels"
+      
+    level_13_west_africa:
+      base_internal: 5
+      p1_equivalent: 2.0
+      description: "Can ballast if rates justify"
+
+# ═══════════════════════════════════════════════════════════════════
+# DISTANCE FINE-TUNING (OPTIONAL)
+# ═══════════════════════════════════════════════════════════════════
+
+distance_adjustment:
+  description: "Fine-tune score based on actual distance within same level"
+  
+  formula: "adjusted_score = base_level_score - (distance_penalty × nm / 100)"
+  
+  penalty_by_vessel_size:
+    small_coaster_3_6k: 0.5
+    coaster_6_8k: 0.4
+    small_handy_8_17k: 0.3
+    handy_17_24k: 0.2
+    large_24k_plus: 0.1
+  
+  note: |
+    This is OPTIONAL fine-tuning. Most of the time, level-based scoring
+    is sufficient. Use distance adjustment only when precise maritime
+    distance is known and level boundaries are ambiguous.
+
+# ═══════════════════════════════════════════════════════════════════
+# AI REASONING TEMPLATES
+# ═══════════════════════════════════════════════════════════════════
+
+reasoning_templates:
+  
+  template_excellent:
+    score_range: "[18-20]"
+    format: |
+      "Vessel is [at/near] [location], approximately [distance]nm from [loading port].
+      This is Level [N] proximity ([description]), representing [assessment]."
+    example: |
+      "Vessel is at Sulina Anchorage, approximately 80nm from Chornomorsk.
+      This is Level 3 proximity (strategic waiting area), representing
+      excellent positioning for POC loading."
+      
+  template_good:
+    score_range: "[12-17]"
+    format: |
+      "Vessel is in [region], [distance]nm from [loading port]. This is
+      Level [N] proximity, representing a [short/acceptable] ballast leg
+      for a [vessel size] vessel."
+    example: |
+      "Vessel is in the Black Sea, approximately 400nm from Chornomorsk.
+      This is Level 6 proximity, representing an acceptable cross-Black Sea
+      ballast for a 7k coaster."
+      
+  template_medium:
+    score_range: "[6-11]"
+    format: |
+      "Vessel is in [region], approximately [distance]nm from [loading port].
+      This is Level [N] proximity. [Specific reasoning about viability]."
+    example: |
+      "Vessel is in the East Mediterranean, approximately 1200nm from Chornomorsk.
+      This is Level 9 proximity. While the distance is significant, East Med
+      to Black Sea is a common backhaul pattern for coasters."
+      
+  template_low:
+    score_range: "[1-5]"
+    format: |
+      "Vessel is in [region], approximately [distance]nm from [loading port].
+      This is Level [N] proximity, representing a [long/marginal] ballast leg
+      that [reasoning about economic viability]."
+    example: |
+      "Vessel is in West Mediterranean, approximately 2000nm from Chornomorsk.
+      This is Level 11 proximity, representing a long ballast leg that
+      approaches the commercial limit for a coaster of this size."
+
+# ═══════════════════════════════════════════════════════════════════
+# CRITICAL AI INSTRUCTIONS
+# ═══════════════════════════════════════════════════════════════════
+
+ai_must:
+  - "ALWAYS determine vessel size first (DWT) to select correct scoring table"
+  - "ALWAYS apply vessel size multiplier for levels 8+ (long distance)"
+  - "ALWAYS check for geopolitical restrictions (Russia-Ukraine)"
+  - "ALWAYS scale internal score to P1 range [0-20] using formula"
+  - "ALWAYS cite specific level name in reasoning"
+  - "NEVER give negative P1 scores (minimum is 0)"
+
+ai_must_not:
+  - "Never assume close distance = automatically high score without checking level"
+  - "Never ignore vessel size differences in long-distance positioning"
+  - "Never score Russia ↔ Ukraine trades above 0"
+
+# ═══════════════════════════════════════════════════════════════════
+# END OF PROXIMITY SCORING MATRIX v2.0
+# ═══════════════════════════════════════════════════════════════════
