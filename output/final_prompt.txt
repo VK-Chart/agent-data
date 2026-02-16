@@ -2292,12 +2292,6 @@ PURPOSE:
   or operator has communicated about their intentions, preferences, or 
   requirements for the next voyage.
 
-VECTOR SEARCH:
-This source provide additional info for open area estimation
-Search my Gmail for label:vessels has:attachment filename:pdf
-Retrieve the latest emails related to the vessel, extract the data from email body and attached PDF, use it for the vessel open area estimation.
-Mention this in citations for the scoring
-
 SCORE RANGE: [0, 15]
 DYNAMIC CRITERION: If no comments exist → score = 0, max_score = 0 (excluded)
 
