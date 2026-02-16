@@ -971,8 +971,8 @@ VESSEL JSON FIELD MAPPING
 
   GMAIL VECTOR SEARCH:
     This source provide additional info for open area data for the vessel, it must be obligatory checked in my Gmail Inbox for
-    label:vessels has:attachment filename:pdf
-    Retrieve the latest emails related to the vessel, extract the data from email body and attached PDF, use it for the vessel open area data actualization.
+    label:vessels
+    Retrieve the latest emails related to the vessel, extract the data from email body and attached PDF (if it has one), use it for the vessel open area data actualization.
     STRCT! Mention this in citations for a scoring
 
 ================================================================================
