@@ -1,0 +1,185 @@
+================================================================================
+P4 — LAST PORTS / PORT HISTORY SCORING
+Version: 2.0 FINAL
+Last updated: 2026-02-07
+================================================================================
+
+PURPOSE:
+  Score vessel's familiarity with the cargo's loading and discharge regions
+  based on port call history. Vessels that regularly call at or near the
+  cargo ports are more likely to be interested and operationally prepared.
+
+SCORE RANGE: [0, 10]
+ALWAYS ACTIVE: max_score = 10
+
+================================================================================
+DATA SOURCES — USE BOTH
+================================================================================
+
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  AI must check BOTH vessel-level AND company-level port data.  ║
+  ║  Use the BETTER score from either source (not average).        ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+  SOURCE 1: top_ports.vessel (array)
+    Specific vessel's port call history.
+    Format: [{"label": "Istanbul", "percent": 13.1, "visits": 8}, ...]
+    Weight: PRIMARY — vessel's own track record.
+    
+  SOURCE 2: top_ports.company.items (array)
+    All vessels of the same company/operator.
+    Format: [{"label": "Constanta", "percent": 3.0, "visits": 21}, ...]
+    Weight: SECONDARY — shows company's trade pattern.
+    Company data demonstrates the operator knows the area even if
+    this specific vessel hasn't been there recently.
+
+  COMBINED LOGIC:
+    - Check both sources against each cargo port
+    - For each port, use the HIGHER match level from either source
+    - If vessel has exact match → use that (vessel-level is stronger)
+    - If only company has exact match → use company level but reduce
+      by 1 point (company = familiar, not this specific vessel)
+
+  SOURCE 3: recent-ports-call (if available)
+    Specific recent port calls with dates. May be null.
+    If available, can supplement top_ports data.
+
+================================================================================
+SCORING LOGIC
+================================================================================
+
+  Check vessel's port history against BOTH loading port AND discharge port.
+  
+  LEVEL 1 — EXACT PORT MATCH (8-10/10)
+  ─────────────────────────────────────────
+    Vessel or company has called at the exact loading or discharge port.
+    
+    Vessel-level:
+      High frequency (>5%): 10/10
+      Medium frequency (2-5%): 9/10
+      Low frequency (<2%): 8/10
+      
+    Company-level only (vessel hasn't called, but company fleet has):
+      High frequency (>3%): 9/10
+      Medium frequency (1-3%): 8/10
+      Low frequency (<1%): 7/10
+
+  LEVEL 2 — SAME SUB-REGION (5-7/10)
+  ─────────────────────────────────────────
+    History in the same sub-region or country.
+    
+    Sub-region groups:
+      POC group: Odessa, Chornomorsk, Pivdennyi, Mykolaiv
+      Danube group: Izmail, Reni, Braila, Galati
+      CVB group: Constanta, Varna, Burgas
+      Turkish BS: Samsun, Trabzon, Zonguldak, Eregli, Novorossiysk*
+      Turkish Med: Mersin, Iskenderun, Antalya, Toros Gubre Terminal
+      Marmara: Istanbul, Derince, Gemlik, Yarimca, Diliskelesi, Tuzla
+      East Med: Alexandria, Damietta, Beirut, Haifa, Ashdod, Limassol
+      North Africa: Tunis, Bizerte, Sfax, Sousse, Mostaganem, 
+                    Algiers, Oran, Tripoli (Libya)
+      Adriatic: Ravenna, Venice, Trieste, Rijeka, Bar, Durres
+      Aegean: Piraeus, Thessaloniki, Izmir, Aliaga, Nemrut Bay
+      West Med: Barcelona, Valencia, Marseille, Genoa
+      Baltic: Gdansk, Ust-Luga, Klaipeda, Riga
+      Atlantic: Pasajes, Lisboa, Bilbao, Montoir
+      
+    * Novorossiysk is Russian BS, adjacent to Turkish BS. Count as
+      "same broad region" as Ukrainian BS (POC), not same sub-region.
+    
+    High frequency in sub-region (>10% combined): 7/10
+    Medium frequency (5-10% combined): 6/10
+    Low frequency (<5% combined): 5/10
+
+  LEVEL 3 — SAME BROAD REGION (3-4/10)
+  ─────────────────────────────────────────
+    History in the broader region but not the specific sub-region.
+    
+    Broad regions:
+      Black Sea: POC + CVB + Turkish BS + Novorossiysk
+      Mediterranean: Turkish Med + Marmara + East Med + North Africa +
+                     Adriatic + Aegean + West Med
+      Atlantic/Continent: UK, NW Europe, Iberian, Baltic
+      
+    Regular broad region caller (>5% combined): 4/10
+    Occasional broad region caller (<5%): 3/10
+
+  LEVEL 4 — NO RELEVANT HISTORY (5/10 — neutral)
+  ─────────────────────────────────────────
+    No port history in the cargo's regions. NEUTRAL — not negative.
+    score = 5/10
+
+  LEVEL 5 — CONFLICTING PATTERN (1-2/10)
+  ─────────────────────────────────────────
+    100% of history in completely different region with no overlap.
+    score = 1-2/10
+
+================================================================================
+SCORING FOR BOTH PORTS
+================================================================================
+
+  Cargo with loading + discharge ports in different regions:
+    - Score each port area separately
+    - Weighted average: loading port 60%, discharge port 40%
+    - Round to nearest 0.5
+
+================================================================================
+EXAMPLES
+================================================================================
+
+  Example 1: PETREL S for POC → Tunisia
+  ─────────────────────────────────────────
+    Vessel top_ports: Istanbul 13.1%, Mostaganem 6.6%, Haifa 4.9%,
+      Novorossiysk 3.3%
+    Company top_ports: Istanbul 10.9%, Constanta 3%, Novorossiysk 3.1%
+    Cargo: loads POC (Chornomorsk), discharges Tunisia
+    
+    LOADING (POC/Chornomorsk):
+      Vessel: No exact POC match. Novorossiysk 3.3% = Russian BS
+        → broad region match (BS) = 4/10
+      Company: Constanta 3% = CVB group, adjacent to POC
+        → sub-region match (neighboring BS) = 5/10
+      USE BETTER: 5/10 (company Constanta)
+      
+    DISCHARGE (Tunisia):
+      Vessel: Mostaganem 6.6% = North Africa sub-region = 6/10
+      Company: no direct North Africa match. But Ravenna 2.7% = 
+        Med (broad region) = 3/10
+      USE BETTER: 6/10 (vessel Mostaganem)
+      
+    P4 = (5 × 0.6) + (6 × 0.4) = 3.0 + 2.4 = 5.4 → 5.5/10
+
+  Example 2: Strong match (exact ports)
+  ─────────────────────────────────────────
+    Vessel: Haifa 45.6%, Ashdod 15.8%, Mersin 12%
+    Cargo: loads Chornomorsk, discharges Haifa
+    
+    Loading: No BS history → 5/10 (neutral)
+    Discharge: Haifa exact 45.6% → 10/10
+    P4 = (5 × 0.6) + (10 × 0.4) = 7.0/10
+
+  Example 3: No data
+  ─────────────────────────────────────────
+    top_ports = null or empty
+    P4 = 5/10 (neutral), confidence = "low"
+
+================================================================================
+AI INSTRUCTIONS
+================================================================================
+
+  ai_must:
+    - Check BOTH top_ports.vessel AND top_ports.company.items
+    - Use the BETTER match level from either source
+    - Score each cargo port (load + discharge) separately
+    - Apply weighted average (60% load, 40% discharge)
+    - Give neutral 5/10 when no relevant history (not 0)
+    - List cited ports with percentages in reasoning
+    
+  ai_must_not:
+    - ❌ Never use only vessel-level OR only company-level — check BOTH
+    - ❌ Never give 0/10 just because exact port not in history
+    - ❌ Never ignore company top_ports when vessel data is sparse
+    - ❌ Never treat "no data" as negative — it's neutral (5/10)
+    - ❌ Never confuse P4 (port history) with P2 (owner preferences)
+
+================================================================================
