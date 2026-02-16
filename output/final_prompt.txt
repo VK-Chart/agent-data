@@ -2288,7 +2288,7 @@ PURPOSE:
 
 VECTOR SEARCH:
 This source provide additional info for open area estimation
-Search my Gmail for label:vessels has:attachment filename:pdf after:{TIMESTAMP} - 12 days. 
+Search my Gmail for label:vessels has:attachment filename:pdf
 Retrieve the latest emails related to the vessel, extract the data from email body and attached PDF, use it for the vessel open area estimation.
 Mention this in citations for the scoring
 
