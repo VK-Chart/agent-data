@@ -4236,8 +4236,8 @@ Offer opening: intent = "blocked_info" — still generated!
 --- START OF estimator-prompts/intake_calculator_formula.txt ---
 ================================================================================
 INTAKE CALCULATOR FORMULA — P5
-Version: 5.0
-Last updated: 2026-02-07
+Version: 5.1
+Last updated: 2026-02-20
 ================================================================================
 
 PURPOSE:
@@ -4257,14 +4257,35 @@ MINIMUM SCORE: 2 (except when BLOCK)
 STEP 1 — PARSE CARGO QUANTITY (min_qty / max_qty)
 ================================================================================
 
+  ╔═══════════════════════════════════════════════════════════════════════════╗
+  ║  CARGO QUANTITY INTERPRETATION — FIXED vs FLEXIBLE:                      ║
+  ║                                                                          ║
+  ║  Quantity is FIXED only when description contains "m/m XX",              ║
+  ║  "min/max XX", or "minimum/maximum XX".                                  ║
+  ║  In ALL other cases, quantity is FLEXIBLE — charterer may accept         ║
+  ║  more or less.                                                           ║
+  ║                                                                          ║
+  ║  Example: "10k corn" = FLEXIBLE, could be 8-12k                         ║
+  ║  Example: "10k m/m corn" = FIXED, exactly 10,000 mt ±0                  ║
+  ║                                                                          ║
+  ║  This affects P5 scoring: for FLEXIBLE qty, vessel can load what she    ║
+  ║  can — don't penalize as harshly for under/over capacity.               ║
+  ╚═══════════════════════════════════════════════════════════════════════════╝
+
   Convert cargo quantity description into numeric min/max range:
   
-  "15,000t +/-10%"     → min 13,500 / max 16,500
-  "6000/6600t"         → min 6,000 / max 6,600
-  "6000t MOLOO"        → min 5,700 / max 6,300 (±5%)
-  "6000t" (no qualifier) → min 5,700 / max 6,300 (assume ±5%)
-  "15,000mt 10% MOLOO" → min 13,500 / max 16,500
-  "abt 8,000t"         → min 7,600 / max 8,400 (±5%)
+  FIXED quantities:
+  "15,000t m/m"          → min 15,000 / max 15,000 (strict)
+  "6000t min/max"        → min 6,000 / max 6,000 (strict)
+
+  FLEXIBLE quantities (default):
+  "15,000t +/-10%"       → min 13,500 / max 16,500
+  "6000/6600t"           → min 6,000 / max 6,600
+  "6000t MOLOO"          → min 5,700 / max 6,300 (±5%)
+  "6000t" (no qualifier) → min 5,400 / max 6,600 (±10% for flexible)
+  "15,000mt 10% MOLOO"   → min 13,500 / max 16,500
+  "abt 8,000t"           → min 7,200 / max 8,800 (±10%)
+  "10k corn"             → min 9,000 / max 11,000 (±10%)
 
 ================================================================================
 STEP 2 — CALCULATE VESSEL INTAKE
@@ -4277,6 +4298,21 @@ STEP 2 — CALCULATE VESSEL INTAKE
      If DWT is not available → BLOCK with note "Missing DWT data"
      
   B) VOLUME INTAKE (if stowage factor and grain capacity known):
+
+     ╔═══════════════════════════════════════════════════════════════════════╗
+     ║  GRAIN CAPACITY = 0 OR NULL:                                         ║
+     ║  When grain-capacity is 0 or null in DB:                             ║
+     ║  - Volume intake CANNOT be calculated                                ║
+     ║  - For high SF cargo (grain, corn, barley — SF > 45):               ║
+     ║    → P5 score max 10/15, confidence = "low"                         ║
+     ║    → Note in reasoning: "grain capacity missing, volume check        ║
+     ║      impossible"                                                     ║
+     ║    → Add question in offer: "what is her gr capa?"                  ║
+     ║  - For low SF cargo (steel, fertilizer — SF < 35):                  ║
+     ║    → Weight is usually limiting anyway, less critical                ║
+     ║    → P5 can score normally but note missing grain capacity          ║
+     ╚═══════════════════════════════════════════════════════════════════════╝
+
      volume_intake = grain_capacity / SF
      
      grain_capacity = from vessel specs (cubic feet)
@@ -4289,7 +4325,8 @@ STEP 2 — CALCULATE VESSEL INTAKE
        Fertilizer (urea): 42-45  Sugar: 38-42 cbft/t
        Steel products: 15-25     Rice: 42-52 cbft/t
        
-     If grain_capacity or SF not available → skip volume check
+     If grain_capacity = 0 or null → skip volume check, apply rules above
+     If SF not available → skip volume check
      
   C) DRAFT-RESTRICTED INTAKE (when port or cargo has draft restriction):
   
@@ -4337,7 +4374,11 @@ STEP 3 — CARGO FIT SCORE (base P5 score)
       → Vessel physically cannot load minimum required cargo
       → P5 = BLOCK
       
+    For FLEXIBLE quantity: softer BLOCK threshold at min_qty × 0.75
+    (charterer more likely to accept reduced quantity)
+      
     offer_hint: "Intake below cargo minimum — be transparent about qty."
+    If BLOCK and qty is flexible: offer_hint = "sending fyi sub her intake approval"
     
   OVER CARGO: final_intake > max_qty
   ─────────────────────────────────────────
@@ -4393,8 +4434,12 @@ FINAL P5 SCORE
   P5 = MAX(P5_score after all modifiers, 2)
   Unless BLOCK → then P5 = BLOCK
   
+  SPECIAL CAP: If grain-capacity = 0 or null AND cargo SF > 45:
+    P5 = MIN(P5, 10) — cannot exceed 10/15 without volume verification
+  
   BLOCK CONDITIONS:
-    - final_intake < min_qty × 0.85 (vessel physically too small)
+    - final_intake < min_qty × 0.85 (vessel physically too small) — FIXED qty
+    - final_intake < min_qty × 0.75 (vessel too small) — FLEXIBLE qty
     - Missing DWT data
     
   Note: Draft restriction causing BLOCK in P5 means the vessel cannot
@@ -4408,7 +4453,7 @@ COMPLETE EXAMPLE — ADAMAR + WHEAT
   Cargo: wheat 15,000t +/-10% ex Chornomorsk, SF = 47, port draft 7.5m
   Vessel: ADAMAR, DWT 16,653, draft 8.6m, grain capacity 694,700 cbft
   
-  Step 1: min_qty = 13,500, max_qty = 16,500
+  Step 1: min_qty = 13,500, max_qty = 16,500 (FLEXIBLE — no m/m)
   
   Step 2:
     weight_intake = 16653 - 250 = 16,403
@@ -4432,7 +4477,7 @@ COMPLETE EXAMPLE — SMALL VESSEL + DRAFT RESTRICTION
   Cargo: wheat 8,000t +/-5%, SF = 47, port draft 6.0m
   Vessel: DWT 6,800, draft 7.2m, grain capacity 220,000 cbft
   
-  Step 1: min_qty = 7,600, max_qty = 8,400
+  Step 1: min_qty = 7,600, max_qty = 8,400 (FLEXIBLE)
   
   Step 2:
     weight_intake = 6800 - 250 = 6,550
@@ -4440,19 +4485,44 @@ COMPLETE EXAMPLE — SMALL VESSEL + DRAFT RESTRICTION
     draft_restricted = 6550 × (6.0/7.2) = 5,458
     final_intake = MIN(6550, 4681, 5458) = 4,681 (volume-limited)
     
-  Step 3: 4,681 < 7,600 × 0.85 = 6,460 → BLOCK
+  Step 3: 4,681 < 7,600 × 0.75 = 5,700 → BLOCK (flexible threshold)
   
   Final P5 = BLOCK
+  offer_hint: "sending fyi sub her intake approval"
   Note: This BLOCK is from P5, not P8. Draft is a P5 matter.
+
+================================================================================
+EXAMPLE — GRAIN CAPACITY = 0 (NEW)
+================================================================================
+
+  Cargo: corn 10,000t, SF = 48 (high SF)
+  Vessel: SIYA, DWT 12,500, draft 7.8m, grain-capacity = 0
+  
+  Step 1: min_qty = 9,000, max_qty = 11,000 (FLEXIBLE)
+  
+  Step 2:
+    weight_intake = 12500 - 250 = 12,250
+    volume_intake = CANNOT CALCULATE (grain-capacity = 0)
+    final_intake = 12,250 (weight only — volume unknown)
+    
+  Step 3: 9,000 <= 12,250 <= 11,000 → excess, P5_base = ~12
+  
+  SPECIAL CAP: grain-capacity = 0 AND SF > 45 → P5 max 10/15
+  
+  Final P5 = 10/15, confidence = "low"
+  reasoning: "grain capacity missing — volume check impossible for 
+             high SF cargo (corn SF 48). P5 capped at 10/15."
+  question: "what is her gr capa?"
 
 ================================================================================
 EDGE CASES
 ================================================================================
 
-  Missing grain capacity:
-    Skip volume_intake. Use weight and draft only.
-    Note: "Grain capacity unknown." Reduce confidence.
-
+  Missing grain capacity (= 0 or null):
+    For high SF cargo (SF > 45): Cap P5 at 10/15, confidence="low",
+    ask "what is her gr capa?" in offer.
+    For low SF cargo (SF < 35): Score normally, just note missing data.
+    
   Missing SF:
     Skip cubature modifier. Note: "SF unknown."
     
@@ -4469,12 +4539,14 @@ AI INSTRUCTIONS
 
   ai_must:
     - Follow all 5 steps in order
+    - FIRST determine if cargo quantity is FIXED (m/m) or FLEXIBLE
     - Show calculation in reasoning (numbers, not just words)
     - Identify the limiting factor (weight/volume/draft)
     - Check BOTH port_restrictions_map AND cargo description for draft limits
     - Apply vessel utilization penalty when restrictions reduce capacity
     - Apply cubature modifier only when SF > 47
     - Note that draft BLOCK is a P5 BLOCK (not P8)
+    - When grain-capacity = 0 and SF > 45: cap at 10/15 and ask for gr capa
     
   ai_must_not:
     - ❌ Never skip Step 1 (cargo quantity parsing)
@@ -4483,7 +4555,8 @@ AI INSTRUCTIONS
     - ❌ Never apply cubature penalty when SF <= 47
     - ❌ Never give score below 2 (except BLOCK)
     - ❌ Never put draft restrictions in P8 — they belong in P5
-    - ❌ Never assume volume_intake when grain capacity is missing
+    - ❌ Never assume volume_intake when grain capacity is 0 or null
+    - ❌ Never give P5 15/15 when grain capacity = 0 for high SF cargo
 
 ================================================================================
 
