@@ -2,8 +2,8 @@
 --- START OF estimator-prompts/COMMENTS_PROCESSING_GUIDE.txt ---
 ================================================================================
 COMMENTS PROCESSING GUIDE — P2 & P3 Support
-Version: 4.0
-Last updated: 2026-02-07
+Version: 4.1
+Last updated: 2026-02-20
 ================================================================================
 
 PURPOSE:
@@ -109,6 +109,36 @@ P2 — PARSING PREFERENCES FROM COMMENTS
     Hard conflict ("no [region]"): 0/15, potential BLOCK
 
 ================================================================================
+P2 — ADJACENT REGION LOGIC FOR SPECIALIZATIONS
+================================================================================
+
+  ╔═══════════════════════════════════════════════════════════════════════════╗
+  ║  "spec: [country]" implies adjacent countries are also acceptable.       ║
+  ║  Score adjacent slightly lower than exact match (8-10/15 vs 12-15/15). ║
+  ║                                                                          ║
+  ║  ADJACENCY MAP:                                                          ║
+  ║  "spec: italy"   → Greece, Croatia, Albania, Slovenia also ok           ║
+  ║  "spec: libya"   → Tunisia, Egypt also ok                               ║
+  ║  "spec: turkey"  → East Coast Greece, Bulgaria also ok                             ║
+  ║  "spec: greece"  → Turkey, Albania, Bulgaria also ok             ║
+  ║  "spec: egypt"   → Lebanon also ok                       ║
+  ║  "spec: ukraine" → Romania (Constanta), Turkey (BS)(except Marmara Sea) also ok            ║
+  ║  "spec: romania" → Bulgaria also ok                      ║
+  ║                                                                          ║
+  ║  SCORING:                                                                ║
+  ║  Exact country match:    12-15/15                                        ║
+  ║  Adjacent country match: 8-10/15                                         ║
+  ║  Same broad region:      6-8/15                                          ║
+  ║  Different region:       standard P2 rules apply                         ║
+  ╚═══════════════════════════════════════════════════════════════════════════╝
+
+  EXAMPLE:
+    Comment: "spec: italy"
+    Cargo loads Greece → adjacent to Italy → 8-10/15 (good, not perfect)
+    Cargo loads Turkey → same broad Med region → 6-8/15
+    Cargo loads Ukraine → different region → standard rules (possibly 5-7/15)
+
+================================================================================
 P3 — CARGO PREFERENCES (vessel/company comments)
 ================================================================================
 
@@ -119,6 +149,23 @@ P3 — CARGO PREFERENCES (vessel/company comments)
     1. Company comments — may mention cargo specializations
     2. Vessel comments — may mention cargo types handled
     3. Vessel type — General Cargo, Bulk Carrier, etc.
+
+  ╔═══════════════════════════════════════════════════════════════════════════╗
+  ║  IMPORTANT: "spec: [country/region]" in comments is a LOCATION          ║
+  ║  preference (P2), NOT a cargo preference. Do NOT activate P3 based     ║
+  ║  on geographic specializations.                                          ║
+  ║                                                                          ║
+  ║  P3 is ONLY about cargo TYPE (grain, steel, fertilizer, etc.).          ║
+  ║                                                                          ║
+  ║  If rules.cargo[] is empty AND no cargo-type comments exist             ║
+  ║  → P3 excluded (score = 0, max_score = 0).                             ║
+  ║                                                                          ║
+  ║  Examples:                                                               ║
+  ║  "spec: ukraine" → P2 only (location), NOT P3                          ║
+  ║  "spec: grain"   → P3 (cargo type)                                     ║
+  ║  "no DG"         → P3 (cargo restriction)                              ║
+  ║  "spec: italy"   → P2 only (location), NOT P3                          ║
+  ╚═══════════════════════════════════════════════════════════════════════════╝
     
   NO DATA RULE:
     If no cargo preference information is found in any source:
@@ -158,11 +205,16 @@ AI MUST NOT — CRITICAL RULES
   ❌ Never mix P2 (region preferences) with P3 (cargo preferences).
      P2 = WHERE the owner wants to trade
      P3 = WHAT cargo the vessel can/prefers to carry
+     "spec: ukraine" → P2 (location), NOT P3
+     "spec: grain" → P3 (cargo type)
      
   ❌ Never infer preferences from vessel type alone when comments exist.
      Comments override vessel type assumptions.
      
   ❌ Never consider vessel class, P&I, or flag in P2/P3 — that's P2A/P8.
+  
+  ❌ Never activate P3 based on geographic specializations.
+     "spec: [country]" is ALWAYS P2, never P3.
 
 ================================================================================
 COMMENT PARSING PATTERNS
