@@ -1,7 +1,7 @@
 ================================================================================
 P2A — PSC PORT ACCESSIBILITY SCORING
-Version: 4.0
-Last updated: 2026-02-07
+Version: 4.1
+Last updated: 2026-02-20
 ================================================================================
 
 PURPOSE:
@@ -12,6 +12,13 @@ PURPOSE:
 
 SCORE RANGE: [0, 20]
 ALWAYS ACTIVE: This criterion always has max_score = 20
+
+╔═══════════════════════════════════════════════════════════════════════════════╗                                                                   ║
+  ║  IACS members: ABS, BV, CCS, CRS, DNV, IRClass (IRS), LR, KR, ClassNK,    ║
+  ║               PRS, RINA, Türk Loydu (TL)                                  ║
+  ║  NOT IACS: (examples) non-IACS class societies;                            ║
+  ║           NOTE: RS/RMRS (Russian Maritime Register) was withdrawn in 2022 ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
 
 ================================================================================
 PORT STRICTNESS TIERS
@@ -42,36 +49,54 @@ PORT STRICTNESS TIERS
 VESSEL STATUS CATEGORIES
 ================================================================================
 
+  ╔═══════════════════════════════════════════════════════════════════════════╗
+  ║  STATUS DETERMINATION — THREE ELEMENTS:                                  ║
+  ║                                                                          ║
+  ║  Element 1: IACS class (active, confirmed IACS member)                   ║
+  ║  Element 2: IG P&I club (Gard, Skuld, UK P&I, West, Standard, etc.)    ║
+  ║  Element 3: White list flag (Paris MOU)                                  ║
+  ║                                                                          ║
+  ║  HIGH   = ALL THREE present (IACS + IG P&I + White flag)                ║
+  ║  MEDIUM = TWO of three present (one element missing)                     ║
+  ║  LOW    = ONE or ZERO of three present                                   ║
+  ║                                                                          ║
+  ║  Examples:                                                               ║
+  ║  BV (IACS) + Gard (IG) + Liberia (White) = HIGH (3 of 3)              ║
+  ║  BV (IACS) + Liberia (White) + no P&I data = MEDIUM (2 of 3)          ║
+  ║  PRS (Non-IACS) + Gard (IG) + Liberia (White) = MEDIUM (2 of 3)       ║
+  ║  PRS (Non-IACS) + no P&I + Tuvalu (Black) = LOW (0 of 3)             ║
+  ║                                                                          ║
+  ║  IMPORTANT: pi_information = null means WE don't have data, not that    ║
+  ║  vessel has no insurance. Count as "missing" (not present), but do NOT  ║
+  ║  penalize as harshly as confirmed Non-IG.                                ║
+  ╚═══════════════════════════════════════════════════════════════════════════╝
+
   HIGH STATUS — Score bonus for strict ports
-    Class: IACS member (BV, LR, DNV, ABS, ClassNK, RINA, CCS, KR, RS, PRS, CRS, IRS)
+    Class: IACS member (BV, LR, DNV, ABS, ClassNK, RINA, CCS, KR, RS)
     P&I: Top-tier IG club (Gard, Skuld, UK P&I, West of England, etc.)
     Flag: White list (Paris MOU) — EU flags, Marshall Islands, Bahamas,
           Panama, Liberia, Singapore, Hong Kong, Japan, Norway
-    Age: < 15 years
-    
-    Note: Vessel qualifies as HIGH if it meets MOST criteria (3 out of 4).
+    All three elements present → HIGH
     
   MEDIUM STATUS — Standard scoring
-    Class: IACS or recognized non-IACS (Turkish Lloyd, Indian Register, etc.)
-    P&I: Some P&I coverage (not necessarily IG)
-    Flag: Grey list or non-blacklisted flag
-    Age: 15-25 years
+    Two of three elements present. Examples:
+    - IACS class + White flag but P&I unknown/missing → MEDIUM
+    - IACS class + IG P&I but Grey flag → MEDIUM
+    - Non-IACS class but IG P&I + White flag → MEDIUM
     
-    Note: Default category. Most Black Sea/Med coasters fall here.
+    Note: Default category for vessels missing one piece of documentation.
     
   LOW STATUS — Penalty for strict ports
-    Class: Non-IACS / unknown / expired / NO CLASS ON RECORD (null)
-    P&I: No P&I or unknown / NO P&I ON RECORD (null)
-    Flag: Black list (Paris MOU) or flag of convenience with poor record
-    Age: > 25 years
-    
-    Note: Any ONE critical deficiency (no class, no P&I, blacklisted flag)
-    can push vessel to LOW status.
+    One or zero of three elements present. Examples:
+    - Non-IACS class + no P&I + any flag → LOW
+    - No class on record + anything → LOW (unless both P&I and flag are good)
+    - Black list flag + Non-IACS + no P&I → LOW
     
     IMPORTANT: Distinguish in reasoning:
       classification-society = null → "No class society on record" (worst case)
+      classification-society = "PRS" → "Non-IACS class (PRS — Polish Register)"
       classification-society = "Turkish Lloyd" → "Non-IACS class"
-      pi_information = null → "No P&I club on record" (worst case)
+      pi_information = null → "No P&I club on record" (data missing, not confirmed absent)
       pi_information = "some small club" → "Non-IG P&I"
 
   FLAG LISTS (Paris MOU — simplified):
@@ -168,7 +193,9 @@ AI INSTRUCTIONS
 ================================================================================
 
   ai_must:
-    - Determine vessel status (HIGH/MEDIUM/LOW) based on class, P&I, flag, age
+    - FIRST check if classification-society contains "POLISH" → NOT IACS
+    - Determine vessel status (HIGH/MEDIUM/LOW) using the THREE ELEMENTS test
+    - Count how many of (IACS class, IG P&I, White flag) are present
     - Look up port tiers for ALL cargo ports
     - Check vessel port history for bonus eligibility
     - Apply highest applicable bonus (no stacking)
@@ -176,10 +203,12 @@ AI INSTRUCTIONS
     - Show BOTH port scores when cargo has 2 ports
     
   ai_must_not:
+    - ❌ Never classify PRS (Polish Register) as IACS — it is NOT IACS
     - ❌ Never require "no detention" data (we don't have it)
     - ❌ Never stack multiple port history bonuses
     - ❌ Never apply Tier 2 bonus to Tier 1 ports
     - ❌ Never block solely based on age
     - ❌ Never confuse P2A with P8 (P2A = PSC risk, P8 = cargo restrictions)
+    - ❌ Never treat pi_information = null same as confirmed Non-IG
 
 ================================================================================
