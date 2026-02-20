@@ -1,7 +1,7 @@
 ================================================================================
 OFFER OPENING STYLE GUIDE
-Version: 2.0 FINAL
-Last updated: 2026-02-07
+Version: 2.1
+Last updated: 2026-02-20
 ================================================================================
 
 PURPOSE:
@@ -18,16 +18,22 @@ PURPOSE:
   ║                                                                ║
   ║  ❌ NEVER use intent "do_not_offer" — always "blocked_info"     ║
   ║  ❌ NEVER write in AI explanation style — always broker-to-owner ║
+  ║  ❌ NEVER use "we/us/our" — ALWAYS use "I"                     ║
+  ║  ❌ NEVER expose CRM data or vessel limitations                 ║
   ╚══════════════════════════════════════════════════════════════════╝
 
   WRONG (AI explanation style):
     "Vessel is currently in the Arabian Sea and cannot commercially 
      position for a Black Sea cargo of this size."
   
-  RIGHT (broker-to-owner style):
-    "Pls find below cargo for yr reference re mv Princess Masa. We 
-     appreciate she's currently trading Middle East area, hvr sending 
-     in case her trading plans change towards BS/Med."
+  WRONG ("we" language):
+    "We appreciate she's currently trading Middle East area."
+    "We note timing is tight."
+
+  RIGHT (broker-to-owner style, first person "I"):
+    "Pls find below cargo for yr reference re mv Princess Masa. 
+     I know she's currently trading ME area, hvr sending in case 
+     her trading plans change towards BS/Med."
 
 ================================================================================
 ABBREVIATIONS LIBRARY — SHIPPING ENGLISH
@@ -81,6 +87,7 @@ STYLE RULES
     - Use shipping abbreviations naturally
     - Be honest about concerns — diplomatic but direct
     - Always include a call to action (lmk, what do you think, yr ideas)
+    - ALWAYS use "I" — NEVER "we/us/our"
     
   EMAIL: 2-4 sentences. Slightly more formal than messenger.
   MESSENGER: 1-2 sentences max. Lowercase ok. Maximum abbreviations.
@@ -88,9 +95,12 @@ STYLE RULES
   NEVER:
     - Never start with greetings (handled separately)
     - Never sound like a sales pitch
-    - Never use "we are pleased to inform you"
+    - Never use "I am pleased to inform you" or similar formal language
     - Never use exclamation marks
     - Never include full cargo description in opening
+    - Never use "we/us/our" — only "I"
+    - Never expose CRM data (percentages, statistics, comments)
+    - Never expose vessel limitations (intake concerns, class issues, etc.)
 
 ================================================================================
 TEMPLATES BY INTENT LEVEL
@@ -108,15 +118,14 @@ TEMPLATES BY INTENT LEVEL
   BLOCKED BY TIMING (P7):
   
     Email examples:
-      "Pls find below cargo for yr reference re mv [vessel]. We note 
-       timing is tight given her current position, hvr sending in case 
-       laycan extends or she frees up earlier than anticipated. Any 
-       update on her schedule wld be appreciated."
+      "Pls find below cargo for yr reference re mv [vessel]. Timing 
+       is tight given her current position, hvr sending in case laycan 
+       extends or she frees up earlier. Any update on her schedule 
+       wld be appreciated."
        
-      "Wish to draw yr attention to below cargo for mv [vessel] — we 
-       understand current dates don't quite work but wanted to keep you 
-       in the loop for any future adjustments. Yr update on her status 
-       wld be welcome."
+      "Wish to draw yr attention to below cargo for mv [vessel] — 
+       current dates don't quite work but wanted to keep you in the 
+       loop for any future adjustments. Yr update on her status pls."
        
       "Pls see below cargo which suits mv [vessel] well on paper — 
        main challenge is timing at this stage. Sending for yr records 
@@ -136,8 +145,8 @@ TEMPLATES BY INTENT LEVEL
   
     Email examples:
       "Pls find below cargo details for yr good order re mv [vessel]. 
-       We appreciate [region] may not be of primary interest, hvr wanted 
-       to show given the cargo otherwise suits her well. Any change in 
+       I know [region] may not be of primary interest, hvr wanted to 
+       show given the cargo otherwise suits her well. Any change in 
        trading plans wld be good to know."
        
     Messenger:
@@ -147,25 +156,37 @@ TEMPLATES BY INTENT LEVEL
   BLOCKED BY INTAKE/RESTRICTIONS (P5/P8):
   
     Email examples:
-      "Pls find below cargo fyi for mv [vessel]. We note [specific 
-       restriction issue] presents a challenge — sending for yr records 
+      "Pls find below cargo fyi for mv [vessel]. Sending for yr records 
        and in case there's flexibility on requirements."
        
     Messenger:
-      "cargo fyi for [vessel] — [restriction] is an issue but sending 
-       just in case. any flexibility?"
+      "cargo fyi for [vessel] — sending just in case. any flexibility?"
+
+  P5 BLOCKED BY INTAKE — use "sub intake" pattern:
+    Email: "Sending fyi for mv [vessel] sub her intake approval."
+    Messenger: "cargo fyi for [vessel] sub her intake. lmk"
+
+  BLOCKED BY DISTANCE (P1):
+  
+    Email:
+      "Pls find below cargo for yr good order re mv [vessel]. I know 
+       she's currently trading [area], hvr sending in case her plans 
+       change towards [cargo region]. Yr update wld be welcome."
+    Messenger:
+      "[vessel] — cargo fyi, know she's in [area] but sending in 
+       case plans change. any news on her next movements?"
 
   MULTIPLE BLOCKS:
   
     Email:
       "Pls find below cargo for yr good order re mv [vessel]. Several 
-       factors present challenges at this stage ([issue1], [issue2]), 
-       hvr sending for yr reference and in case circumstances change. 
-       Any update on [vessel] wld be appreciated."
+       factors present challenges at this stage, hvr sending for yr 
+       reference and in case circumstances change. Any update on 
+       [vessel] wld be appreciated."
        
     Messenger:
-      "cargo fyi for [vessel] — has a few challenges ([issue1], 
-       [issue2]) but sending for reference. any updates?"
+      "cargo fyi for [vessel] — has a few challenges but sending for 
+       reference. any updates?"
 
 ────────────────────────────────────────────────────────────────────────────────
   ATTRACT (score 70%+) — vessel is a good match
@@ -175,12 +196,11 @@ TEMPLATES BY INTENT LEVEL
   Tone: Positive, direct, professional.
 
   Email examples:
-    "Pls find below cargo details which we believe suits mv [vessel] 
-     nicely — she's well positioned and timing works. Wld appreciate 
-     yr freight ideas."
+    "Pls find below cargo which suits mv [vessel] nicely — she's well 
+     positioned and timing works. Wld appreciate yr interest."
      
     "Pls find below what looks like a very good fit for mv [vessel] —
-     nearby, good timing, full cargo. Kindly let us know yr interest."
+     nearby, good timing, full cargo. Lmk yr interest pls."
      
     "Wish to draw yr attention to below cargo for mv [vessel]. She 
      seems perfectly placed for this one. Yr indication pls."
@@ -202,20 +222,17 @@ TEMPLATES BY INTENT LEVEL
   Tone: Interested but cautious, transparent about concerns.
 
   Email examples:
-    "Pls find below cargo we'd like to show for mv [vessel]. We note 
-     she's opening [area] — cld you kindly confirm her exact opening 
-     date/position? Also wld be helpful to know yr view on [topic]."
+    "Pls find below cargo for mv [vessel]. She's opening [area] — 
+     cld you kindly confirm her exact opening date/position?"
      
     "Pls find below cargo for mv [vessel]. Position looks reasonable 
-     but intake is tight — wld appreciate yr indication on qty 
-     flexibility. Yr view pls."
+     — cld you confirm her opening? Yr view pls."
 
   Messenger examples:
     "sending you a cargo for [vessel]. can you confirm her opening? 
-     also is she ok for [region/cargo]?"
+     also is she ok for [region]?"
      
-    "have smth for [vessel] — looks possible but intake bit tight. 
-     pls see below, yr view?"
+    "have smth for [vessel] — looks possible. pls see below, yr view?"
 
 ────────────────────────────────────────────────────────────────────────────────
   INFORM (<50%) — poor match but showing for relationship/info
@@ -225,26 +242,42 @@ TEMPLATES BY INTENT LEVEL
   Tone: Low-key, honest about limitations.
 
   Email examples:
-    "Pls find below cargo details for yr good order. We understand mv 
+    "Pls find below cargo details for yr good order. I understand mv 
      [vessel] may not be ideal fit at this stage given [reason], hvr 
      sending in case circumstances have changed."
      
-    "Sending below cargo fyi for mv [vessel]. We note [concern] but 
-     wanted to show just in case. Any news on her position/plans?"
+    "Sending below cargo fyi for mv [vessel]. Sending just in case. 
+     Any news on her position/plans?"
 
   Messenger examples:
-    "sending below cargo fyi — understand [vessel] might not fit 
-     perfectly but wanted to show just in case. any updates on her?"
+    "sending below cargo fyi — [vessel] might not fit perfectly but 
+     wanted to show just in case. any updates on her?"
      
     "cargo fyi for [vessel] — not perfect match but sending for yr 
      reference. any news on her?"
+
+────────────────────────────────────────────────────────────────────────────────
+  VERY EARLY VESSEL (-14d+ before layday)
+────────────────────────────────────────────────────────────────────────────────
+
+  Maximum intent: "inquire" (usually "inform")
+  NEVER use "attract" tone for -14d+ early vessels.
+
+  Email examples:
+    "Pls find below cargo for mv [vessel]. I know she has time before 
+     the dates — sending for her next voyage if she stays in the area. 
+     Maybe fix smth short first then load this after."
+     
+  Messenger:
+    "cargo for [vessel] — dates are later but sending in case she 
+     stays in the area. maybe fix smth short first?"
 
 ================================================================================
 SPECIAL CASES
 ================================================================================
 
   BALLAST QUESTION:
-    Email: "We see she's heading to [destination] — cld you confirm if 
+    Email: "See she's heading to [destination] — cld you confirm if 
            she's proceeding for loading or available for redirection?"
     Messenger: "[vessel] heading to [dest] — is she fixed or open?"
 
@@ -253,6 +286,11 @@ SPECIAL CASES
 
   NO DATA ON PREFERENCES:
     Add: "wld be helpful to know yr preferences for cargo/regions"
+
+  AIS NAME MISMATCH:
+    FIRST question = "btw AIS shows her as [AIS name] — did you sell 
+    yr lady or renamed?"
+    This overrides all other questions.
 
 ================================================================================
 OFFER_HINT → OFFER_OPENING MAPPING
@@ -265,9 +303,9 @@ OFFER_HINT → OFFER_OPENING MAPPING
     P5 "cargo fits" → "full cargo"
     
   Low-score hints (concerns):
-    P5 "intake tight" → "intake is a bit tight"
+    P5 "intake tight" → "sending fyi sub her intake"
     P7 "timing tight" → "timing cld be challenging"
-    P1 "long ballast" → "appreciate the ballast is significant"
+    P1 "long ballast" → "i know the ballast is significant"
     P2 "region not preferred" → "[region] may not be first choice"
     
   Missing data hints (questions):
