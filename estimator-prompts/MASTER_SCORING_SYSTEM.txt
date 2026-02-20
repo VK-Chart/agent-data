@@ -1,7 +1,7 @@
 ================================================================================
 MASTER SCORING SYSTEM
-Version: 6.0 FINAL
-Last updated: 2026-02-07
+Version: 6.1
+Last updated: 2026-02-20
 ================================================================================
 
 PURPOSE:
@@ -39,6 +39,7 @@ VESSEL JSON FIELD MAPPING
     Position time  → field "position-received" (when AIS data was received)
     Current area   → field "vessel_current_area"
     Average speed  → field "average-speed"
+    AIS vessel name → field "ais-vessel-name" (compare with DB name!)
 
   DRAUGHT ANALYSIS FIELDS:
     For draught ratio, use: current-draught / draft
@@ -74,6 +75,25 @@ ALL CRITERIA — OVERVIEW
   P7    Readiness / ETA         10     Always     READINESSETA_TO_LOADING_PORT_SCORING.txt
   P8    Restrictions            20     Dynamic    P8_RESTRICTIONS_COMPLIANCE_SCORING.txt
   P9    Relationship Check      —      Warning    (this file, section below)
+
+================================================================================
+CRITICAL RULES — READ FIRST
+================================================================================
+
+  ╔═══════════════════════════════════════════════════════════════════════════╗
+  ║  PRS (Polish Register of Shipping) is NOT IACS.                          ║
+  ║  This is the MOST COMMON AI scoring error. CHECK EVERY TIME.            ║
+  ║  IACS members: BV, DNV, LR, ABS, ClassNK, RINA, CCS, KR, RS           ║
+  ║  NOT IACS: PRS, CRS, Turkish Lloyd, IRS                                ║
+  ╚═══════════════════════════════════════════════════════════════════════════╝
+
+  - total_score is ALWAYS a PERCENTAGE (0-100)
+  - Field "draft" = summer loadline. NEVER use "max-draught"
+  - Draft restrictions → P5. NEVER in P8
+  - Age NEVER triggers BLOCK in P8. NEVER.
+  - classification-society = null → "No class on record" (not "Non-IACS")
+  - pi_information = null → "No P&I on record" (not "Non-IG")
+  - AIS name ≠ DB name → first question = "did you sell yr lady?"
 
 ================================================================================
 DYNAMIC MAX_SCORE CALCULATION
@@ -134,11 +154,35 @@ CRITICAL — RESTRICTION SCOPE RULES
 
   P5 handles: Draft/draught restrictions, cargo quantity fit, cubature
   P8 handles: ONLY Class, P&I, IMO, Holds Type, DWT, Age, LOA, Beam
-  P2A handles: PSC risk based on flag, class, P&I, age, port strictness
+  P2A handles: PSC risk based on flag, class, P&I, port strictness
   P2 handles: Owner's regional preferences from comments
-  P3 handles: Cargo type preferences from comments
+  P3 handles: Cargo type preferences from comments (NOT geographic specs)
 
   Draft restrictions → P5. NEVER in P8.
+  "spec: [country]" → P2 (location preference). NEVER P3.
+
+================================================================================
+KEY SCORING RULES SUMMARY (cross-file)
+================================================================================
+
+  P2A — THREE ELEMENTS STATUS:
+    Element 1: IACS class | Element 2: IG P&I | Element 3: White flag
+    HIGH = 3 of 3 | MEDIUM = 2 of 3 | LOW = 1 or 0 of 3
+    PRS is NOT IACS. If "POLISH" in class → NOT IACS element.
+
+  P2 — ADJACENT REGIONS:
+    "spec: italy" → adjacent countries (Greece, Croatia, etc.) score 8-10/15
+    See COMMENTS_PROCESSING_GUIDE for adjacency map.
+
+  P5 — FIXED vs FLEXIBLE QTY:
+    FIXED (m/m): BLOCK threshold at 85% of min_qty
+    FLEXIBLE (no m/m): BLOCK threshold at 75% of min_qty
+    Grain capacity = 0 + high SF cargo → P5 capped at 10/15
+
+  P7 — EARLY ARRIVAL (granular):
+    -1 to -3d: 10/10 | -4 to -7d: 9/10 | -8 to -10d: 7/10
+    -11 to -14d: 4/10 | -15 to -20d: 2/10 | < -20d: 1/10
+    Draught anomaly check FIRST (current > summer draft)
 
 ================================================================================
 BLOCK LOGIC
@@ -200,6 +244,11 @@ P9 — RELATIONSHIP CHECK (WARNING ONLY)
       "offer_guidance": "..."
     }
 
+  OFFER_GUIDANCE (always output):
+    Extract from person_comments any communication instructions:
+    - Greeting style, nicknames, timezone, channel preference, etc.
+    If no special instructions → "No special instructions"
+
 ================================================================================
 OFFER OPENING GENERATION — ALWAYS REQUIRED
 ================================================================================
@@ -207,54 +256,45 @@ OFFER OPENING GENERATION — ALWAYS REQUIRED
   ╔══════════════════════════════════════════════════════════════════╗
   ║  Offer opening is ALWAYS generated, including for BLOCKED       ║
   ║  vessels. For BLOCKED vessels, use intent "blocked_info".       ║
+  ║  Always use first person "I" — NEVER "we/us/our".             ║
   ╚══════════════════════════════════════════════════════════════════╝
 
   See: OFFER_OPENING_STYLE_GUIDE.txt for detailed style rules.
 
   INTENT based on recommendation:
 
-    BLOCKED:
-      intent = "blocked_info"
-      Purpose: Informational text in case broker decides to offer anyway
-      (e.g., if laycan extends, if market changes).
-      Tone: cautious, factual. Mention the block reason.
-      Still generate email_text and messenger_text.
-      Example: "We have below cargo which may interest you for mv Petrel S 
-               post her current discharge — timing is tight for current 
-               dates but pls keep in mind for any extensions."
+    BLOCKED:         intent = "blocked_info"
+    STRONG (80%+):   intent = "attract"
+    GOOD (65-80%):   intent = "attract" or "inquire"
+    CONDITIONAL (50-65%): intent = "inquire"
+    WEAK (35-50%):   intent = "inform"
+    SKIP (<35%):     intent = "inform"
 
-    STRONG (80%+):
-      intent = "attract"
-      Confident, lead with strengths.
+  PROXIMITY OVERRIDE (mandatory check):
+    P1 + P1A ≥ 25/35 → no cap
+    P1 + P1A 15-24/35 → max "inquire"
+    P1 + P1A < 15/35 → strictly "inform"
+    P1 = BLOCK → "blocked_info"
 
-    GOOD (65-80%):
-      intent = "attract" or "inquire"
-      Proactive, show cargo + mention minor concerns.
-
-    CONDITIONAL (50-65%):
-      intent = "inquire"
-      Balanced, ask key questions.
-
-    WEAK (35-50%):
-      intent = "inform"
-      Cautious, gather info.
-
-    SKIP (<35%):
-      intent = "inform"
-      For reference only.
+  VERY EARLY VESSEL (-14d+ before layday):
+    Maximum intent: "inquire" (usually "inform")
+    NEVER "attract" for -14d+ early.
 
   GENERATION STEPS:
     1. Determine intent from recommendation
-    2. Extract selling points from high-scoring criteria (offer_hints)
-    3. Extract concerns from low-scoring criteria (offer_hints)
-    4. Extract questions from missing data
-    5. Generate email_text (2-4 sentences, shipping English)
-    6. Generate messenger_text (1-2 sentences, max abbreviations)
+    2. Apply proximity override and early-vessel cap
+    3. Check AIS name vs DB name — mismatch → first question
+    4. Extract selling points from high-scoring criteria
+    5. Extract concerns from low-scoring criteria
+    6. Generate email_text (2-4 sentences, shipping English, "I" not "we")
+    7. Generate messenger_text (1-2 sentences, max abbreviations)
 
   RULES:
     - NO greetings in offer_opening text
-    - Always use shipping abbreviations (pls, yr, mv, lmk, cld)
+    - Always use shipping abbreviations
     - Reference vessel by name
+    - First person "I" — never "we/us/our"
+    - Never expose CRM data, vessel limitations, or scoring concepts
     - For BLOCKED: mention what makes it blocked + what could change
 
 ================================================================================
@@ -269,16 +309,14 @@ AI INSTRUCTIONS
     - ALWAYS generate offer_opening (including for BLOCKED)
     - Perform P9 relationship check
     - Route draft → P5, age/DWT/class → P8
+    - Check PRS — it is NOT IACS
+    - Use THREE ELEMENTS test for P2A status
+    - Apply proximity override to offer intent
+    - Check AIS name vs DB name for mismatch
+    - Check P7 draught anomaly (current > summer draft)
+    - Parse cargo qty as FIXED (m/m) or FLEXIBLE
+    - Cap P5 at 10/15 when grain-capacity = 0 for high SF cargo
     
-  ai_must:
-    - Check position_received date — if older than 7 days, set P7 
-      confidence = "low" and note "AIS data is [X] days old" in reasoning
-    - If field "draft" = 0, null, or missing → draught analysis impossible,
-      default to LADEN, confidence = "low"
-    - If classification-society = null → report "No class society on record"
-      (different from "Non-IACS class")
-    - If pi_information = null → report "No P&I on record"
-
   ai_must_not:
     - ❌ Never use "max-draught" for draught ratio (use "draft")
     - ❌ Never skip offer_opening for BLOCKED vessels
@@ -288,7 +326,11 @@ AI INSTRUCTIONS
     - ❌ Never put draft in P8
     - ❌ Never let P9 affect numerical score
     - ❌ Never BLOCK vessel for age alone
-    - ❌ Never write offer_opening in AI explanation style — always write
-         as broker-to-owner message (shipping English, abbreviations)
+    - ❌ Never write offer_opening in AI explanation style
+    - ❌ Never use "we/us/our" in offer_opening — use "I"
+    - ❌ Never classify PRS as IACS
+    - ❌ Never expose CRM data or vessel limitations in offer text
+    - ❌ Never use intent "attract" for -14d+ early vessels
+    - ❌ Never activate P3 based on geographic specializations
 
 ================================================================================
