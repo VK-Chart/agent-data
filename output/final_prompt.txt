@@ -3700,8 +3700,8 @@ AI INSTRUCTIONS
 --- START OF estimator-prompts/READINESSETA_TO_LOADING_PORT_SCORING.txt ---
 ================================================================================
 READINESS / ETA TO LOADING PORT SCORING — P7
-Version: 5.0 FINAL
-Last updated: 2026-02-07
+Version: 5.1
+Last updated: 2026-02-20
 ================================================================================
 
 PURPOSE:
@@ -3710,6 +3710,22 @@ PURPOSE:
 
 SCORE RANGE: [0, 10]
 ALWAYS ACTIVE: max_score = 10
+
+================================================================================
+STEP 0 — DRAUGHT ANOMALY CHECK (MANDATORY FIRST)
+================================================================================
+
+  Before any other analysis, check for data inconsistency:
+
+  If current-draught > draft (summer loadline):
+    → FLAG as "DRAUGHT ANOMALY"
+    → Note in reasoning: "current-draught Xm exceeds summer draft Ym — 
+      data inconsistency, either DB draft wrong or AIS inaccurate."
+    → Default to LADEN, confidence = "low"
+    → Then proceed with Steps 1-5 normally
+
+  This catches cases where DB has wrong draft value or AIS reports
+  incorrectly. The anomaly should be noted but does not block scoring.
 
 ================================================================================
 STEP 1 — MANDATORY DRAUGHT ANALYSIS
@@ -3746,7 +3762,7 @@ STEP 1 — MANDATORY DRAUGHT ANALYSIS
     
     ratio < 0.65  → BALLAST
     ratio >= 0.65 → LADEN
-    current > max → OVER_DRAFT → treat as LADEN
+    current > max → OVER_DRAFT → treat as LADEN (see STEP 0 anomaly)
 
 ================================================================================
 STEP 2 — DETERMINE VESSEL READY DATE
@@ -3851,13 +3867,37 @@ STEP 4 — CALCULATE GAP
 STEP 5 — SCORING MATRIX
 ================================================================================
 
-  gap <= -7 days (very early):     score = 4/10
-  gap = -6 to -3 days (early):    score = 7/10
-  gap = -2 to +1 days (ideal):    score = 10/10
-  gap = +2 to +3 days (slightly late): score = 7/10
-  gap = +4 to +5 days (late):     score = 4/10
-  gap = +6 to +7 days (very late): score = 2/10
-  gap > +7 days (past canceling):  score = 0/10, decision = BLOCK
+  ╔═══════════════════════════════════════════════════════════════════════════╗
+  ║  IMPORTANT — EARLY ARRIVAL IS POSITIVE ONLY UP TO A POINT:              ║
+  ║  Moderate early (-3 to -7d) is positive — owner can wait a few days.    ║
+  ║  Extreme early (-14d+) is BAD — vessel cannot idle for weeks.           ║
+  ║  Every day at anchor costs owner money (bunkers, crew, insurance).      ║
+  ╚═══════════════════════════════════════════════════════════════════════════╝
+
+  gap -1 to +1d (perfect timing):       10/10
+  gap -2 to -3d (excellent — just before layday): 10/10
+  gap -4 to -7d (early — short wait ok): 9/10
+  gap -8 to -10d (quite early — acceptable): 7/10
+  gap -11 to -14d (too early — 2 weeks idle expensive): 4/10
+  gap -15 to -20d (very early — unrealistic to wait): 2/10
+  gap < -20d (extremely early — not a real match): 1/10
+  gap +2 to +3d (slightly late):         7/10
+  gap +4 to +5d (late — risky):          4/10
+  gap +6 to +7d (very late — borderline): 2/10
+  gap > +7d (past canceling):            0/10 → BLOCK
+
+  ╔═══════════════════════════════════════════════════════════════════════════╗
+  ║  COMMERCIAL REALITY OF EARLY ARRIVAL:                                    ║
+  ║  Every day at anchor costs owner money (bunkers, crew, insurance).      ║
+  ║  -3 to -7 days = normal, owner can wait.                                ║
+  ║  -14+ days = unrealistic. No owner will idle 2+ weeks for free.         ║
+  ║  -17+ days = effectively NOT A MATCH for this specific cargo.           ║
+  ║                                                                          ║
+  ║  COMMERCIAL FIX for very early vessels (-14d+):                          ║
+  ║  In offer, suggest: "fix smth short first then load our cargo"          ║
+  ║  Or frame as: "good for her next voyage if she stays in the area"       ║
+  ║  NEVER write enthusiastic "attract" for -14d+ early vessel.             ║
+  ╚═══════════════════════════════════════════════════════════════════════════╝
 
 ================================================================================
 EXAMPLES
@@ -3907,19 +3947,37 @@ EXAMPLES
     Default LADEN. vessel_ready = Feb 8 + 7 = Feb 15
     confidence = "medium"
 
+  Example 6: Very early vessel (NEW)
+  ─────────────────────────────────────────
+    Vessel open Constanta today (Feb 7). Layday Feb 25.
+    vessel_at_loadport = Feb 7 (already there)
+    gap = Feb 7 - Feb 25 = -18 days → score = 2/10
+    reasoning: "Vessel already at load port but 18 days before layday.
+               Owner cannot idle 18 days. Score 2/10 — very early."
+    offer approach: "good for her next voyage if she stays in the area"
+
+  Example 7: Draught anomaly (NEW)
+  ─────────────────────────────────────────
+    current-draught: 9.2m, draft: 8.5m → 9.2 > 8.5 = ANOMALY
+    reasoning: "DRAUGHT ANOMALY: current-draught 9.2m exceeds summer
+               draft 8.5m — data inconsistency. Defaulting LADEN."
+    confidence = "low"
+
 ================================================================================
 REASONING FORMAT
 ================================================================================
 
   P7 reasoning MUST include:
-    1. Draught analysis: ratio, ballast/laden status
-    2. How vessel_ready was calculated (which CASE)
-    3. Sailing time to load port (distance, speed, days)
-    4. vessel_at_loadport date
-    5. Gap in days
-    6. Laycan reference (layday + canceling dates)
+    1. Draught anomaly check (if current > summer draft)
+    2. Draught analysis: ratio, ballast/laden status
+    3. How vessel_ready was calculated (which CASE)
+    4. Sailing time to load port (distance, speed, days)
+    5. vessel_at_loadport date
+    6. Gap in days
+    7. Laycan reference (layday + canceling dates)
 
-  Good: "Laden at anchor Lisboa since ~Feb 1 (ratio 0.978). 
+  Good: "STEP 0: current-draught 7.2m < draft 8.5m — no anomaly.
+         Laden at anchor Lisboa since ~Feb 1 (ratio 0.978). 
          Remaining ops ~1d, ready Feb 8. +12d sailing to POC = 
          arrives ~Feb 20. Layday Feb 5, canceling Feb 10, gap +15d."
          
@@ -3931,12 +3989,15 @@ AI INSTRUCTIONS
 ================================================================================
 
   ai_must:
-    - ALWAYS perform draught analysis first (use "draft" field, not "max-draught")
+    - FIRST perform STEP 0 draught anomaly check
+    - THEN perform draught analysis (use "draft" field, not "max-draught")
     - Determine which CASE applies (A/B/C/D)
     - For CASE C (at anchor/ETA past): calculate days_since_arrival
     - Calculate sailing time from ready location to LOAD PORT
     - Show all calculation steps in reasoning
     - Use field "average-speed" when available for sailing calculation
+    - For very early vessels (-14d+): note in offer_hint that enthusiastic
+      tone is inappropriate
     
   ai_must_not:
     - ❌ Never use "max-draught" for draught ratio
@@ -3945,6 +4006,8 @@ AI INSTRUCTIONS
     - ❌ Never produce vessel_ready date without showing how it was derived
     - ❌ Never ignore "At anchor" / "Moored" navigation status
     - ❌ Never ignore ETA being in the past
+    - ❌ Never score -17d early as "good" — it is 2/10 or worse
+    - ❌ Never ignore draught anomaly (current > summer draft)
 
 ================================================================================
 
