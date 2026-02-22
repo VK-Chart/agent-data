@@ -15,7 +15,10 @@
     "subject": "Some good defined subject",
     "email_text": "Pls find below cargo for yr reference re mv Example...",
     "messenger": ["+34345859289", "+905323672167"],
-    "messenger_text":  "📱 Naseem Aya (+90 507 351 86 87):\nmerhaba Naseem ! re: mv aya zanoubya — ...\n\n📱 Adnan (+90 505 020 00 00):\nmerhaba Adnan ! re: mv aya zanoubya — ...",
+    "messenger_text": [
+      {"to": "+34345859289", "person": "Contact Name 1", "text": "cargo fyi for Example — ..."},
+      {"to": "+905323672167", "person": "Contact Name 2", "text": "merhaba Contact2 ! cargo fyi for Example — ..."}
+    ],
     "key_selling_points": ["Intake ~3,025t fits 3,000t urea cargo perfectly", "Vessel knows Constanta (6.3% call frequency)"],
     "key_concerns": ["Vessel 2,500nm away in Arabian Sea — very long ballast", "Would arrive ~Mar 3, 6 days after canceling Feb 25"],
     "questions_to_ask": ["Any plans to reposition towards Med/BS?"]
