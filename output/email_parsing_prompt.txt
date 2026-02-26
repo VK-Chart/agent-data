@@ -131,6 +131,7 @@ GT / GRT = Gross Tonnage
 NT / NRT = Net Tonnage
 HO = Holds / HA = Hatches
 CR = Cranes / DK = Derricks
+GRD / GEARED = Equipped with cranes or derricks
 
 === Units ===
 CBM / M3 / cbm / cu.m / CUM = Cubic meters
@@ -152,6 +153,7 @@ ETA = Estimated Time of Arrival
 PDPR = Passing Dardanelles (= Canakkale area)
 CAN = Canakkale / IST = Istanbul / MER = Mersin
 NOVO / NVO = Novorossiysk
+DANUBE = Danube River ports (Galati, Braila, Tulcea, Reni, Izmail, etc.)
 E.MED = East Mediterranean
 W.BSEA = West Black Sea
 N.ADRIATIC = North Adriatic
@@ -177,6 +179,7 @@ A60 = A60 bulkhead (fire resistance rating)
 BWTS = Ballast Water Treatment System
 TT STR = Tank Top Strength
 TEU = Twenty-foot Equivalent Unit (container capacity)
+ABT / ABOUT = Approximately (indicates approximate value, set approximate_dwt: true)
 ADA = All Details About (disclaimer)
 WOG / W.O.G = Without Guarantee (disclaimer)
 
@@ -509,8 +512,13 @@ Return ONLY valid JSON with this exact structure. No markdown fences, no comment
       "tank_top_strength_unit": "mt/sqm",
       "air_draft": null,
       "bow_thruster": null,
+      "stern_thruster": null,
       "teu_capacity": null,
       "bwts_fitted": null,
+      "reefer_plugs": null,
+      "timber_fitted": null,
+      "moveable_bulkheads": null,
+      "moveable_bulkhead_positions": null,
       "call_sign": null,
       "previous_names": null,
       "speed_knots": null,
@@ -594,6 +602,8 @@ STATUS RULES:
 DATE FORMATS TO RECOGNIZE:
 - "23/02" → 2026-02-23 (current year)
 - "23/02/2026" → 2026-02-23
+- "23.02.2026" → 2026-02-23 (dot-separated European format)
+- "23.02" → 2026-02-23 (dot-separated, current year)
 - "23 MARCH" or "23 MAR" → 2026-03-23
 - "25-26 FEB" → start: 2026-02-25, end: 2026-02-26
 - "27 Feb/02 March" → start: 2026-02-27, end: 2026-03-02
