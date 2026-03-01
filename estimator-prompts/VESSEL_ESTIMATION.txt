@@ -30,6 +30,11 @@
 #  ═══════════════════════════════════════════════════════════════════          #
 ################################################################################
 
+​"GMAIL VECTOR SEARCH:
+​Search Gmail using the specific query: label:vessels "{vessel_name}" has:attachment filename:pdf.
+​Replace {vessel_name} with the vessel from the request.
+​Retrieve only the most recent email from the last 7 days.
+​If no PDF is found, search the email body for 'open area' coordinates."
 
 ################################################################################
 #  PART 0 — VECTOR SEARCH DATA AUTHORITY                                       #
@@ -11676,3 +11681,4 @@ Trigger Event → Validation → Batching Queue → Priority Sort →
 #  END OF VK CHARTS — VESSEL ESTIMATION (CONSOLIDATED) v1.0                    #
 #                                                                              #
 ################################################################################
+
