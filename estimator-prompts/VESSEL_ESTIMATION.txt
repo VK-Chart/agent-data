@@ -428,12 +428,28 @@ STEP 2 — PORT TIERS:
   Tier 1 (strict): EU ports with active PSC — Constanta, Ravenna, Piraeus
   Tier 2 (moderate): Turkey, Egypt, Israel
   Tier 3 (relaxed): Ukraine, Libya, some North Africa
+  Tier 4 (lax): Most West Africa, India, SE Asia
+  Tier 5 (PSC irrelevant): Sanctioned, war zone, or high-corruption ports
+
+  ╔═══════════════════════════════════════════════════════════════════════════╗
+  ║  TIER 5 — PSC IRRELEVANT ZONES:                                         ║
+  ║                                                                         ║
+  ║  In sanctioned, dangerous, war zones, or countries with very high       ║
+  ║  corruption and low enforcement — PSC is practically non-existent.      ║
+  ║  Nobody inspects vessels in these ports. PSC score = irrelevant.        ║
+  ║                                                                         ║
+  ║  Examples: Massawa (Eritrea), Port Sudan (Sudan), Hodeidah/Aden        ║
+  ║  (Yemen), Mogadishu (Somalia), Syria, North Korea, Myanmar.            ║
+  ║                                                                         ║
+  ║  For Tier 5 ports: ALL vessels score 18-20/20 regardless of status.    ║
+  ║  PSC risk simply doesn't apply in these locations.                     ║
+  ╚═══════════════════════════════════════════════════════════════════════════╝
 
 STEP 3 — SCORING MATRIX:
 
-  HIGH + Tier 1: 20/20 | HIGH + Tier 2: 20/20 | HIGH + Tier 3: 20/20
-  MED + Tier 1:  14/20 | MED + Tier 2:  16/20 | MED + Tier 3:  18/20
-  LOW + Tier 1:   6/20 | LOW + Tier 2:   9/20 | LOW + Tier 3:  12/20
+  HIGH + Tier 1: 20/20 | HIGH + Tier 2: 20/20 | HIGH + Tier 3: 20/20 | HIGH + Tier 4: 20/20 | HIGH + Tier 5: 20/20
+  MED + Tier 1:  14/20 | MED + Tier 2:  16/20 | MED + Tier 3:  18/20 | MED + Tier 4:  19/20 | MED + Tier 5:  20/20
+  LOW + Tier 1:   6/20 | LOW + Tier 2:   9/20 | LOW + Tier 3:  12/20 | LOW + Tier 4:  15/20 | LOW + Tier 5:  18/20
 
   For two ports (load + discharge) in different tiers:
     weighted = load_score × 0.6 + discharge_score × 0.4
@@ -459,10 +475,31 @@ If NO cargo preference data → score=0, max_score=0, excluded.
   ║  → P3 excluded (score = 0, max_score = 0).                             ║
   ╚═══════════════════════════════════════════════════════════════════════════╝
 
+  ╔═══════════════════════════════════════════════════════════════════════════╗
+  ║  CRITICAL RULE: SPECIALIZATION ≠ RESTRICTION                            ║
+  ║                                                                         ║
+  ║  "Specializes in X" / "spec: X" / "mainly X" = PREFERENCE for X.       ║
+  ║  It does NOT mean the vessel REFUSES other cargo types.                 ║
+  ║                                                                         ║
+  ║  Only EXPLICIT NEGATIVE statements create blocks or zero scores:        ║
+  ║    "NO breakbulk" / "grain ONLY" / "bulk only" / "refuses steel"       ║
+  ║                                                                         ║
+  ║  SCORING when specialization ≠ current cargo:                           ║
+  ║    • Specialization MATCHES cargo       → 12-15/15 (strong positive)   ║
+  ║    • Specialization in SIMILAR cargo    → 8-12/15 (moderate positive)  ║
+  ║      (e.g., "spec: maize" + cargo is wheat/grain/SBM)                  ║
+  ║    • Specialization in DIFFERENT cargo  → 5-8/15 (reduced, NOT zero)   ║
+  ║      (e.g., "spec: maize" + cargo is steel/timber)                     ║
+  ║    • Specialization in DIFFERENT + no other data → P3 excluded (0/0)   ║
+  ║                                                                         ║
+  ║  NEVER block or score 0/15 based on specialization alone.              ║
+  ║  Specialization = owner's PREFERENCE, not vessel LIMITATION.           ║
+  ╚═══════════════════════════════════════════════════════════════════════════╝
+
 PATTERNS:
   "handles [cargo type]" / "carries grain/fertilizer/steel" → match check
   "no DG" / "no IMO cargo" → block for dangerous goods
-  "bulk only" / "no breakbulk" → limit cargo types
+  "bulk only" / "no breakbulk" → limit cargo types (EXPLICIT restriction)
 
   ╔═══════════════════════════════════════════════════════════════════════╗
   ║  "not fitted imo" = vessel LIMITATION (cannot carry IMO/DG goods).  ║
@@ -475,8 +512,13 @@ PATTERNS:
   ╚═══════════════════════════════════════════════════════════════════════╝
 
 Positive match = 12-15/15
+Similar cargo match = 8-12/15 (e.g., "spec: maize" + cargo is wheat/grain/SBM)
+Different cargo specialization = 5-8/15 (reduced but NOT zero/block)
 Neutral (no mention) = excluded (0/0)
-Conflict = 0/15, may BLOCK
+Conflict (EXPLICIT "no X" / "X only") = 0/15, may BLOCK
+
+  ⚠️ "Specializes in X" where X ≠ cargo → score 5-8/15, NEVER 0 or BLOCK.
+     Only "no [cargo]" / "[other] ONLY" → 0/15 or BLOCK.
 
 ════════════════════════════════════════════════════════════════════════════════
 SECTION 9 — P4: LAST PORTS / PORT HISTORY
@@ -687,10 +729,40 @@ STEP 5 — SCORING:
   "she can fix smth short first and then position for foll cargo"
 
   ╔═══════════════════════════════════════════════════════════════════════════╗
-  ║  VERY EARLY VESSEL (-14d+):                                              ║
+  ║  FORWARD CARGO RULE (laycan > 20 days from today):                      ║
+  ║                                                                         ║
+  ║  When the cargo itself has FORWARD dates (laycan 20+ days out),         ║
+  ║  early vessel arrival is NORMAL and EXPECTED.                           ║
+  ║                                                                         ║
+  ║  DO NOT penalize early arrival for forward cargoes.                     ║
+  ║  Instead:                                                               ║
+  ║    • Score based on WHETHER vessel CAN be there by laycan (P1 + ETA)   ║
+  ║    • If vessel arrives early → score 7-9/10 (good, she has time)       ║
+  ║    • In offer_hint: ask owner "is she open for fwd dates?"             ║
+  ║    • In offer: "i know she has time before the dates — maybe fix smth  ║
+  ║      short first then load this after?"                                 ║
+  ║                                                                         ║
+  ║  The NORMAL scoring table above applies ONLY when laycan is NEAR       ║
+  ║  (within 20 days from today). For forward cargo, use relaxed scoring.  ║
+  ╚═══════════════════════════════════════════════════════════════════════════╝
+
+  ╔═══════════════════════════════════════════════════════════════════════════╗
+  ║  VERY EARLY VESSEL (-14d+) — for NEAR laycan cargoes only:              ║
   ║  No owner will idle 2+ weeks. Score 2/10 or worse.                      ║
   ║  In offer_hint: suggest "fix smth short first" or "good for next voyage"║
   ║  NEVER use intent "attract" for -14d+ early vessels.                    ║
+  ╚═══════════════════════════════════════════════════════════════════════════╝
+
+  ╔═══════════════════════════════════════════════════════════════════════════╗
+  ║  OLD AIS DATA (>30 days old):                                           ║
+  ║                                                                         ║
+  ║  When AIS position data is older than 30 days:                          ║
+  ║    • P7 score becomes UNRELIABLE — vessel could be anywhere             ║
+  ║    • Set confidence = "low"                                             ║
+  ║    • Score 3-5/10 (unknown, not penalized but not rewarded)             ║
+  ║    • In offer_hint: "last saw her [location] about [X] ago"            ║
+  ║    • NEVER use stale AIS as if it's current position                    ║
+  ║    • If AIS > 90 days: consider P7 essentially excluded                 ║
   ╚═══════════════════════════════════════════════════════════════════════════╝
 
 REASONING FORMAT:
@@ -1039,6 +1111,22 @@ SECTION 16 — RECOMMENDATION CATEGORIES
   SKIP (<35%) — Not worth offering
 
   Any BLOCK → recommendation = "BLOCKED" regardless of percentage.
+
+  ╔═══════════════════════════════════════════════════════════════════════════╗
+  ║  CONFIDENCE CAPS RECOMMENDATION:                                         ║
+  ║                                                                         ║
+  ║  Low confidence means unreliable data → cannot give high recommendation.║
+  ║                                                                         ║
+  ║  confidence < 40% → max recommendation = CONDITIONAL (never GOOD/STRONG)║
+  ║  confidence < 25% → max recommendation = WEAK                           ║
+  ║                                                                         ║
+  ║  Example: score 65% (GOOD) but confidence 30% → cap to CONDITIONAL.    ║
+  ║  Reasoning: "Score suggests GOOD but data reliability is low (30%),    ║
+  ║  capping recommendation to CONDITIONAL."                                ║
+  ║                                                                         ║
+  ║  This prevents situations like: GOOD recommendation + 30% confidence   ║
+  ║  which sends contradictory signal to the broker.                        ║
+  ╚═══════════════════════════════════════════════════════════════════════════╝
 
 ════════════════════════════════════════════════════════════════════════════════
 SECTION 18 — FINAL CHECKLIST (AI: READ THIS BEFORE OUTPUTTING)
@@ -1532,6 +1620,27 @@ PORT STRICTNESS TIERS
   ─────────────────────────────────────────
     Countries: Most West Africa, India, Bangladesh, Pakistan,
                most Southeast Asia, Central America, South America
+
+  TIER 5 — PSC IRRELEVANT (sanctioned / war zone / failed state)
+  ─────────────────────────────────────────
+    Countries: Eritrea (Massawa), Sudan (Port Sudan), Yemen (Hodeidah, Aden),
+               Somalia (Mogadishu), Syria, North Korea, Myanmar
+
+    ╔═══════════════════════════════════════════════════════════════════════════╗
+    ║  In Tier 5 zones, PSC simply does not exist or is not enforced.        ║
+    ║  Nobody inspects vessels in these ports. Reasons:                       ║
+    ║    • International sanctions prevent normal port operations            ║
+    ║    • Active military conflict / war zone                              ║
+    ║    • Failed state with no functioning government                      ║
+    ║    • Extreme corruption — no real enforcement                         ║
+    ║                                                                        ║
+    ║  ALL vessels at Tier 5 ports → score 18-20/20 regardless of status.   ║
+    ║  PSC risk is ZERO at these locations.                                  ║
+    ║                                                                        ║
+    ║  General rule: if a country is under international sanctions, in       ║
+    ║  active conflict, or has essentially no functioning government →       ║
+    ║  treat as Tier 5 (PSC irrelevant).                                    ║
+    ╚═══════════════════════════════════════════════════════════════════════════╝
 
 ================================================================================
 VESSEL STATUS CATEGORIES
@@ -2583,14 +2692,30 @@ P3 — CARGO PREFERENCES (vessel/company comments)
       reasoning = "No cargo preference data available — criterion excluded."
       offer_hint = null
 
+  ╔═══════════════════════════════════════════════════════════════════════════╗
+  ║  CRITICAL: SPECIALIZATION ≠ RESTRICTION (repeated for emphasis)          ║
+  ║                                                                          ║
+  ║  "Specializes in MAIZE" + cargo is breakbulk SBM:                       ║
+  ║    ❌ WRONG: score 0/15 or BLOCK (specialization ≠ match)               ║
+  ║    ✅ RIGHT: score 8-10/15 (SIMILAR cargo family: grains/agri)          ║
+  ║                                                                          ║
+  ║  "Specializes in MAIZE" + cargo is steel:                                ║
+  ║    ❌ WRONG: score 0/15 or BLOCK                                        ║
+  ║    ✅ RIGHT: score 5-7/15 (different cargo, but not a restriction)      ║
+  ║                                                                          ║
+  ║  "grain ONLY" + cargo is steel:                                          ║
+  ║    ✅ RIGHT: score 0/15 or BLOCK (explicit "ONLY" = restriction)        ║
+  ╚═══════════════════════════════════════════════════════════════════════════╝
+
   PARSING CARGO PREFERENCES:
-  
-    "grain specialist" → high score for grain cargoes
-    "cement carrier" → high score for cement, low for grain
-    "no dangerous goods" → block for IMO/DG cargoes
+
+    "grain specialist" → high score for grain cargoes, moderate for similar (agri)
+    "cement carrier" → high score for cement, moderate for other bulk, low for grain
+    "no dangerous goods" → block for IMO/DG cargoes (EXPLICIT restriction)
     "clean holds required" → vessel maintained for sensitive cargoes
-    "bulk only" → block for breakbulk/project cargo
-    "steel/timber regular" → specialization indicators
+    "bulk only" → block for breakbulk/project cargo (EXPLICIT restriction)
+    "grain ONLY" → block for non-grain cargo (EXPLICIT restriction)
+    "steel/timber regular" → specialization indicators (preference, NOT restriction)
 
   ╔═══════════════════════════════════════════════════════════════════════╗
   ║  "not fitted imo" = vessel LIMITATION (cannot carry IMO/DG goods).  ║
@@ -3097,25 +3222,37 @@ integration_rules_by_criterion:
     scoring_rules:
       
       forbidden_cargo:
-        condition: "Cargo type in comment's forbidden list"
+        condition: "Cargo type EXPLICITLY forbidden: 'no [cargo]', '[other] ONLY'"
         score_adjustment: "-30 points (cannot work)"
-        reasoning_template: "Comment explicitly states 'no [cargo]'"
-        
+        reasoning_template: "Comment explicitly states 'no [cargo]' or '[other] ONLY'"
+
       preferred_cargo:
-        condition: "Cargo type explicitly preferred"
+        condition: "Cargo type explicitly preferred or matches specialization"
         score_adjustment: "+15 to +18 points"
         reasoning_template: "Vessel specializes in [cargo] or 'prefers [cargo]'"
-        
+
+      similar_cargo_specialization:
+        condition: "Vessel specializes in SIMILAR cargo family (e.g., maize spec + wheat/SBM cargo)"
+        score_adjustment: "+8 to +12 points"
+        reasoning_template: "Specializes in [spec], which is in same cargo family as [cargo]"
+        note: "SPECIALIZATION = PREFERENCE, not restriction. Similar cargo = moderate positive."
+
+      different_cargo_specialization:
+        condition: "Vessel specializes in DIFFERENT cargo type (e.g., maize spec + steel cargo)"
+        score_adjustment: "+5 to +8 points"
+        reasoning_template: "Specializes in [spec], different from [cargo] but NOT a restriction"
+        note: "NEVER score 0 or BLOCK based on specialization alone. Only explicit 'no X' = block."
+
       acceptable_cargo:
         condition: "Cargo type in acceptable list"
         score_adjustment: "+5 to +10 points"
         reasoning_template: "Comment indicates '[cargo] ok'"
-        
+
       occasional_cargo:
         condition: "Cargo accepted occasionally"
         score_adjustment: "+3 to +5 points"
         reasoning_template: "Comment states '[cargo] ok occasionally'"
-        
+
       not_mentioned:
         condition: "Cargo type not mentioned"
         score_adjustment: "0 points (neutral)"
@@ -3795,13 +3932,23 @@ processing_algorithm:
             
       P3_cargo_preferences:
         comment_impact: "HIGH - Direct adjustments"
+        CRITICAL_RULE: "Specialization = PREFERENCE, not RESTRICTION. Never block/zero on specialization alone."
         rules:
           if_forbidden:
+            condition: "EXPLICIT 'no [cargo]' or '[other] ONLY'"
             score_adjustment: -30
             reasoning_template: "Cargo type explicitly forbidden: [quote]"
           if_preferred:
             score_adjustment: "+15 to +18"
             reasoning_template: "Cargo matches specialization: [quote]"
+          if_similar_specialization:
+            condition: "Specializes in similar cargo family (e.g., maize spec + wheat/SBM)"
+            score_adjustment: "+8 to +12"
+            reasoning_template: "Similar cargo family to specialization: [quote]"
+          if_different_specialization:
+            condition: "Specializes in different cargo but NO explicit restriction"
+            score_adjustment: "+5 to +8"
+            reasoning_template: "Different from specialization but not restricted: [quote]"
           if_acceptable:
             score_adjustment: "+5 to +10"
             reasoning_template: "Cargo acceptable per comments: [quote]"
@@ -7803,6 +7950,75 @@ ai_usage_instructions:
           "reasoning": "For a 7500 DWT coaster, positioning from Marmara Sea to Black Sea represents moderate ballast economics. The vessel needs to transit the Bosphorus Strait, which is a routine operation. While not optimal, this proximity level is commercially acceptable for the cargo opportunity. The P1 score of 7.6/20 (38%) reflects that ballast costs are manageable but not negligible."
         }
       }
+
+# ═══════════════════════════════════════════════════════════════════
+# CRITICAL: ADAPTING PROXIMITY LEVELS TO NON-BLACK-SEA LOADING PORTS
+# ═══════════════════════════════════════════════════════════════════
+#
+# The proximity levels above (Level 1-12 for coasters, etc.) use
+# BLACK SEA (Odessa) as the REFERENCE loading port. When the cargo
+# loads in a DIFFERENT sea/region, you MUST adapt the levels.
+#
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  RULE: Match by GEOGRAPHIC RELATIONSHIP, not by level label.   ║
+# ║  "East Med" is Level 9 for Black Sea loading (~700nm away),    ║
+# ║  but for MARMARA loading it's only ~300-500nm — use Level 6-7. ║
+# ╚══════════════════════════════════════════════════════════════════╝
+#
+# HOW TO ADAPT:
+# 1. Determine the ACTUAL nautical miles between vessel and loading port
+# 2. Find the EQUIVALENT level by distance, not by region label
+# 3. Use that equivalent level's internal score
+#
+# ADAPTATION TABLE FOR COASTERS (when loading port is NOT Black Sea):
+#
+# ┌─────────────────────────────────────┬──────────────┬───────────────┐
+# │ Vessel Location → Loading Port      │ ~Distance NM │ Equivalent    │
+# ├─────────────────────────────────────┼──────────────┼───────────────┤
+# │ LOADING IN MARMARA (e.g. Tekirdag): │              │               │
+# │   Same Marmara port                 │ 0            │ Level 1 (50)  │
+# │   Marmara sub-region                │ 10-50nm      │ Level 2-4     │
+# │   Aegean / Izmir / Dikili           │ 100-200nm    │ Level 5 (35)  │
+# │   Western Black Sea                 │ 150-250nm    │ Level 5 (35)  │
+# │   East Black Sea                    │ 400-600nm    │ Level 7 (20)  │
+# │   East Med (Iskenderun, Alexandria) │ 400-600nm    │ Level 7 (20)  │
+# │   Adriatic/Ionian                   │ 500-800nm    │ Level 8 (12)  │
+# │   West Med                          │ 800-1200nm   │ Level 10 (4)  │
+# │   Atlantic / N.Europe               │ >1500nm      │ Level 12 (0)  │
+# ├─────────────────────────────────────┼──────────────┼───────────────┤
+# │ LOADING IN EAST MED:                │              │               │
+# │   Same East Med port                │ 0            │ Level 1 (50)  │
+# │   East Med sub-region               │ 50-200nm     │ Level 4-5     │
+# │   Aegean / Marmara                  │ 200-400nm    │ Level 6 (30)  │
+# │   Black Sea (via Bosphorus)         │ 500-800nm    │ Level 8 (12)  │
+# │   West Med                          │ 500-1000nm   │ Level 8-9     │
+# ├─────────────────────────────────────┼──────────────┼───────────────┤
+# │ LOADING IN RED SEA:                 │              │               │
+# │   Same Red Sea port                 │ 0            │ Level 1 (50)  │
+# │   East Med (via Suez)               │ 300-600nm    │ Level 6-7     │
+# │   Marmara (via Suez + Med)          │ 1000-1500nm  │ Level 10 (4)  │
+# │   Black Sea (via Suez+Med+Bosp)     │ 1500-2000nm  │ Level 11 (0)  │
+# └─────────────────────────────────────┴──────────────┴───────────────┘
+#
+# EXAMPLES:
+#
+# Example 1: Coaster in Alexandria → Loading Tekirdag (Marmara)
+#   Distance: ~500nm. Table says Level 7 (internal 20).
+#   Penalty: 0.3 × 500/100 = 1.5. Final: 20 - 1.5 = 18.5
+#   P1 = (18.5/50) × 20 = 7.4/20
+#   WRONG old behavior: using Level 9 (internal 8) → P1 = 2.6/20
+#
+# Example 2: Coaster in Iskenderun → Loading Tekirdag (Marmara)
+#   Distance: ~450nm. Table says Level 7 (internal 20).
+#   Penalty: 0.3 × 450/100 = 1.35. Final: 20 - 1.35 = 18.65
+#   P1 = (18.65/50) × 20 = 7.5/20
+#
+# Example 3: Coaster in Aegean (Dikili) → Loading Tekirdag (Marmara)
+#   Distance: ~180nm. Table says Level 5 (internal 35).
+#   Penalty: 0.3 × 180/100 = 0.54. Final: 35 - 0.54 = 34.46
+#   P1 = (34.46/50) × 20 = 13.8/20
+#
+# ═══════════════════════════════════════════════════════════════════
 
 # ═══════════════════════════════════════════════════════════════════
 # FUTURE ENHANCEMENTS
