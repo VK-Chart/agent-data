@@ -6,6 +6,7 @@ on:
       - 'estimator-prompts/**'
       - 'offer-prompts/**'
       - 'generalist-prompts/fast-offer/**'
+      - '.github/workflows/**'
   workflow_dispatch: # Allows manual triggering
 
 permissions:
@@ -61,8 +62,8 @@ jobs:
         run: |
           git config --local user.email "oleksiy.perepelytsya@gmail.com"
           git config --local user.name "GitHub Action"
-          git add output/final_prompt.txt
-          git add output/offer_prompt.txt
-          git add output/fast_offer_prompt.txt
+          git add -f output/final_prompt.txt
+          git add -f output/offer_prompt.txt
+          git add -f output/fast_offer_prompt.txt
           git commit -m "chore: update compiled prompts [skip ci]" || exit 0
           git push
