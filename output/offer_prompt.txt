@@ -2,7 +2,7 @@
 --- START OF offer-prompts/VESSEL_OFFER_v2.txt ---
 ################################################################################
 #  VK CHARTS — VESSEL OFFER PROMPT (COMPACT)                                  #
-#  Version: 2.1 | Date: 2026-03-15                                           #
+#  Version: 2.2 | Date: 2026-04-03                                           #
 #  Optimized for: Gemini 2.5 Flash / Pro                                      #
 #  Changes from v1.0:                                                         #
 #    - Consolidated from ~34K tokens to ~5K tokens                            #
