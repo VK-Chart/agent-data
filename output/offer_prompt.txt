@@ -638,4 +638,5 @@ SECTION 10 — FINAL CHECKLIST (VERIFY BEFORE OUTPUT)
 ################################################################################
 #  END OF VESSEL OFFER PROMPT v3.0                                             #
 ################################################################################
---- END OF offer-prompts/VESSEL_OFFER_v2.txt ---
+
+
