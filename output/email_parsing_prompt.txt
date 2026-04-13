@@ -235,13 +235,39 @@ Phone number formats to recognize:
 - "+90-532-123-4567" (with dashes)
 - "Tel : +90 212 415 50 20"
 - "Mob : +90 549 693 83 83"
+- "MOB: 00 90 532 266 5121" (with "00" prefix instead of "+")
+- "Mobile: + 90 535 854 5124" (with space after "+")
+- "Phone: + 90 546 135 1301"
 - "Extension 130" / "Ext:105"
+IMPORTANT: Convert "00" prefix to "+" when extracting (e.g., "00 90 532" → "+90 532").
+Extract BOTH phone and mobile if both are present in the signature.
 
 Messenger formats:
 - "Skype : husnu.sidar" / "skype :capitan119"
 - "Whatsapp: +90 533 715 2979" / "M/Viber/Wup: +357 99581395"
 - "MS Teams: https://teams.live.com/..." → extract the URL
+- "Teams ID : flipper-g.unsal" → teams: "flipper-g.unsal"
+- "Teams ID : gokay.unsal" → teams: "gokay.unsal"
 - "TEXT ME VIA TEAMS" → teams: true (no specific handle)
+
+Company email as fallback:
+- If the email header/letterhead contains a company email (e.g., "E-mail : chartering@flippershipping.com")
+  and individual contacts in the signature do NOT have their own email addresses,
+  assign the company email to ALL contacts from that signature.
+- Example: Company header has "chartering@flippershipping.com", signature has "CAPT GOKHAN UNSAL (MOB: ...)"
+  without a personal email → set email: "chartering@flippershipping.com" for CAPT GOKHAN UNSAL.
+
+CRITICAL — Signature parsing completeness:
+- NEVER return null/empty for phone/mobile/messenger if the information IS present in the email.
+- Signatures often have contact details on separate lines AFTER the person's name. Scan ALL lines
+  between a person's name and the next person's name (or end of email) for phone/mobile/messenger data.
+- Common signature pattern:
+    RGDS- CAPT GOKHAN UNSAL (MOB: 00 90 532 266 5121)
+              Teams ID : flipper-g.unsal
+
+              GOKAY  UNSAL ( MOB: 00 90 535 854 5124)
+              Teams ID : gokay.unsal
+  → Extract: 2 contacts, each with mobile + teams messenger.
 
 ====================================================================
 SECTION 8: PERSON-VESSEL MAPPING RULES
