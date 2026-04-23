@@ -1,0 +1,72 @@
+################################################################################
+#  VK CHARTS — CARGO JSON FIELD MAPPING
+#  Version: 1.0 | Date: 2026-04-23
+#
+#  This section documents the cargo object schema that appears in user_prompt
+#  as "# CARGO (normalized)" JSON block.
+################################################################################
+
+SECTION C1 — CARGO JSON FIELD MAPPING
+══════════════════════════════════════════════════════════════════════
+
+PRIMARY FIELDS (scoring + offer):
+  Cargo type           → "type"                 (e.g. "GRAIN - WHEAT")
+  Stowage factor       → "stowage_factor"       (string, numeric, nullable)
+  Laycan               → "laycan"               (e.g. "2026-05-15 - 2026-05-25")
+  Loading port         → "loading_port"         (single string, from load.port.title)
+  Discharge port       → "discharge_port"       (single string)
+  Load sea             → "load_sea"             (e.g. "Black Sea")
+  Discharge sea        → "disch_sea"            (e.g. "Mediterranean Sea")
+  Charterer            → "charterer"            (company name or null)
+
+QUANTITY:
+  Min quantity         → "min_quantity"         (numeric, MT/CBM/CBFT per unit)
+  Max quantity         → "max_quantity"         (numeric, upper bound)
+  Unit                 → "quantity_unit"        ("MT" | "CBM" | "CBFT")
+
+  Interpretation for offer:
+    - Both set → "ABT X-Y {unit}" or "X {unit} MOLOO 10%" depending on tolerance range
+    - Only one → "{value} {unit}" as-is
+    - Both null → do NOT fabricate quantity; use description/name
+
+MULTI-VALUE FIELDS (ranges, alternatives):
+  Load countries       → "load_countries"       (array of names)
+  Load regions         → "load_regions"         (array of names)
+  Load ports           → "load_ports"           (array of {code, title})
+  Discharge countries  → "discharge_countries"  (array of names)
+  Discharge regions    → "discharge_regions"    (array of names)
+  Discharge ports      → "discharge_ports"      (array of {code, title})
+
+CARGO-SPECIFIC REQUIREMENTS FROM CHARTERER (used in P8 extension):
+  Max LOA              → "vessel_requirements.loa"
+  Max beam             → "vessel_requirements.beam"
+  Max draft            → "vessel_requirements.draft"
+  Max age              → "vessel_requirements.age"
+  Required class       → "vessel_requirements.class"
+  Required P&I         → "vessel_requirements.p_and_i"
+
+EXTRA CONTEXT (for offer generation, informative for scoring):
+  Main description     → "extra_context.description"
+  Short description    → "extra_context.short_description"
+  Additional info      → "extra_context.additional_info"
+  Cargo dimensions     → "extra_context.cargo_dimensions"  (USE in P8 for holds/hatches fit)
+  Other restrictions   → "extra_context.other_restrictions" (USE in P8 for IMO, cargo gear)
+  Restrictions         → "extra_context.restrictions"
+
+NESTED OBJECTS (enrichment, not normalized):
+  Cargo catalog        → "cargo_catalog" (object: {id, cargo_type, cargo_item, display_name, stw_options})
+  Load/discharge       → "load"/"discharge" (object: {country, region, port: {code, title}})
+
+LEGACY FIELDS (backward compat, also present — use normalized above):
+  cargo_stw, lay_day, cancelling_date, cargo_catalog_id, charterer_id,
+  load_port_id, disch_port_id, name, description, loa, beam, draft, age, class, p_and_i
+
+SECTION C2 — LAYCAN HANDLING
+══════════════════════════════════════════════════════════════════════
+
+"laycan" format: "{ISO_date} - {ISO_date}" или single date если только один set.
+
+Usage:
+  - Parse as layday (earliest NOR) and cancelling (latest NOR)
+  - Use in P7 readiness scoring
+  - NEVER say "too late for layday" if vessel still makes cancelling

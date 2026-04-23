@@ -1,0 +1,85 @@
+################################################################################
+#  VESSEL FIELDS ADDENDUM
+#  Version: 1.0 | Date: 2026-04-23
+#
+#  Addendum to SECTION 1 (VESSEL JSON FIELD MAPPING) in VESSEL_ESTIMATION.txt.
+#  Documents fields that exist in MongoDB vessel_documents / vessels_estimation
+#  but were not previously documented.
+################################################################################
+
+SECTION V-ADDENDUM — UNDOCUMENTED FIELDS
+══════════════════════════════════════════════════════════════════════
+
+OPEN AREA (correction to SECTION 1:205):
+  The field "open_area" is NOT a string — it is an OBJECT or null:
+    {
+      "name": "N.SPAIN",
+      "start_at": ISODate,
+      "end_at": ISODate,
+      "updated_at": ISODate,
+      "comments": ["Cargo: DRY/PROJECTS/BREAKBULK", ...]
+    }
+
+  Usage:
+    - Use "name" for P1 proximity check
+    - Use "start_at/end_at" for P7 readiness
+    - Parse "comments" array via Comments Processing Guide (P6)
+
+TRADING RESTRICTIONS:
+  Field: "trading_restrictions" (array)
+  Structure: [{geo_name, action, notes}, ...]
+
+  Usage:
+    - Use in P8 for geographical blocks
+    - "action" values: "block", "require_confirmation", "avoid"
+    - Example: {geo_name: "Iran", action: "block"} → cargo to IR port = BLOCK
+
+INTAKES (current structure, pre-TZ_INTAKE):
+  Field: "intakes" (array)
+  Structure: [
+    {
+      "dwt_value": int,
+      "cargo_types": [display_name strings],
+      "geo_names": [geographical location strings],
+      "notes": string,
+      "created_at": ISODate
+    }
+  ]
+
+  Usage: P5 intake calculator — use dwt_value per cargo type for capacity.
+
+CUSTOM PROMPTS:
+  Fields: "companies[].custom_prompt", "people[].custom_prompt"
+
+  Usage:
+    - If company.custom_prompt set → treat as system-level override for this company's offers
+    - If person.custom_prompt set → personalize offer text for this person
+    - Empty/null → ignore, use standard templates
+
+PERSON LOCATION & NATIONALITY:
+  Fields: "people[].location", "people[].nationality"
+
+  Usage for RECIPIENT_LOCAL_TIME (timezone greeting):
+    Priority 1: location (actual physical location, e.g. "Istanbul")
+    Priority 2: nationality (home country timezone, e.g. "turkish" → Istanbul)
+    Priority 3: vessel.flag (vessel country)
+    Priority 4: skip timezone hint, default greeting
+
+BIRTHDAY GREETINGS:
+  Field: "people[].birthday" (UTCDateTime, day+month only — year=0)
+
+  Usage in offer:
+    - If person.birthday month-day matches TODAY (UTC or recipient TZ) → prepend
+      one-line greeting: "hbd {first_name}! wishing you well." THEN main body.
+    - If birthday is tomorrow → optionally soft: "almost yr bday, great timing!" (rare use)
+    - If birthday is null or not today → DO NOT mention, DO NOT fabricate
+
+COMPANY PREFERENCES (computed by Laravel, derived from comments):
+  Field: "companies[].preferences" (object)
+  Known keys:
+    - "no_poc" (bool) — if true, owner refuses POC region cargo (Pivdennyi+Odessa+Chornomorsk)
+
+  Usage:
+    - If preferences.no_poc=true AND cargo in POC → P2 BLOCK (stronger than RULE 11 text parsing)
+    - If preferences.no_poc=false AND owner comment contains "no odessa" → still apply RULE 11
+    - This is an OPTIMIZATION over RULE 11 text parsing (less error-prone)

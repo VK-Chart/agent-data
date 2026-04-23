@@ -1,0 +1,52 @@
+################################################################################
+#  P8 EXTENSION — CARGO REQUIREMENTS vs VESSEL SPECS
+#  Version: 1.0 | Date: 2026-04-23
+#
+#  Extends P8 scoring in VESSEL_ESTIMATION.txt with charterer-specific
+#  vessel requirements from cargo.vessel_requirements.
+################################################################################
+
+SECTION P8-EXT — CARGO.VESSEL_REQUIREMENTS SCORING
+══════════════════════════════════════════════════════════════════════
+
+Before finalizing P8 score, compare cargo.vessel_requirements with vessel specs:
+
+COMPARISON TABLE:
+  cargo.vessel_requirements.loa     vs  vessel["length-overall"]
+  cargo.vessel_requirements.beam    vs  vessel.beam
+  cargo.vessel_requirements.draft   vs  vessel.draft
+  cargo.vessel_requirements.age     vs  (current_year - vessel["year-of-build"])
+  cargo.vessel_requirements.class   vs  vessel["classification-society"]
+  cargo.vessel_requirements.p_and_i vs  vessel.pi_information
+
+RULES:
+
+1. LOA/BEAM/DRAFT mismatch:
+   - If cargo.vessel_requirements.loa < vessel["length-overall"] → BLOCK in P8 (physical fit)
+     Example: charterer max LOA 180m, vessel 190m → cannot fit cargo
+   - Same for beam and draft
+   - Quote requirement in reasoning: "charterer requires LOA ≤ 180m, vessel is 190m"
+
+2. AGE mismatch:
+   - Per RULE 6 (from main prompt): age NEVER blocks
+   - If vessel age > cargo.vessel_requirements.age → warning in reasoning only
+   - Frame in offer as QUESTION: "sub her age approval (she's 22 yo, yes?)"
+
+3. CLASS mismatch:
+   - If cargo.vessel_requirements.class set and vessel["classification-society"] does NOT match:
+     → warning in reasoning
+     → offer question: "sub class approval (she's {class}, ok?)"
+   - IACS members compatible (see RULE 9)
+
+4. P&I mismatch:
+   - If cargo.vessel_requirements.p_and_i set and vessel.pi_information null/different:
+     → warning in reasoning
+     → NORMALLY P&I forbidden in offer text, but WHEN CARGO EXPLICITLY REQUIRES IT:
+       OK to mention: "charterer prefers Gard P&I, sub owner confirm"
+
+5. IF cargo.vessel_requirements ALL null:
+   → NO-OP, use standard P8 logic
+
+CONFIDENCE:
+  If vessel data null for compared field → confidence="low" for P8
+  Do NOT block on missing data, only on confirmed mismatch.

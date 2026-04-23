@@ -1,0 +1,90 @@
+################################################################################
+#  CARGO BLOCK EXTENDED RULES (offer generation)
+#  Version: 1.0 | Date: 2026-04-23
+#
+#  Overrides/extends SECTION 6 "CARGO BLOCK (SACRED)" in VESSEL_OFFER_v2.txt.
+################################################################################
+
+SECTION 6A — CARGO BLOCK FALLBACK
+══════════════════════════════════════════════════════════════════════
+
+Input contains "# CARGO BLOCK (COPY EXACTLY INTO OFFER)" — SACRED, copy verbatim.
+
+HOWEVER: if CARGO BLOCK is auto-generated fallback (joined extra_context fields):
+  - You will see multiple paragraphs separated by double newline
+  - Format them naturally for broker speak:
+    * Join short fragments into single line
+    * Drop redundant information
+    * Keep broker-style abbreviations
+
+EXAMPLE (fallback CARGO BLOCK):
+  Input (SACRED, 3 paragraphs joined):
+    "wheat about 5000 mt"
+    "max stowage 48"
+    "IMO class 4.1 not allowed"
+
+  Offer cargo block (natural):
+    "5k abt wheat, max stw 48, non-imo 4.1"
+
+SECTION 6B — CARGO REQUIREMENTS IN OFFER TEXT
+══════════════════════════════════════════════════════════════════════
+
+If cargo.vessel_requirements has constraints AND vessel does NOT meet them:
+  Frame as QUESTION, not statement. Examples:
+
+  Cargo max age 20, vessel 22:
+    ✅ "sub her age approval (she's 22 yo)"
+    ❌ "she's too old for this cargo"
+
+  Cargo requires class = Bureau Veritas, vessel has Lloyd's:
+    ✅ "sub class sub (she's LR)"
+    ❌ "class mismatch"
+
+SECTION 6C — P&I WHITELIST (OVERRIDE)
+══════════════════════════════════════════════════════════════════════
+
+Standard rule: NEVER mention P&I in offer text (validator penalty).
+
+OVERRIDE: when cargo.vessel_requirements.p_and_i is set (charterer explicitly
+requires specific P&I), it IS OK to mention:
+
+  ✅ "sub owner P&I confirm (chrtr wants Gard)"
+  ✅ "charterer prefers IG club — confirm yr P&I"
+
+This override applies ONLY when cargo requirements specify P&I.
+Rule still holds for general P&I discussions.
+
+SECTION 6D — BIRTHDAY GREETINGS (optional)
+══════════════════════════════════════════════════════════════════════
+
+If recipient person.birthday matches today:
+  Prepend ONE short line before main body:
+    "hbd {first_name}! " (casual, no emoji)
+
+  Keep birthday greeting BEFORE cargo info, not inside business part.
+
+If birthday is null or not today → DO NOT mention anything about birthday.
+Do NOT fabricate birthday info.
+
+SECTION 6E — QUANTITY FORMAT
+══════════════════════════════════════════════════════════════════════
+
+Input cargo has min_quantity, max_quantity, quantity_unit:
+
+Format in CARGO BLOCK:
+  Both set, equal or close (<5%): "{avg} {unit}"         → "5000 mt"
+  Both set, 10% range: "abt {avg} {unit}"                → "abt 5000 mt"
+  Both set, wide range: "{min}-{max} {unit}"             → "4500-5500 mt"
+  Only max set: "max {max} {unit}"                       → "max 5500 mt"
+  Only min set: "min {min} {unit}"                       → "min 4500 mt"
+  Both null: fall back to description/name text
+
+Unit formats:
+  MT   → "mt" (lowercase)
+  CBM  → "cbm"
+  CBFT → "cbft"
+
+Broker shortcuts acceptable:
+  "5k abt" = "5000 abt"
+  "5k±10%" = MOLOO 10% on 5000
+  "5/5.5k" = 5000-5500 range
