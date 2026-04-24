@@ -597,7 +597,26 @@ INTAKE CALCULATION:
       Panamax (65-80k): 700-1000t
 
   Step 2 — Volume intake (if stowage factor and grain capacity known):
-    volume_intake = grain_capacity_cbft / stowage_factor
+
+    DETERMINE stw (stowage factor) — CASCADE across data sources:
+      Step 2a — Per-vessel actual STW override (HIGHEST PRIORITY):
+        If vessel.intakes[].cargo.stw_value is set (not null):
+          stw = vessel.intakes[].cargo.stw_value
+          (may be range like "54-55" — use midpoint)
+          → confidence = "high" (derived from vessel's own past loads)
+      Step 2b — Library default STW:
+        Elif vessel.intakes[].cargo.stw_defaults is non-empty array:
+          stw = FIRST element of stw_defaults
+          → confidence = "medium" (catalog default for this cargo)
+      Step 2c — LLM knowledge fallback:
+        Else (stw_value null AND stw_defaults null/empty):
+          stw = LLM estimate (typical market SF for cargo_type/cargo_item)
+          → confidence = "low"
+          → reasoning must note: "no vessel-specific STW data, using general
+            market knowledge"
+
+    FORMULA:
+      volume_intake = grain_capacity_cbft / stw
 
     ╔═══════════════════════════════════════════════════════════════════════╗
     ║  GRAIN CAPACITY = 0 OR NULL:                                         ║
@@ -612,7 +631,18 @@ INTAKE CALCULATION:
     ║  - Use the value normally for volume calculation.                    ║
     ║  - NEVER claim "missing grain capacity" if the value exists.        ║
     ╚═══════════════════════════════════════════════════════════════════════╝
-    
+
+  Step 2-DIMENSIONS — Dimensions mode (project cargo / breakbulk):
+    If vessel.intakes[].cargo.measurement_mode == "dimensions":
+      → Do NOT apply the STW formula above (stw_value is null by design).
+      → Use vessel.intakes[].cargo.dimensions (free text) for intake
+        estimation of project / breakbulk cargo.
+      → Compare with vessel hold dimensions from custom_attributes
+        (slugs: hold-dimm, hatch-dimm) to assess physical fit.
+      → Example: cargo.dimensions = "40x20x10m bags, stackable max 3 high"
+        → P5 reasoning: "Using reported cargo dimensions for breakbulk
+          intake; STW formula not applicable (project cargo)."
+
   Step 3 — Draft-limited intake (if port has draft restriction):
     → Reduce intake based on restricted draft vs vessel summer draft
     → This is handled IN P5, not P8
@@ -2247,21 +2277,52 @@ STEP 2 — CALCULATE VESSEL INTAKE
      ║    → P5 can score normally but note missing grain capacity          ║
      ╚═══════════════════════════════════════════════════════════════════════╝
 
+     STOWAGE FACTOR (SF) — CASCADE for data source:
+       1. vessel.intakes[].cargo.stw_value (per-vessel actual — HIGHEST priority,
+          confidence=high). Range like "54-55" → use midpoint.
+       2. vessel.intakes[].cargo.stw_defaults (first element — library default,
+          confidence=medium).
+       3. LLM estimate (typical market SF for cargo type/item — LOWEST priority,
+          confidence=low). Note in reasoning: "no vessel-specific STW data".
+
+     If vessel.intakes[].cargo.measurement_mode == "dimensions":
+       → Skip SF cascade entirely. Use cargo.dimensions (free text) for
+         project / breakbulk intake (see STEP 2.E below).
+
      volume_intake = grain_capacity / SF
-     
+
      grain_capacity = from vessel specs (cubic feet)
-     SF = Stowage Factor of the cargo (cubic feet per tonne)
-     
-     Common SF values:
+     SF = Stowage Factor of the cargo (cubic feet per tonne) — from cascade above
+
+     Common SF values (for LLM fallback only — Step C of cascade):
        Wheat: 46-48 cbft/t       Corn/Maize: 47-50 cbft/t
        Barley: 49-53 cbft/t      Soybeans: 48-50 cbft/t
        Cement: 28-30 cbft/t      Coal: 42-48 cbft/t
        Fertilizer (urea): 42-45  Sugar: 38-42 cbft/t
        Steel products: 15-25     Rice: 42-52 cbft/t
-       
+
      If grain_capacity = 0 or null → skip volume check, apply rules above
      If SF not available → skip volume check
-     
+
+  E) DIMENSIONS-MODE INTAKE (project cargo / breakbulk — no SF formula):
+
+     APPLIES WHEN: vessel.intakes[].cargo.measurement_mode == "dimensions"
+                   (cargo.stw_value is null by design; cargo.dimensions has text)
+
+     Do NOT apply the SF-based volume_intake formula. Instead:
+       - Read cargo.dimensions (free text, e.g. "40x20x10m bags, stackable
+         max 3 high" or "project piece 18m long, 60t unit").
+       - Compare against vessel hold dimensions from custom_attributes:
+           hold-dimm   (hold L x B x D)
+           hatch-dimm  (hatch opening L x B)
+         to assess physical fit.
+       - Estimate intake based on reported density / piece count / stacking.
+       - P5 reasoning MUST state: "Using reported cargo dimensions for
+         breakbulk intake; STW formula not applicable (project cargo)."
+
+     If vessel hold dimensions are missing (not in custom_attributes):
+       → confidence = "low"; ask in offer: "sub her hold dimensions approval"
+
   C) DRAFT-RESTRICTED INTAKE (when port or cargo has draft restriction):
   
      DRAFT RESTRICTION SOURCES (use the MORE restrictive value):

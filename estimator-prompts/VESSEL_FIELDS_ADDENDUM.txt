@@ -1,10 +1,15 @@
 ################################################################################
 #  VESSEL FIELDS ADDENDUM
-#  Version: 1.0 | Date: 2026-04-23
+#  Version: 2.0 | Date: 2026-04-24
 #
 #  Addendum to SECTION 1 (VESSEL JSON FIELD MAPPING) in VESSEL_ESTIMATION.txt.
 #  Documents fields that exist in MongoDB vessel_documents / vessels_estimation
 #  but were not previously documented.
+#
+#  v2.0 changes (post-TZ_INTAKE 2026-04-22):
+#    - INTAKES block: OLD cargo_types[] shape replaced with NEW cargo object shape
+#      (id, display_name, measurement_mode, stw_value, stw_defaults, dimensions).
+#    - NEW section CARGO PREFERENCES added (P3 scoring input).
 ################################################################################
 
 SECTION V-ADDENDUM — UNDOCUMENTED FIELDS
@@ -34,19 +39,98 @@ TRADING RESTRICTIONS:
     - "action" values: "block", "require_confirmation", "avoid"
     - Example: {geo_name: "Iran", action: "block"} → cargo to IR port = BLOCK
 
-INTAKES (current structure, pre-TZ_INTAKE):
+INTAKES (post-TZ_INTAKE 2026-04-22 — NEW SHAPE):
   Field: "intakes" (array)
   Structure: [
     {
-      "dwt_value": int,
-      "cargo_types": [display_name strings],
-      "geo_names": [geographical location strings],
-      "notes": string,
+      "dwt_value": int (nullable),
+      "cargo": {                         ← single object, NOT array of cargo_types
+        "id": int,                       ← cargos_catalog.id
+        "display_name": string,          ← "cargo_type - cargo_item" (e.g. "grain - WHEAT")
+        "cargo_type": string|null,       ← catalog type (e.g. "grain")
+        "cargo_item": string|null,       ← catalog item (e.g. "WHEAT")
+        "measurement_mode": "stw"|"dimensions",
+        "stw_value": string|null,        ← per-vessel actual STW (e.g. "46" or "54-55")
+        "stw_defaults": [string]|null,   ← library defaults from cargos_catalog
+        "dimensions": string|null        ← free text when measurement_mode='dimensions'
+      } OR null,
+      "geo_names": [string],             ← merged ports/regions/countries/seas
+      "notes": string|null,
       "created_at": ISODate
     }
   ]
 
-  Usage: P5 intake calculator — use dwt_value per cargo type for capacity.
+  Usage for P5 intake_capacity:
+    Step A — per-vessel actual STW override (HIGHEST PRIORITY):
+      If cargo.stw_value is set → stw = cargo.stw_value
+        (example "46"; may be range like "54-55" — use midpoint)
+        → confidence = "high" (from actual vessel history)
+    Step B — library default STW:
+      Elif cargo.stw_defaults is non-empty → stw = first of stw_defaults
+        → confidence = "medium" (catalog default for this cargo)
+    Step C — LLM knowledge fallback:
+      Else → stw = LLM estimate (market-typical for cargo_type/cargo_item)
+        → confidence = "low", note in reasoning:
+          "no vessel-specific STW data, using general market knowledge"
+    Then: volume_intake = grain_capacity_cbft / stw
+
+  Usage when measurement_mode == "dimensions":
+    → Do NOT apply STW formula (stw_value would be null).
+    → Use cargo.dimensions (free text) for project cargo / breakbulk.
+    → Compare with vessel hold dimensions from custom_attributes
+      (slugs: hold-dimm, hatch-dimm) to assess physical fit.
+    → Example: cargo.dimensions = "40x20x10m bags, stackable max 3 high"
+      → P5 reasoning: "Using reported cargo dimensions for breakbulk intake;
+        no STW applicable (project cargo)."
+
+  Backward compatibility (short transition window):
+    → If a legacy document still has intakes[].cargo_types (array of strings)
+      and no cargo object → treat as missing STW data, cascade straight to
+      Step C (LLM estimate) and note in reasoning that data is pre-TZ_INTAKE.
+      This path should disappear after full resync.
+
+CARGO PREFERENCES (post-TZ_INTAKE 2026-04-22 — NEW SECTION):
+  Field: "cargo_preferences" (array)
+  Structure: [
+    {
+      "cargo_catalog_id": int,
+      "cargo_display_name": string,      ← e.g. "BARLEY" or "grain - SBM"
+      "cargo_type": string|null,
+      "cargo_item": string|null,
+      "preference_setting_id": int,
+      "preference_setting_name": string, ← e.g. "Preferred" | "Neutral" | "Blocked" | "Avoid"
+      "source": "manual" | "snapshot"    ← manual = per-vessel rule, snapshot = inherited
+    }
+  ]
+
+  Usage for P3 cargo_preferences scoring:
+
+    PRIORITY RULE (when same cargo_catalog_id appears multiple times):
+      source = "manual"   → HIGHEST priority (owner explicitly set this rule)
+      source = "snapshot" → MEDIUM priority (inherited group-level rule)
+      When both exist for the same cargo → manual overrides snapshot.
+
+    SCORING:
+      Current cargo matches CARGO PREFERENCES with "Preferred"
+        → +25 points for P3
+        → reasoning: "vessel owner marked {cargo} as preferred"
+      Current cargo matches with "Blocked" or "Avoid"
+        → -30 points
+        → decision = "blocked", critical = true
+        → reasoning: "vessel owner marked {cargo} as blocked/avoid"
+      Current cargo matches with "Neutral"
+        → 0 points (no bonus, no penalty)
+        → note in reasoning: "cargo flagged as neutral in vessel preferences"
+      Current cargo NOT in cargo_preferences
+        → 0 points
+        → fall back to general market knowledge for P3 scoring
+        → reasoning: "no vessel-specific preference, using general knowledge"
+
+    MATCHING RULES (in order of precedence):
+      1. Match by cargo_catalog_id exactly when cargo snapshot has cargo_catalog_id.
+      2. Match by display_name case-insensitive when no cargo_catalog_id.
+      3. Match by cargo_type when preference specifies type-level only
+         (cargo_item = null) — this covers rules like "all steels", "all grain".
 
 CUSTOM PROMPTS:
   Fields: "companies[].custom_prompt", "people[].custom_prompt"
