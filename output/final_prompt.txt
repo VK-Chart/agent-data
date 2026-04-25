@@ -1,4 +1,134 @@
 
+--- START OF estimator-prompts/CARGO_FIELD_MAPPING.txt ---
+################################################################################
+#  VK CHARTS — CARGO JSON FIELD MAPPING
+#  Version: 1.0 | Date: 2026-04-23
+#
+#  This section documents the cargo object schema that appears in user_prompt
+#  as "# CARGO (normalized)" JSON block.
+################################################################################
+
+SECTION C1 — CARGO JSON FIELD MAPPING
+══════════════════════════════════════════════════════════════════════
+
+PRIMARY FIELDS (scoring + offer):
+  Cargo type           → "type"                 (e.g. "GRAIN - WHEAT")
+  Stowage factor       → "stowage_factor"       (string, numeric, nullable)
+  Laycan               → "laycan"               (e.g. "2026-05-15 - 2026-05-25")
+  Loading port         → "loading_port"         (single string, from load.port.title)
+  Discharge port       → "discharge_port"       (single string)
+  Load sea             → "load_sea"             (e.g. "Black Sea")
+  Discharge sea        → "disch_sea"            (e.g. "Mediterranean Sea")
+  Charterer            → "charterer"            (company name or null)
+
+QUANTITY:
+  Min quantity         → "min_quantity"         (numeric, MT/CBM/CBFT per unit)
+  Max quantity         → "max_quantity"         (numeric, upper bound)
+  Unit                 → "quantity_unit"        ("MT" | "CBM" | "CBFT")
+
+  Interpretation for offer:
+    - Both set → "ABT X-Y {unit}" or "X {unit} MOLOO 10%" depending on tolerance range
+    - Only one → "{value} {unit}" as-is
+    - Both null → do NOT fabricate quantity; use description/name
+
+MULTI-VALUE FIELDS (ranges, alternatives):
+  Load countries       → "load_countries"       (array of names)
+  Load regions         → "load_regions"         (array of names)
+  Load ports           → "load_ports"           (array of {code, title})
+  Discharge countries  → "discharge_countries"  (array of names)
+  Discharge regions    → "discharge_regions"    (array of names)
+  Discharge ports      → "discharge_ports"      (array of {code, title})
+
+CARGO-SPECIFIC REQUIREMENTS FROM CHARTERER (used in P8 extension):
+  Max LOA              → "vessel_requirements.loa"
+  Max beam             → "vessel_requirements.beam"
+  Max draft            → "vessel_requirements.draft"
+  Max age              → "vessel_requirements.age"
+  Required class       → "vessel_requirements.class"
+  Required P&I         → "vessel_requirements.p_and_i"
+
+EXTRA CONTEXT (for offer generation, informative for scoring):
+  Main description     → "extra_context.description"
+  Short description    → "extra_context.short_description"
+  Additional info      → "extra_context.additional_info"
+  Cargo dimensions     → "extra_context.cargo_dimensions"  (USE in P8 for holds/hatches fit)
+  Other restrictions   → "extra_context.other_restrictions" (USE in P8 for IMO, cargo gear)
+  Restrictions         → "extra_context.restrictions"
+
+NESTED OBJECTS (enrichment, not normalized):
+  Cargo catalog        → "cargo_catalog" (object: {id, cargo_type, cargo_item, display_name, stw_options})
+  Load/discharge       → "load"/"discharge" (object: {country, region, port: {code, title}})
+
+LEGACY FIELDS (backward compat, also present — use normalized above):
+  cargo_stw, lay_day, cancelling_date, cargo_catalog_id, charterer_id,
+  load_port_id, disch_port_id, name, description, loa, beam, draft, age, class, p_and_i
+
+SECTION C2 — LAYCAN HANDLING
+══════════════════════════════════════════════════════════════════════
+
+"laycan" format: "{ISO_date} - {ISO_date}" или single date если только один set.
+
+Usage:
+  - Parse as layday (earliest NOR) and cancelling (latest NOR)
+  - Use in P7 readiness scoring
+  - NEVER say "too late for layday" if vessel still makes cancelling
+
+
+--- START OF estimator-prompts/P8_CARGO_REQUIREMENTS.txt ---
+################################################################################
+#  P8 EXTENSION — CARGO REQUIREMENTS vs VESSEL SPECS
+#  Version: 1.0 | Date: 2026-04-23
+#
+#  Extends P8 scoring in VESSEL_ESTIMATION.txt with charterer-specific
+#  vessel requirements from cargo.vessel_requirements.
+################################################################################
+
+SECTION P8-EXT — CARGO.VESSEL_REQUIREMENTS SCORING
+══════════════════════════════════════════════════════════════════════
+
+Before finalizing P8 score, compare cargo.vessel_requirements with vessel specs:
+
+COMPARISON TABLE:
+  cargo.vessel_requirements.loa     vs  vessel["length-overall"]
+  cargo.vessel_requirements.beam    vs  vessel.beam
+  cargo.vessel_requirements.draft   vs  vessel.draft
+  cargo.vessel_requirements.age     vs  (current_year - vessel["year-of-build"])
+  cargo.vessel_requirements.class   vs  vessel["classification-society"]
+  cargo.vessel_requirements.p_and_i vs  vessel.pi_information
+
+RULES:
+
+1. LOA/BEAM/DRAFT mismatch:
+   - If cargo.vessel_requirements.loa < vessel["length-overall"] → BLOCK in P8 (physical fit)
+     Example: charterer max LOA 180m, vessel 190m → cannot fit cargo
+   - Same for beam and draft
+   - Quote requirement in reasoning: "charterer requires LOA ≤ 180m, vessel is 190m"
+
+2. AGE mismatch:
+   - Per RULE 6 (from main prompt): age NEVER blocks
+   - If vessel age > cargo.vessel_requirements.age → warning in reasoning only
+   - Frame in offer as QUESTION: "sub her age approval (she's 22 yo, yes?)"
+
+3. CLASS mismatch:
+   - If cargo.vessel_requirements.class set and vessel["classification-society"] does NOT match:
+     → warning in reasoning
+     → offer question: "sub class approval (she's {class}, ok?)"
+   - IACS members compatible (see RULE 9)
+
+4. P&I mismatch:
+   - If cargo.vessel_requirements.p_and_i set and vessel.pi_information null/different:
+     → warning in reasoning
+     → NORMALLY P&I forbidden in offer text, but WHEN CARGO EXPLICITLY REQUIRES IT:
+       OK to mention: "charterer prefers Gard P&I, sub owner confirm"
+
+5. IF cargo.vessel_requirements ALL null:
+   → NO-OP, use standard P8 logic
+
+CONFIDENCE:
+  If vessel data null for compared field → confidence="low" for P8
+  Do NOT block on missing data, only on confirmed mismatch.
+
+
 --- START OF estimator-prompts/VESSEL_ESTIMATION.txt ---
 ################################################################################
 #                                                                              #
@@ -599,7 +729,26 @@ INTAKE CALCULATION:
       Panamax (65-80k): 700-1000t
 
   Step 2 — Volume intake (if stowage factor and grain capacity known):
-    volume_intake = grain_capacity_cbft / stowage_factor
+
+    DETERMINE stw (stowage factor) — CASCADE across data sources:
+      Step 2a — Per-vessel actual STW override (HIGHEST PRIORITY):
+        If vessel.intakes[].cargo.stw_value is set (not null):
+          stw = vessel.intakes[].cargo.stw_value
+          (may be range like "54-55" — use midpoint)
+          → confidence = "high" (derived from vessel's own past loads)
+      Step 2b — Library default STW:
+        Elif vessel.intakes[].cargo.stw_defaults is non-empty array:
+          stw = FIRST element of stw_defaults
+          → confidence = "medium" (catalog default for this cargo)
+      Step 2c — LLM knowledge fallback:
+        Else (stw_value null AND stw_defaults null/empty):
+          stw = LLM estimate (typical market SF for cargo_type/cargo_item)
+          → confidence = "low"
+          → reasoning must note: "no vessel-specific STW data, using general
+            market knowledge"
+
+    FORMULA:
+      volume_intake = grain_capacity_cbft / stw
 
     ╔═══════════════════════════════════════════════════════════════════════╗
     ║  GRAIN CAPACITY = 0 OR NULL:                                         ║
@@ -614,7 +763,18 @@ INTAKE CALCULATION:
     ║  - Use the value normally for volume calculation.                    ║
     ║  - NEVER claim "missing grain capacity" if the value exists.        ║
     ╚═══════════════════════════════════════════════════════════════════════╝
-    
+
+  Step 2-DIMENSIONS — Dimensions mode (project cargo / breakbulk):
+    If vessel.intakes[].cargo.measurement_mode == "dimensions":
+      → Do NOT apply the STW formula above (stw_value is null by design).
+      → Use vessel.intakes[].cargo.dimensions (free text) for intake
+        estimation of project / breakbulk cargo.
+      → Compare with vessel hold dimensions from custom_attributes
+        (slugs: hold-dimm, hatch-dimm) to assess physical fit.
+      → Example: cargo.dimensions = "40x20x10m bags, stackable max 3 high"
+        → P5 reasoning: "Using reported cargo dimensions for breakbulk
+          intake; STW formula not applicable (project cargo)."
+
   Step 3 — Draft-limited intake (if port has draft restriction):
     → Reduce intake based on restricted draft vs vessel summer draft
     → This is handled IN P5, not P8
@@ -2249,21 +2409,52 @@ STEP 2 — CALCULATE VESSEL INTAKE
      ║    → P5 can score normally but note missing grain capacity          ║
      ╚═══════════════════════════════════════════════════════════════════════╝
 
+     STOWAGE FACTOR (SF) — CASCADE for data source:
+       1. vessel.intakes[].cargo.stw_value (per-vessel actual — HIGHEST priority,
+          confidence=high). Range like "54-55" → use midpoint.
+       2. vessel.intakes[].cargo.stw_defaults (first element — library default,
+          confidence=medium).
+       3. LLM estimate (typical market SF for cargo type/item — LOWEST priority,
+          confidence=low). Note in reasoning: "no vessel-specific STW data".
+
+     If vessel.intakes[].cargo.measurement_mode == "dimensions":
+       → Skip SF cascade entirely. Use cargo.dimensions (free text) for
+         project / breakbulk intake (see STEP 2.E below).
+
      volume_intake = grain_capacity / SF
-     
+
      grain_capacity = from vessel specs (cubic feet)
-     SF = Stowage Factor of the cargo (cubic feet per tonne)
-     
-     Common SF values:
+     SF = Stowage Factor of the cargo (cubic feet per tonne) — from cascade above
+
+     Common SF values (for LLM fallback only — Step C of cascade):
        Wheat: 46-48 cbft/t       Corn/Maize: 47-50 cbft/t
        Barley: 49-53 cbft/t      Soybeans: 48-50 cbft/t
        Cement: 28-30 cbft/t      Coal: 42-48 cbft/t
        Fertilizer (urea): 42-45  Sugar: 38-42 cbft/t
        Steel products: 15-25     Rice: 42-52 cbft/t
-       
+
      If grain_capacity = 0 or null → skip volume check, apply rules above
      If SF not available → skip volume check
-     
+
+  E) DIMENSIONS-MODE INTAKE (project cargo / breakbulk — no SF formula):
+
+     APPLIES WHEN: vessel.intakes[].cargo.measurement_mode == "dimensions"
+                   (cargo.stw_value is null by design; cargo.dimensions has text)
+
+     Do NOT apply the SF-based volume_intake formula. Instead:
+       - Read cargo.dimensions (free text, e.g. "40x20x10m bags, stackable
+         max 3 high" or "project piece 18m long, 60t unit").
+       - Compare against vessel hold dimensions from custom_attributes:
+           hold-dimm   (hold L x B x D)
+           hatch-dimm  (hatch opening L x B)
+         to assess physical fit.
+       - Estimate intake based on reported density / piece count / stacking.
+       - P5 reasoning MUST state: "Using reported cargo dimensions for
+         breakbulk intake; STW formula not applicable (project cargo)."
+
+     If vessel hold dimensions are missing (not in custom_attributes):
+       → confidence = "low"; ask in offer: "sub her hold dimensions approval"
+
   C) DRAFT-RESTRICTED INTAKE (when port or cargo has draft restriction):
   
      DRAFT RESTRICTION SOURCES (use the MORE restrictive value):
@@ -11856,6 +12047,178 @@ Trigger Event → Validation → Batching Queue → Priority Sort →
 
 
 
+
+
+--- START OF estimator-prompts/VESSEL_FIELDS_ADDENDUM.txt ---
+################################################################################
+#  VESSEL FIELDS ADDENDUM
+#  Version: 2.0 | Date: 2026-04-24
+#
+#  Addendum to SECTION 1 (VESSEL JSON FIELD MAPPING) in VESSEL_ESTIMATION.txt.
+#  Documents fields that exist in MongoDB vessel_documents / vessels_estimation
+#  but were not previously documented.
+#
+#  v2.0 changes (post-TZ_INTAKE 2026-04-22):
+#    - INTAKES block: OLD cargo_types[] shape replaced with NEW cargo object shape
+#      (id, display_name, measurement_mode, stw_value, stw_defaults, dimensions).
+#    - NEW section CARGO PREFERENCES added (P3 scoring input).
+################################################################################
+
+SECTION V-ADDENDUM — UNDOCUMENTED FIELDS
+══════════════════════════════════════════════════════════════════════
+
+OPEN AREA (correction to SECTION 1:205):
+  The field "open_area" is NOT a string — it is an OBJECT or null:
+    {
+      "name": "N.SPAIN",
+      "start_at": ISODate,
+      "end_at": ISODate,
+      "updated_at": ISODate,
+      "comments": ["Cargo: DRY/PROJECTS/BREAKBULK", ...]
+    }
+
+  Usage:
+    - Use "name" for P1 proximity check
+    - Use "start_at/end_at" for P7 readiness
+    - Parse "comments" array via Comments Processing Guide (P6)
+
+TRADING RESTRICTIONS:
+  Field: "trading_restrictions" (array)
+  Structure: [{geo_name, action, notes}, ...]
+
+  Usage:
+    - Use in P8 for geographical blocks
+    - "action" values: "block", "require_confirmation", "avoid"
+    - Example: {geo_name: "Iran", action: "block"} → cargo to IR port = BLOCK
+
+INTAKES (post-TZ_INTAKE 2026-04-22 — NEW SHAPE):
+  Field: "intakes" (array)
+  Structure: [
+    {
+      "dwt_value": int (nullable),
+      "cargo": {                         ← single object, NOT array of cargo_types
+        "id": int,                       ← cargos_catalog.id
+        "display_name": string,          ← "cargo_type - cargo_item" (e.g. "grain - WHEAT")
+        "cargo_type": string|null,       ← catalog type (e.g. "grain")
+        "cargo_item": string|null,       ← catalog item (e.g. "WHEAT")
+        "measurement_mode": "stw"|"dimensions",
+        "stw_value": string|null,        ← per-vessel actual STW (e.g. "46" or "54-55")
+        "stw_defaults": [string]|null,   ← library defaults from cargos_catalog
+        "dimensions": string|null        ← free text when measurement_mode='dimensions'
+      } OR null,
+      "geo_names": [string],             ← merged ports/regions/countries/seas
+      "notes": string|null,
+      "created_at": ISODate
+    }
+  ]
+
+  Usage for P5 intake_capacity:
+    Step A — per-vessel actual STW override (HIGHEST PRIORITY):
+      If cargo.stw_value is set → stw = cargo.stw_value
+        (example "46"; may be range like "54-55" — use midpoint)
+        → confidence = "high" (from actual vessel history)
+    Step B — library default STW:
+      Elif cargo.stw_defaults is non-empty → stw = first of stw_defaults
+        → confidence = "medium" (catalog default for this cargo)
+    Step C — LLM knowledge fallback:
+      Else → stw = LLM estimate (market-typical for cargo_type/cargo_item)
+        → confidence = "low", note in reasoning:
+          "no vessel-specific STW data, using general market knowledge"
+    Then: volume_intake = grain_capacity_cbft / stw
+
+  Usage when measurement_mode == "dimensions":
+    → Do NOT apply STW formula (stw_value would be null).
+    → Use cargo.dimensions (free text) for project cargo / breakbulk.
+    → Compare with vessel hold dimensions from custom_attributes
+      (slugs: hold-dimm, hatch-dimm) to assess physical fit.
+    → Example: cargo.dimensions = "40x20x10m bags, stackable max 3 high"
+      → P5 reasoning: "Using reported cargo dimensions for breakbulk intake;
+        no STW applicable (project cargo)."
+
+  Backward compatibility (short transition window):
+    → If a legacy document still has intakes[].cargo_types (array of strings)
+      and no cargo object → treat as missing STW data, cascade straight to
+      Step C (LLM estimate) and note in reasoning that data is pre-TZ_INTAKE.
+      This path should disappear after full resync.
+
+CARGO PREFERENCES (post-TZ_INTAKE 2026-04-22 — NEW SECTION):
+  Field: "cargo_preferences" (array)
+  Structure: [
+    {
+      "cargo_catalog_id": int,
+      "cargo_display_name": string,      ← e.g. "BARLEY" or "grain - SBM"
+      "cargo_type": string|null,
+      "cargo_item": string|null,
+      "preference_setting_id": int,
+      "preference_setting_name": string, ← e.g. "Preferred" | "Neutral" | "Blocked" | "Avoid"
+      "source": "manual" | "snapshot"    ← manual = per-vessel rule, snapshot = inherited
+    }
+  ]
+
+  Usage for P3 cargo_preferences scoring:
+
+    PRIORITY RULE (when same cargo_catalog_id appears multiple times):
+      source = "manual"   → HIGHEST priority (owner explicitly set this rule)
+      source = "snapshot" → MEDIUM priority (inherited group-level rule)
+      When both exist for the same cargo → manual overrides snapshot.
+
+    SCORING:
+      Current cargo matches CARGO PREFERENCES with "Preferred"
+        → +25 points for P3
+        → reasoning: "vessel owner marked {cargo} as preferred"
+      Current cargo matches with "Blocked" or "Avoid"
+        → -30 points
+        → decision = "blocked", critical = true
+        → reasoning: "vessel owner marked {cargo} as blocked/avoid"
+      Current cargo matches with "Neutral"
+        → 0 points (no bonus, no penalty)
+        → note in reasoning: "cargo flagged as neutral in vessel preferences"
+      Current cargo NOT in cargo_preferences
+        → 0 points
+        → fall back to general market knowledge for P3 scoring
+        → reasoning: "no vessel-specific preference, using general knowledge"
+
+    MATCHING RULES (in order of precedence):
+      1. Match by cargo_catalog_id exactly when cargo snapshot has cargo_catalog_id.
+      2. Match by display_name case-insensitive when no cargo_catalog_id.
+      3. Match by cargo_type when preference specifies type-level only
+         (cargo_item = null) — this covers rules like "all steels", "all grain".
+
+CUSTOM PROMPTS:
+  Fields: "companies[].custom_prompt", "people[].custom_prompt"
+
+  Usage:
+    - If company.custom_prompt set → treat as system-level override for this company's offers
+    - If person.custom_prompt set → personalize offer text for this person
+    - Empty/null → ignore, use standard templates
+
+PERSON LOCATION & NATIONALITY:
+  Fields: "people[].location", "people[].nationality"
+
+  Usage for RECIPIENT_LOCAL_TIME (timezone greeting):
+    Priority 1: location (actual physical location, e.g. "Istanbul")
+    Priority 2: nationality (home country timezone, e.g. "turkish" → Istanbul)
+    Priority 3: vessel.flag (vessel country)
+    Priority 4: skip timezone hint, default greeting
+
+BIRTHDAY GREETINGS:
+  Field: "people[].birthday" (UTCDateTime, day+month only — year=0)
+
+  Usage in offer:
+    - If person.birthday month-day matches TODAY (UTC or recipient TZ) → prepend
+      one-line greeting: "hbd {first_name}! wishing you well." THEN main body.
+    - If birthday is tomorrow → optionally soft: "almost yr bday, great timing!" (rare use)
+    - If birthday is null or not today → DO NOT mention, DO NOT fabricate
+
+COMPANY PREFERENCES (computed by Laravel, derived from comments):
+  Field: "companies[].preferences" (object)
+  Known keys:
+    - "no_poc" (bool) — if true, owner refuses POC region cargo (Pivdennyi+Odessa+Chornomorsk)
+
+  Usage:
+    - If preferences.no_poc=true AND cargo in POC → P2 BLOCK (stronger than RULE 11 text parsing)
+    - If preferences.no_poc=false AND owner comment contains "no odessa" → still apply RULE 11
+    - This is an OPTIMIZATION over RULE 11 text parsing (less error-prone)
 
 
 --- START OF estimator-prompts/output_json_object_format.txt ---
